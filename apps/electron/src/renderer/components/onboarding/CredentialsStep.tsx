@@ -7,8 +7,10 @@
 
 import { useEffect, useState } from "react"
 import { Check, ExternalLink } from "lucide-react"
+import { useTranslation } from "react-i18next"
 import type { ApiSetupMethod } from "./APISetupStep"
 import { StepFormLayout, BackButton, ContinueButton } from "./primitives"
+import { getCredentialsLabels } from './labels'
 import {
   ApiKeyInput,
   type ApiKeyStatus,
@@ -46,6 +48,8 @@ export function CredentialsStep({
   onCancelOAuth,
   copilotDeviceCode,
 }: CredentialsStepProps) {
+  const { t } = useTranslation(['onboarding'])
+  const labels = getCredentialsLabels(t)
   const isClaudeOAuth = apiSetupMethod === 'claude_oauth'
   const isChatGptOAuth = apiSetupMethod === 'chatgpt_oauth'
   const isCopilotOAuth = apiSetupMethod === 'copilot_oauth'
@@ -187,18 +191,22 @@ export function CredentialsStep({
     if (isWaitingForCode) {
       return (
         <StepFormLayout
-          title="Enter Authorization Code"
-          description="Copy the code from the browser page and paste it below."
+          title={t('onboarding:credentials.oauthCode.title')}
+          description={t('onboarding:credentials.oauthCode.description')}
           actions={
             <>
-              <BackButton onClick={onCancelOAuth} disabled={status === 'validating'}>Cancel</BackButton>
+              <BackButton onClick={onCancelOAuth} disabled={status === 'validating'}>
+                {t('onboarding:credentials.oauthCode.cancel')}
+              </BackButton>
               <ContinueButton
                 type="submit"
                 form="auth-code-form"
                 disabled={false}
                 loading={status === 'validating'}
-                loadingText="Connecting..."
-              />
+                loadingText={t('onboarding:credentials.oauthCode.loading')}
+              >
+                {labels.continue}
+              </ContinueButton>
             </>
           }
         >
@@ -216,19 +224,19 @@ export function CredentialsStep({
 
     return (
       <StepFormLayout
-        title="Connect Claude Account"
-        description="Use your Claude subscription to power multi-agent workflows."
+        title={t('onboarding:credentials.oauthConnect.title')}
+        description={t('onboarding:credentials.oauthConnect.description')}
         actions={
           <>
-            <BackButton onClick={onBack} disabled={status === 'validating'} />
+            <BackButton onClick={onBack} disabled={status === 'validating'}>{labels.back}</BackButton>
             <ContinueButton
-              onClick={() => onStartOAuth?.()}
+              onClick={onStartOAuth}
               className="gap-2"
               loading={status === 'validating'}
-              loadingText="Connecting..."
+              loadingText={t('onboarding:credentials.oauthConnect.loading')}
             >
               <ExternalLink className="size-4" />
-              Sign in with Claude
+              {t('onboarding:credentials.oauthConnect.button')}
             </ContinueButton>
           </>
         }
@@ -248,24 +256,23 @@ export function CredentialsStep({
   // --- API Key flow ---
   // Determine provider type and description based on selected method
   const providerType = isOpenAiApiKey ? 'openai' : 'anthropic'
-  const apiKeyDescription = isOpenAiApiKey
-    ? "Enter your OpenAI API key."
-    : "Enter your API key. Optionally configure a custom endpoint for OpenRouter, Ollama, or compatible APIs."
 
   return (
     <StepFormLayout
-      title="API Configuration"
-      description={apiKeyDescription}
+      title={t('onboarding:credentials.apiKey.title')}
+      description={t('onboarding:credentials.apiKey.description')}
       actions={
         <>
-          <BackButton onClick={onBack} disabled={status === 'validating'} />
+          <BackButton onClick={onBack} disabled={status === 'validating'}>{labels.back}</BackButton>
           <ContinueButton
             type="submit"
             form="api-key-form"
             disabled={false}
             loading={status === 'validating'}
-            loadingText="Validating..."
-          />
+            loadingText={t('onboarding:credentials.apiKey.loading')}
+          >
+            {labels.continue}
+          </ContinueButton>
         </>
       }
     >
@@ -274,6 +281,15 @@ export function CredentialsStep({
         errorMessage={errorMessage}
         onSubmit={onSubmit}
         providerType={providerType}
+        customModelDefaultHint={labels.customModelDefaultHint}
+        nonClaudeHint={labels.nonClaudeHint}
+        modelFormatPrefix={labels.formatPrefix}
+        browseModelsLabel={labels.browseModels}
+        viewSupportedModelsLabel={labels.viewSupportedModels}
+        ollamaHint={labels.ollamaHint}
+        customModelLabel={labels.customModelLabel}
+        optionalLabel={labels.optional}
+        customPresetLabel={labels.customPreset}
       />
     </StepFormLayout>
   )

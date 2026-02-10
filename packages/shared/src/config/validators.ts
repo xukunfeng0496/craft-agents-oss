@@ -90,6 +90,7 @@ export const StoredConfigSchema = z.object({
   activeSessionId: z.string().nullable(),
   llmConnections: z.array(LlmConnectionSchema).optional(),
   defaultLlmConnection: z.string().optional(),
+  language: z.string().optional(),
   // Note: tokenDisplay, showCost, cumulativeUsage, defaultPermissionMode removed
   // Permission mode and cyclable modes are now per-workspace in workspace config.json
 });

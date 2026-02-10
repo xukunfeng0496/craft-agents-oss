@@ -12,7 +12,7 @@ import { registerOnboardingHandlers } from './onboarding'
 import { IPC_CHANNELS, type FileAttachment, type StoredAttachment, type SendMessageOptions, type LlmConnectionSetup } from '../shared/types'
 import { readFileAttachment, perf, validateImageForClaudeAPI, IMAGE_LIMITS } from '@craft-agent/shared/utils'
 import { safeJsonParse } from '@craft-agent/shared/utils/files'
-import { getPreferencesPath, getSessionDraft, setSessionDraft, deleteSessionDraft, getAllSessionDrafts, getWorkspaceByNameOrId, addWorkspace, setActiveWorkspace, loadStoredConfig, saveConfig, type Workspace, getLlmConnections, getLlmConnection, addLlmConnection, updateLlmConnection, deleteLlmConnection, getDefaultLlmConnection, setDefaultLlmConnection, touchLlmConnection, isCompatProvider, isAnthropicProvider, isOpenAIProvider, isCopilotProvider, getDefaultModelsForConnection, getDefaultModelForConnection, type LlmConnection, type LlmConnectionWithStatus, getGitBashPath, setGitBashPath, clearGitBashPath } from '@craft-agent/shared/config'
+import { getPreferencesPath, getSessionDraft, setSessionDraft, deleteSessionDraft, getAllSessionDrafts, getWorkspaceByNameOrId, addWorkspace, setActiveWorkspace, loadStoredConfig, saveConfig, type Workspace, getLlmConnections, getLlmConnection, addLlmConnection, updateLlmConnection, deleteLlmConnection, getDefaultLlmConnection, setDefaultLlmConnection, touchLlmConnection, isCompatProvider, isAnthropicProvider, isOpenAIProvider, isCopilotProvider, getDefaultModelsForConnection, getDefaultModelForConnection, type LlmConnection, type LlmConnectionWithStatus, getGitBashPath, setGitBashPath, clearGitBashPath, getAppLanguage, setAppLanguage } from '@craft-agent/shared/config'
 import { getSessionAttachmentsPath, validateSessionId } from '@craft-agent/shared/sessions'
 import { loadWorkspaceSources, getSourcesBySlugs, type LoadedSource } from '@craft-agent/shared/sources'
 import { isValidThinkingLevel } from '@craft-agent/shared/agent/thinking-levels'
@@ -21,6 +21,13 @@ import { AppServerClient, getCodexPath } from '@craft-agent/shared/codex'
 import type { ModelDefinition } from '@craft-agent/shared/config'
 import { MarkItDown } from 'markitdown-js'
 import { isUsableGitBashPath, validateGitBashPath } from './git-bash'
+import { getMainI18n } from './i18n'
+import {
+  buildDeleteSessionDialogOptions,
+  buildGitBashBrowseDialogOptions,
+  buildLogoutDialogOptions,
+  buildOpenFolderDialogOptions,
+} from './i18n-labels'
 
 /**
  * Sanitizes a filename to prevent path traversal and filesystem issues.
@@ -485,7 +492,7 @@ export function registerIpcHandlers(sessionManager: SessionManager, windowManage
   // Create a new workspace at a folder path (Obsidian-style: folder IS the workspace)
   ipcMain.handle(IPC_CHANNELS.CREATE_WORKSPACE, async (_event, folderPath: string, name: string) => {
     const rootPath = folderPath
-    const workspace = addWorkspace({ name, rootPath })
+    const workspace = addWorkspace({ name, rootPath }, getAppLanguage() ?? undefined)
     // Make it active
     setActiveWorkspace(workspace.id)
     ipcLog.info(`Created workspace "${name}" at ${rootPath}`)
@@ -541,6 +548,14 @@ export function registerIpcHandlers(sessionManager: SessionManager, windowManage
   // Close the calling window (triggers close event which may be intercepted)
   ipcMain.handle(IPC_CHANNELS.CLOSE_WINDOW, (event) => {
     windowManager.closeWindow(event.sender.id)
+  })
+
+  ipcMain.handle(IPC_CHANNELS.GET_APP_LANGUAGE, () => {
+    return getAppLanguage()
+  })
+
+  ipcMain.handle(IPC_CHANNELS.SET_APP_LANGUAGE, (_event, language: string) => {
+    setAppLanguage(language)
   })
 
   // Confirm close - force close the window (bypasses interception).
@@ -995,43 +1010,37 @@ export function registerIpcHandlers(sessionManager: SessionManager, windowManage
             throw new Error(validation.error)
           }
 
-          // If resize is needed (either recommended or required), do it now
+          // If resize is recommended, do it now
           if (shouldResize && targetSize) {
             ipcLog.info(`Resizing image from ${imageSize.width}×${imageSize.height} to ${targetSize.width}×${targetSize.height}`)
 
-            try {
-              const resized = image.resize({
-                width: targetSize.width,
-                height: targetSize.height,
-                quality: 'best',
-              })
+            const resized = image.resize({
+              width: targetSize.width,
+              height: targetSize.height,
+              quality: 'best',
+            })
 
-              // Get as PNG for best quality (or JPEG for photos to save space)
-              const isPhoto = attachment.mimeType === 'image/jpeg'
-              decoded = isPhoto ? resized.toJPEG(IMAGE_LIMITS.JPEG_QUALITY_HIGH) : resized.toPNG()
-              wasResized = true
+            // Get as PNG for best quality (or JPEG for photos to save space)
+            const isPhoto = attachment.mimeType === 'image/jpeg'
+            decoded = isPhoto ? resized.toJPEG(90) : resized.toPNG()
+            wasResized = true
+            finalSize = decoded.length
+
+            // Re-validate final size after resize (should be much smaller)
+            if (decoded.length > IMAGE_LIMITS.MAX_SIZE) {
+              // Even after resize it's too big - try more aggressive compression
+              decoded = resized.toJPEG(75)
               finalSize = decoded.length
-
-              // Re-validate final size after resize (should be much smaller)
               if (decoded.length > IMAGE_LIMITS.MAX_SIZE) {
-                // Even after resize it's too big - try more aggressive compression
-                decoded = resized.toJPEG(IMAGE_LIMITS.JPEG_QUALITY_FALLBACK)
-                finalSize = decoded.length
-                if (decoded.length > IMAGE_LIMITS.MAX_SIZE) {
-                  throw new Error(`Image still too large after resize (${(decoded.length / 1024 / 1024).toFixed(1)}MB). Please use a smaller image.`)
-                }
+                throw new Error(`Image still too large after resize (${(decoded.length / 1024 / 1024).toFixed(1)}MB). Please use a smaller image.`)
               }
-
-              ipcLog.info(`Image resized: ${attachment.size} → ${finalSize} bytes (${Math.round((1 - finalSize / attachment.size) * 100)}% reduction)`)
-
-              // Store resized base64 to return to renderer
-              // This is used when sending to Claude API instead of original large base64
-              resizedBase64 = decoded.toString('base64')
-            } catch (resizeError) {
-              ipcLog.error('Image resize failed:', resizeError)
-              const reason = resizeError instanceof Error ? resizeError.message : String(resizeError)
-              throw new Error(`Image too large (${imageSize.width}×${imageSize.height}) and automatic resize failed: ${reason}. Please manually resize it before attaching.`)
             }
+
+            ipcLog.info(`Image resized: ${attachment.size} → ${finalSize} bytes (${Math.round((1 - finalSize / attachment.size) * 100)}% reduction)`)
+
+            // Store resized base64 to return to renderer
+            // This is used when sending to Claude API instead of original large base64
+            resizedBase64 = decoded.toString('base64')
           }
         }
 
@@ -1223,12 +1232,9 @@ export function registerIpcHandlers(sessionManager: SessionManager, windowManage
     const win = BrowserWindow.fromWebContents(event.sender)
     if (!win) return null
 
-    const result = await dialog.showOpenDialog(win, {
-      title: 'Select bash.exe',
-      filters: [{ name: 'Executable', extensions: ['exe'] }],
-      properties: ['openFile'],
-      defaultPath: 'C:\\Program Files\\Git\\bin',
-    })
+    const { t } = await getMainI18n(['dialogs'])
+
+    const result = await dialog.showOpenDialog(win, buildGitBashBrowseDialogOptions(t))
 
     if (result.canceled || result.filePaths.length === 0) {
       return null
@@ -1516,15 +1522,8 @@ export function registerIpcHandlers(sessionManager: SessionManager, windowManage
   // Show logout confirmation dialog
   ipcMain.handle(IPC_CHANNELS.SHOW_LOGOUT_CONFIRMATION, async () => {
     const window = BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0]
-    const result = await dialog.showMessageBox(window, {
-      type: 'warning',
-      buttons: ['Cancel', 'Log Out'],
-      defaultId: 0,
-      cancelId: 0,
-      title: 'Log Out',
-      message: 'Are you sure you want to log out?',
-      detail: 'All conversations will be deleted. This action cannot be undone.',
-    } as Electron.MessageBoxOptions)
+    const { t } = await getMainI18n(['dialogs'])
+    const result = await dialog.showMessageBox(window, buildLogoutDialogOptions(t))
     // result.response is the index of the clicked button
     // 0 = Cancel, 1 = Log Out
     return result.response === 1
@@ -1533,15 +1532,8 @@ export function registerIpcHandlers(sessionManager: SessionManager, windowManage
   // Show delete session confirmation dialog
   ipcMain.handle(IPC_CHANNELS.SHOW_DELETE_SESSION_CONFIRMATION, async (_event, name: string) => {
     const window = BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0]
-    const result = await dialog.showMessageBox(window, {
-      type: 'warning',
-      buttons: ['Cancel', 'Delete'],
-      defaultId: 0,
-      cancelId: 0,
-      title: 'Delete Conversation',
-      message: `Are you sure you want to delete: "${name}"?`,
-      detail: 'This action cannot be undone.',
-    } as Electron.MessageBoxOptions)
+    const { t } = await getMainI18n(['dialogs'])
+    const result = await dialog.showMessageBox(window, buildDeleteSessionDialogOptions(t, name))
     // result.response is the index of the clicked button
     // 0 = Cancel, 1 = Delete
     return result.response === 1
@@ -1944,10 +1936,8 @@ export function registerIpcHandlers(sessionManager: SessionManager, windowManage
 
   // Open native folder dialog for selecting working directory
   ipcMain.handle(IPC_CHANNELS.OPEN_FOLDER_DIALOG, async () => {
-    const result = await dialog.showOpenDialog({
-      properties: ['openDirectory', 'createDirectory'],
-      title: 'Select Working Directory',
-    })
+    const { t } = await getMainI18n(['dialogs'])
+    const result = await dialog.showOpenDialog(buildOpenFolderDialogOptions(t))
     return result.canceled ? null : result.filePaths[0]
   })
 
@@ -3233,16 +3223,16 @@ export function registerIpcHandlers(sessionManager: SessionManager, windowManage
   // Skills (Workspace-scoped)
   // ============================================================
 
-  // Get all skills for a workspace (and optionally project-level skills from workingDirectory)
-  ipcMain.handle(IPC_CHANNELS.SKILLS_GET, async (_event, workspaceId: string, workingDirectory?: string) => {
-    ipcLog.info(`SKILLS_GET: Loading skills for workspace: ${workspaceId}${workingDirectory ? `, workingDirectory: ${workingDirectory}` : ''}`)
+  // Get all skills for a workspace
+  ipcMain.handle(IPC_CHANNELS.SKILLS_GET, async (_event, workspaceId: string) => {
+    ipcLog.info(`SKILLS_GET: Loading skills for workspace: ${workspaceId}`)
     const workspace = getWorkspaceByNameOrId(workspaceId)
     if (!workspace) {
       ipcLog.error(`SKILLS_GET: Workspace not found: ${workspaceId}`)
       return []
     }
-    const { loadAllSkills } = await import('@craft-agent/shared/skills')
-    const skills = loadAllSkills(workspace.rootPath, workingDirectory)
+    const { loadWorkspaceSkills } = await import('@craft-agent/shared/skills')
+    const skills = loadWorkspaceSkills(workspace.rootPath)
     ipcLog.info(`SKILLS_GET: Loaded ${skills.length} skills from ${workspace.rootPath}`)
     return skills
   })

@@ -3,6 +3,9 @@ import { cn } from "@/lib/utils"
 import { Check, CreditCard, Key, Cpu } from "lucide-react"
 import { StepFormLayout, BackButton, ContinueButton } from "./primitives"
 import type { LlmAuthType, LlmProviderType } from "@craft-agent/shared/config/llm-connections"
+import type { TFunction } from "i18next"
+import { useTranslation } from "react-i18next"
+import { getApiSetupLabels } from './labels'
 
 /** Provider segment for the segmented control */
 export type ProviderSegment = 'anthropic' | 'openai' | 'copilot'
@@ -69,6 +72,7 @@ interface ApiSetupOption {
   description: string
   icon: React.ReactNode
   providerType: LlmProviderType
+  recommended?: boolean
 }
 
 const API_SETUP_OPTIONS: ApiSetupOption[] = [
@@ -109,6 +113,47 @@ const API_SETUP_OPTIONS: ApiSetupOption[] = [
   },
 ]
 
+function getApiSetupOptions(t: TFunction): ApiSetupOption[] {
+  return [
+    {
+      id: 'claude_oauth',
+      name: t('onboarding:apiSetup.options.claude.name'),
+      description: t('onboarding:apiSetup.options.claude.description'),
+      icon: <CreditCard className="size-4" />,
+      providerType: 'anthropic',
+      recommended: true,
+    },
+    {
+      id: 'anthropic_api_key',
+      name: t('onboarding:apiSetup.options.apiKey.name'),
+      description: t('onboarding:apiSetup.options.apiKey.description'),
+      icon: <Key className="size-4" />,
+      providerType: 'anthropic',
+    },
+    {
+      id: 'chatgpt_oauth',
+      name: 'Codex · ChatGPT Plus/Pro',
+      description: 'Use your ChatGPT Plus or Pro subscription with Codex.',
+      icon: <Cpu className="size-4" />,
+      providerType: 'openai',
+    },
+    {
+      id: 'openai_api_key',
+      name: 'Codex · OpenAI API Key',
+      description: 'Pay-as-you-go via the OpenAI Platform API.',
+      icon: <Key className="size-4" />,
+      providerType: 'openai',
+    },
+    {
+      id: 'copilot_oauth',
+      name: 'Copilot · GitHub',
+      description: 'Use your GitHub Copilot subscription.',
+      icon: <Cpu className="size-4" />,
+      providerType: 'copilot',
+    },
+  ]
+}
+
 interface APISetupStepProps {
   selectedMethod: ApiSetupMethod | null
   onSelect: (method: ApiSetupMethod) => void
@@ -125,10 +170,12 @@ function OptionButton({
   option,
   isSelected,
   onSelect,
+  recommendedLabel,
 }: {
   option: ApiSetupOption
   isSelected: boolean
   onSelect: (method: ApiSetupMethod) => void
+  recommendedLabel?: string
 }) {
   return (
     <button
@@ -156,6 +203,11 @@ function OptionButton({
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
           <span className="font-medium text-sm">{option.name}</span>
+          {option.recommended && recommendedLabel && (
+            <span className="rounded-[4px] bg-background shadow-minimal px-2 py-0.5 text-[11px] font-medium text-foreground/70">
+              {recommendedLabel}
+            </span>
+          )}
         </div>
         <p className="mt-1 text-xs text-muted-foreground">
           {option.description}
@@ -224,10 +276,13 @@ export function APISetupStep({
   onBack,
   initialSegment = 'anthropic',
 }: APISetupStepProps) {
+  const { t } = useTranslation(['onboarding'])
+  const labels = getApiSetupLabels(t)
+  const options = getApiSetupOptions(t)
   const [activeSegment, setActiveSegment] = useState<ProviderSegment>(initialSegment)
 
   // Filter options based on active segment
-  const filteredOptions = API_SETUP_OPTIONS.filter(o => o.providerType === activeSegment)
+  const filteredOptions = options.filter(o => o.providerType === activeSegment)
 
   // Handle segment change - clear selection if it doesn't belong to new segment
   const handleSegmentChange = (segment: ProviderSegment) => {
@@ -238,12 +293,12 @@ export function APISetupStep({
 
   return (
     <StepFormLayout
-      title="Set up your Agent"
-      description={<>Select how you'd like to power your AI agents.<br />You can add more connections later.</>}
+      title={labels.title}
+      description={labels.description}
       actions={
         <>
-          <BackButton onClick={onBack} />
-          <ContinueButton onClick={onContinue} disabled={!selectedMethod} />
+          <BackButton onClick={onBack}>{labels.back}</BackButton>
+          <ContinueButton onClick={onContinue} disabled={!selectedMethod}>{labels.continue}</ContinueButton>
         </>
       }
     >
@@ -268,6 +323,7 @@ export function APISetupStep({
             option={option}
             isSelected={option.id === selectedMethod}
             onSelect={onSelect}
+            recommendedLabel={labels.recommended}
           />
         ))}
       </div>

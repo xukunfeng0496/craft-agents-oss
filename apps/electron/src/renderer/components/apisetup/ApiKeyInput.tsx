@@ -44,6 +44,24 @@ export interface ApiKeyInputProps {
   disabled?: boolean
   /** Provider type determines which presets and placeholders to show */
   providerType?: 'anthropic' | 'openai'
+  /** Localized helper text for custom model default behavior */
+  customModelDefaultHint?: string
+  /** Localized helper text for non-Claude model guidance */
+  nonClaudeHint?: string
+  /** Localized helper prefix for model format */
+  modelFormatPrefix?: string
+  /** Localized link label for OpenRouter models */
+  browseModelsLabel?: string
+  /** Localized link label for provider supported models */
+  viewSupportedModelsLabel?: string
+  /** Localized helper text for Ollama model guidance */
+  ollamaHint?: string
+  /** Localized label for model field */
+  customModelLabel?: string
+  /** Localized text for optional marker */
+  optionalLabel?: string
+  /** Localized text for custom preset */
+  customPresetLabel?: string
 }
 
 // Preset key includes both provider defaults ('anthropic', 'openai') and third-party services
@@ -63,6 +81,15 @@ const ANTHROPIC_PRESETS: Preset[] = [
   { key: 'ollama', label: 'Ollama', url: 'http://localhost:11434' },
   { key: 'custom', label: 'Custom', url: '' },
 ]
+
+export function getPresetTriggerLabel(activePreset: PresetKey, customPresetLabel?: string): string {
+  const selected = ANTHROPIC_PRESETS.find((p) => p.key === activePreset)
+  if (!selected) return ANTHROPIC_PRESETS[0].label
+  if (selected.key === 'custom') return customPresetLabel ?? selected.label
+  return selected.label
+}
+
+const PRESETS = ANTHROPIC_PRESETS
 
 // OpenAI provider presets - for Codex backend
 // Only direct OpenAI is supported; 3PP providers (OpenRouter, Vercel, Ollama) should be
@@ -97,6 +124,15 @@ export function ApiKeyInput({
   formId = "api-key-form",
   disabled,
   providerType = 'anthropic',
+  customModelDefaultHint,
+  nonClaudeHint,
+  modelFormatPrefix,
+  browseModelsLabel,
+  viewSupportedModelsLabel,
+  ollamaHint,
+  customModelLabel,
+  optionalLabel,
+  customPresetLabel,
 }: ApiKeyInputProps) {
   // Get presets based on provider type
   const presets = getPresetsForProvider(providerType)
@@ -220,7 +256,7 @@ export function ApiKeyInput({
               disabled={isDisabled}
               className="flex h-6 items-center gap-1 rounded-[6px] bg-background shadow-minimal pl-2.5 pr-2 text-[12px] font-medium text-foreground/50 hover:bg-foreground/5 hover:text-foreground focus:outline-none"
             >
-              {presets.find(p => p.key === activePreset)?.label}
+              {getPresetTriggerLabel(activePreset, customPresetLabel)}
               <ChevronDown className="size-2.5 opacity-50" />
             </DropdownMenuTrigger>
             <StyledDropdownMenuContent align="end" className="z-floating-menu">
@@ -230,7 +266,7 @@ export function ApiKeyInput({
                   onClick={() => handlePresetSelect(preset)}
                   className="justify-between"
                 >
-                  {preset.label}
+                  {preset.key === 'custom' ? (customPresetLabel ?? preset.label) : preset.label}
                   <Check className={cn("size-3", activePreset === preset.key ? "opacity-100" : "opacity-0")} />
                 </StyledDropdownMenuItem>
               ))}
@@ -293,32 +329,36 @@ export function ApiKeyInput({
           {/* Contextual help links for providers that need model format guidance */}
           {activePreset === 'openrouter' && (
             <p className="text-xs text-foreground/30">
-              Required for OpenRouter-compatible endpoints.
+              {nonClaudeHint ?? 'Leave empty for Claude models. Only set for non-Claude models.'}
               <br />
-              Format: <code className="text-foreground/40">provider/model-name</code>.{' '}
+              {modelFormatPrefix ?? 'Format:'} <code className="text-foreground/40">provider/model-name</code>.{' '}
               <a href="https://openrouter.ai/models" target="_blank" rel="noopener noreferrer" className="text-foreground/50 underline hover:text-foreground/70">
-                Browse models
+                {browseModelsLabel ?? 'Browse models'}
               </a>
             </p>
           )}
           {activePreset === 'vercel' && (
             <p className="text-xs text-foreground/30">
-              Required for Vercel AI Gateway endpoints.
+              {nonClaudeHint ?? 'Leave empty for Claude models. Only set for non-Claude models.'}
               <br />
-              Format: <code className="text-foreground/40">provider/model-name</code>.{' '}
+              {modelFormatPrefix ?? 'Format:'} <code className="text-foreground/40">provider/model-name</code>.{' '}
               <a href="https://vercel.com/docs/ai-gateway" target="_blank" rel="noopener noreferrer" className="text-foreground/50 underline hover:text-foreground/70">
-                View supported models
+                {viewSupportedModelsLabel ?? 'View supported models'}
               </a>
             </p>
           )}
           {activePreset === 'ollama' && (
             <p className="text-xs text-foreground/30">
-              Use any model pulled via <code className="text-foreground/40">ollama pull</code>. No API key required.
+              {ollamaHint ?? (
+                <>
+                  Use any model pulled via <code className="text-foreground/40">ollama pull</code>. No API key required.
+                </>
+              )}
             </p>
           )}
           {(activePreset === 'custom' || !activePreset) && (
             <p className="text-xs text-foreground/30">
-              Required for custom endpoints. Use the provider-specific model ID.
+              {customModelDefaultHint ?? 'Defaults to Anthropic model names (Opus, Sonnet, Haiku) when empty'}
             </p>
           )}
         </div>

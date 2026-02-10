@@ -39,6 +39,14 @@ const APP_PERMISSIONS_DIR = join(CONFIG_DIR, 'permissions');
 let permissionsInitialized = false;
 
 /**
+ * Test-only reset hook for module-level initialization guard.
+ * Allows deterministic unit tests around first-run seeding behavior.
+ */
+export function __resetPermissionsInitializationForTests(): void {
+  permissionsInitialized = false;
+}
+
+/**
  * Get the app-level permissions directory.
  * Default permissions are stored at ~/.craft-agent/permissions/
  */
@@ -57,7 +65,22 @@ export function getAppPermissionsDir(): string {
  * User customizations in workspace/source permissions.json files
  * are never touched by this function.
  */
-export function ensureDefaultPermissions(): void {
+function resolveDefaultPermissionsTemplate(
+  bundledPermissionsDir: string,
+  language?: string,
+): string {
+  const isZhCN = language?.toLowerCase() === 'zh-cn'
+  const zhTemplate = join(bundledPermissionsDir, 'default.zh-CN.json')
+  const baseTemplate = join(bundledPermissionsDir, 'default.json')
+
+  if (isZhCN && existsSync(zhTemplate)) {
+    return zhTemplate
+  }
+
+  return baseTemplate
+}
+
+export function ensureDefaultPermissions(language?: string): void {
   // Skip if already initialized this session (prevents re-init on hot reload)
   if (permissionsInitialized) {
     return;

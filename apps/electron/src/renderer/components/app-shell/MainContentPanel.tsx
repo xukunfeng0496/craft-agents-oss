@@ -18,6 +18,7 @@
 import * as React from 'react'
 import { useCallback, useMemo } from 'react'
 import { useAtomValue } from 'jotai'
+import { useTranslation } from 'react-i18next'
 import { Panel } from './Panel'
 import { MultiSelectPanel } from './MultiSelectPanel'
 import { useAppShellContext } from '@/context/AppShellContext'
@@ -36,6 +37,7 @@ import type { SessionStatusId } from '@/config/session-status-config'
 import { SourceInfoPage, ChatPage } from '@/pages'
 import SkillInfoPage from '@/pages/SkillInfoPage'
 import { getSettingsPageComponent } from '@/pages/settings/settings-pages'
+import { getMainContentLabels } from './main-content-labels'
 
 export interface MainContentPanelProps {
   /** Whether the app is in focused mode (single chat, no sidebar) */
@@ -48,6 +50,8 @@ export function MainContentPanel({
   isFocusedMode = false,
   className,
 }: MainContentPanelProps) {
+  const { t } = useTranslation(['common'])
+  const labels = getMainContentLabels(t)
   const navState = useNavigationState()
   const {
     activeWorkspaceId,
@@ -159,7 +163,7 @@ export function MainContentPanel({
     return wrapWithStoplight(
       <Panel variant="grow" className={className}>
         <div className="flex items-center justify-center h-full text-muted-foreground">
-          <p className="text-sm">No sources configured</p>
+          <p className="text-sm">{labels.noSourcesConfigured}</p>
         </div>
       </Panel>
     )
@@ -181,7 +185,7 @@ export function MainContentPanel({
     return wrapWithStoplight(
       <Panel variant="grow" className={className}>
         <div className="flex items-center justify-center h-full text-muted-foreground">
-          <p className="text-sm">No skills configured</p>
+          <p className="text-sm">{labels.noSkillsConfigured}</p>
         </div>
       </Panel>
     )
@@ -221,8 +225,8 @@ export function MainContentPanel({
         <div className="flex items-center justify-center h-full text-muted-foreground">
           <p className="text-sm">
             {navState.filter.kind === 'flagged'
-              ? 'No flagged conversations'
-              : 'No conversations yet'}
+              ? labels.noFlaggedConversations
+              : labels.noConversationsYet}
           </p>
         </div>
       </Panel>
@@ -233,7 +237,7 @@ export function MainContentPanel({
   return wrapWithStoplight(
     <Panel variant="grow" className={className}>
       <div className="flex items-center justify-center h-full text-muted-foreground">
-        <p className="text-sm">Select a conversation to get started</p>
+        <p className="text-sm">{labels.selectConversation}</p>
       </div>
     </Panel>
   )

@@ -18,7 +18,28 @@ import type {
   ApiSetupMethod,
 } from '@/components/onboarding'
 import type { ApiKeySubmitData } from '@/components/apisetup'
-import type { SetupNeeds, GitBashStatus, LlmConnectionSetup } from '../../shared/types'
+import type { AuthType, SetupNeeds, GitBashStatus, LlmConnectionSetup } from '../../shared/types'
+import { getRendererI18n } from '../i18n'
+
+function onboardingT(key: string, fallback: string): string {
+  return getRendererI18n()?.t(key) ?? fallback
+}
+
+type TranslationLookup = (key: string, fallback: string) => string
+
+export function mapApiConnectionErrorMessage(message: string, translate: TranslationLookup): string {
+  const normalized = message.trim().toLowerCase()
+
+  if (normalized === 'invalid api key') {
+    return translate('onboarding:credentials.apiKey.errors.invalid', 'Please enter a valid API key')
+  }
+
+  if (normalized === 'connection error.') {
+    return translate('onboarding:credentials.apiKey.errors.connectionTestFailed', 'Connection test failed')
+  }
+
+  return message
+}
 
 interface UseOnboardingOptions {
   /** Called when onboarding is complete */
@@ -257,7 +278,7 @@ export function useOnboarding({
         onComplete()
         break
     }
-  }, [state.step, state.gitBashStatus, state.apiSetupMethod, onComplete])
+  }, [state.step, state.gitBashStatus, onComplete])
 
   // Go back to previous step. If at the initial step, call onDismiss instead.
   const handleBack = useCallback(() => {
@@ -304,7 +325,7 @@ export function useOnboarding({
           setState(s => ({
             ...s,
             credentialStatus: 'error',
-            errorMessage: 'Please enter a valid OpenAI API key',
+            errorMessage: onboardingT('onboarding:credentials.apiKey.errors.invalid', 'Please enter a valid OpenAI API key'),
           }))
           return
         }
@@ -314,7 +335,7 @@ export function useOnboarding({
           setState(s => ({
             ...s,
             credentialStatus: 'error',
-            errorMessage: 'Please enter a valid API key',
+            errorMessage: onboardingT('onboarding:credentials.apiKey.errors.invalid', 'Please enter a valid API key'),
           }))
           return
         }
@@ -343,7 +364,9 @@ export function useOnboarding({
         setState(s => ({
           ...s,
           credentialStatus: 'error',
-          errorMessage: testResult.error || 'Connection test failed',
+          errorMessage: testResult.error
+            ? mapApiConnectionErrorMessage(testResult.error, onboardingT)
+            : onboardingT('onboarding:credentials.apiKey.errors.connectionTestFailed', 'Connection test failed'),
         }))
         return
       }
@@ -363,7 +386,7 @@ export function useOnboarding({
       setState(s => ({
         ...s,
         credentialStatus: 'error',
-        errorMessage: error instanceof Error ? error.message : 'Validation failed',
+        errorMessage: error instanceof Error ? error.message : onboardingT('onboarding:credentials.apiKey.errors.validationFailed', 'Validation failed'),
       }))
     }
   }, [handleSaveConfig, state.apiSetupMethod])
@@ -477,14 +500,14 @@ export function useOnboarding({
         setState(s => ({
           ...s,
           credentialStatus: 'error',
-          errorMessage: result.error || 'Failed to start OAuth',
+          errorMessage: result.error || onboardingT('onboarding:credentials.oauthConnect.errors.startFailed', 'Failed to start OAuth'),
         }))
       }
     } catch (error) {
       setState(s => ({
         ...s,
         credentialStatus: 'error',
-        errorMessage: error instanceof Error ? error.message : 'OAuth failed',
+        errorMessage: error instanceof Error ? error.message : onboardingT('onboarding:credentials.oauthConnect.errors.failed', 'OAuth failed'),
       }))
     }
   }, [state.apiSetupMethod, handleSaveConfig, editingSlug, existingSlugs])
@@ -495,7 +518,7 @@ export function useOnboarding({
       setState(s => ({
         ...s,
         credentialStatus: 'error',
-        errorMessage: 'Please enter the authorization code',
+        errorMessage: onboardingT('onboarding:credentials.oauthCode.errors.emptyCode', 'Please enter the authorization code'),
       }))
       return
     }

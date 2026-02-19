@@ -792,6 +792,10 @@ interface ManagedSession {
   envOverrides?: Record<string, string>
   // Whether the previous turn was interrupted (for context injection on next message).
   // Ephemeral — not persisted to disk. Cleared after one-shot injection.
+  // Remote control relay state
+  remoteWs?: WebSocket
+  remoteRoomId?: string
+  remoteUrl?: string
   wasInterrupted?: boolean
 }
 
@@ -920,6 +924,11 @@ function storedToMessage(stored: StoredMessage): Message {
 
 // Performance: Batch IPC delta events to reduce renderer load
 const DELTA_BATCH_INTERVAL_MS = 50  // Flush batched deltas every 50ms
+
+const RELAY_URL = process.env.RELAY_URL ?? 'ws://localhost:4747'
+const RELAY_HTTP_URL = RELAY_URL.replace(/^wss?:\/\//, (m) => m === 'wss://' ? 'https://' : 'http://')
+const RELAY_SECRET = process.env.RELAY_SECRET ?? ''
+const RELAY_PUBLIC_BASE = process.env.RELAY_PUBLIC_BASE ?? 'http://localhost:5173'
 
 interface PendingDelta {
   delta: string
@@ -3348,6 +3357,93 @@ export class SessionManager {
     }
   }
 
+
+  async startRemoteControl(sessionId: string): Promise<import('../shared/types').ShareResult> {
+    const managed = this.sessions.get(sessionId)
+    if (!managed) return { success: false, error: 'Session not found' }
+    if (managed.remoteWs) return { success: true, url: managed.remoteUrl }
+
+    let ws: WebSocket | undefined
+    try {
+      // 1. Create room on relay server
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+      if (RELAY_SECRET) headers['x-relay-secret'] = RELAY_SECRET
+      const res = await fetch(`${RELAY_HTTP_URL}/rooms`, { method: 'POST', headers })
+      if (!res.ok) return { success: false, error: 'Failed to create relay room' }
+      const { roomId } = await res.json() as { roomId: string }
+      if (!roomId || typeof roomId !== 'string') {
+        return { success: false, error: 'Invalid room ID from relay server' }
+      }
+
+      // 2. Connect as owner
+      const wsUrl = `${RELAY_URL}/rooms/${roomId}/ws?role=owner`
+      const wsOptions: Record<string, unknown> = {}
+      if (RELAY_SECRET) wsOptions.headers = { 'x-relay-secret': RELAY_SECRET }
+      ws = new WebSocket(wsUrl, wsOptions as never)
+
+      await new Promise<void>((resolve, reject) => {
+        ws.onopen = () => resolve()
+        ws.onerror = () => reject(new Error('WebSocket connection failed'))
+        setTimeout(() => reject(new Error('WebSocket timeout')), 5000)
+      })
+
+      // 3. Handle incoming viewer commands
+      ws.onmessage = (event: MessageEvent) => {
+        try {
+          const cmd = JSON.parse(event.data as string) as { type: string; content?: string }
+          if (cmd.type === 'send_message' && cmd.content) {
+            this.sendMessage(sessionId, cmd.content).catch(() => {})
+          }
+        } catch {}
+      }
+
+      ws.onclose = () => {
+        const m = this.sessions.get(sessionId)
+        if (m) m.remoteWs = undefined
+      }
+
+      // 4. Send initial snapshot so viewers get current state
+      const storedSession = loadStoredSession(managed.workspace.rootPath, sessionId)
+      if (storedSession) {
+        ws.send(JSON.stringify({ type: 'session_snapshot', session: storedSession }))
+      }
+
+      // 5. Persist
+      const remoteUrl = `${RELAY_PUBLIC_BASE}/r/${roomId}`
+      managed.remoteWs = ws
+      managed.remoteRoomId = roomId
+      managed.remoteUrl = remoteUrl
+      await updateSessionMetadata(managed.workspace.rootPath, sessionId, {
+        remoteRoomId: roomId,
+        remoteUrl,
+      })
+
+      this.sendEvent({ type: 'remote_control_started', sessionId, remoteUrl }, managed.workspace.id)
+      return { success: true, url: remoteUrl }
+    } catch (error) {
+      ws?.close()
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
+    }
+  }
+
+  async stopRemoteControl(sessionId: string): Promise<import('../shared/types').ShareResult> {
+    const managed = this.sessions.get(sessionId)
+    if (!managed) return { success: false, error: 'Session not found' }
+
+    managed.remoteWs?.close()
+    managed.remoteWs = undefined
+    managed.remoteRoomId = undefined
+    managed.remoteUrl = undefined
+
+    await updateSessionMetadata(managed.workspace.rootPath, sessionId, {
+      remoteRoomId: undefined,
+      remoteUrl: undefined,
+    })
+
+    this.sendEvent({ type: 'remote_control_stopped', sessionId }, managed.workspace.id)
+    return { success: true }
+  }
+
   /**
    * Revoke a shared session
    * Deletes from viewer and clears local shared state
@@ -5440,6 +5536,19 @@ To view this task's output:
           window.webContents.send(IPC_CHANNELS.SESSION_EVENT, event)
         } catch {
           // Silently ignore - expected during window closure race conditions
+        }
+      }
+    }
+
+    // Forward to remote control relay if active
+    const relaySessionId = (event as { sessionId?: string }).sessionId
+    if (relaySessionId) {
+      const relayManaged = this.sessions.get(relaySessionId)
+      if (relayManaged?.remoteWs?.readyState === WebSocket.OPEN) {
+        try {
+          relayManaged.remoteWs.send(JSON.stringify(event))
+        } catch {
+          // Silently ignore - expected during WebSocket close race conditions
         }
       }
     }

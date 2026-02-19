@@ -755,6 +755,10 @@ export function registerIpcHandlers(sessionManager: SessionManager, windowManage
         return sessionManager.updateShare(sessionId)
       case 'revokeShare':
         return sessionManager.revokeShare(sessionId)
+      case 'startRemoteControl':
+        return sessionManager.startRemoteControl(sessionId)
+      case 'stopRemoteControl':
+        return sessionManager.stopRemoteControl(sessionId)
       case 'startOAuth':
         return sessionManager.startSessionOAuth(sessionId, command.requestId)
       case 'refreshTitle':

@@ -23,9 +23,9 @@
  * Flash prevention: All cached items are rendered as hidden iframes (display:none/block).
  * Switching tabs toggles CSS visibility — no re-parse, no flash.
  *
- * Security: iframe uses `sandbox` attribute without `allow-scripts`,
- * blocking all JavaScript execution. `allow-same-origin` is included
- * so CSS and images resolve correctly.
+ * Security: iframe sandbox enables `allow-scripts` for JS execution but omits
+ * `allow-same-origin` to prevent iframe from accessing the parent document.
+ * Content height is communicated via postMessage from an injected resize script.
  */
 
 import * as React from 'react'
@@ -85,6 +85,17 @@ function injectBaseTarget(html: string): string {
   return `<head><base target="_top"></head>${html}`
 }
 
+/**
+ * Inject a script that reports content dimensions to the parent via postMessage.
+ * Uses ResizeObserver inside the iframe for dynamic content (charts, lazy images).
+ */
+function injectResizeScript(html: string, id: string): string {
+  const script = `<script>(function(){var id=${JSON.stringify(id)};function s(){var h=document.documentElement.scrollHeight;var w=document.documentElement.scrollWidth;window.parent.postMessage({type:"html-preview-resize",id:id,height:h,width:w},"*")}s();window.addEventListener("load",function(){s();setTimeout(s,300);setTimeout(s,1000);setTimeout(s,3000)});if(window.ResizeObserver){new ResizeObserver(s).observe(document.documentElement)}})()</script>`
+  if (/<\/body>/i.test(html)) return html.replace(/<\/body>/i, script + '</body>')
+  if (/<\/html>/i.test(html)) return html.replace(/<\/html>/i, script + '</html>')
+  return html + script
+}
+
 // ── Main component ───────────────────────────────────────────────────────────
 
 export interface MarkdownHtmlBlockProps {
@@ -126,6 +137,21 @@ export function MarkdownHtmlBlock({ code, className }: MarkdownHtmlBlockProps) {
   const [contentCache, setContentCache] = React.useState<Record<string, string>>({})
   const [loading, setLoading] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
+  const [iframeHeights, setIframeHeights] = React.useState<Record<string, number>>({})
+
+  // Listen for postMessage from iframes reporting their content height
+  React.useEffect(() => {
+    const handler = (e: MessageEvent) => {
+      if (e.data?.type === 'html-preview-resize' && typeof e.data.height === 'number') {
+        const { id, height } = e.data
+        if (height > 0) {
+          setIframeHeights(prev => prev[id] === height ? prev : { ...prev, [id]: height })
+        }
+      }
+    }
+    window.addEventListener('message', handler)
+    return () => window.removeEventListener('message', handler)
+  }, [])
 
   const activeItem = items[activeIndex]
   const activeHtml = activeItem ? contentCache[activeItem.src] : undefined
@@ -149,16 +175,15 @@ export function MarkdownHtmlBlock({ code, className }: MarkdownHtmlBlockProps) {
       .finally(() => setLoading(false))
   }, [activeItem?.src, onReadFile, contentCache])
 
-  // Preprocess all cached HTML (inject base target for links)
+  // Preprocess all cached HTML (inject base target + resize script)
   const processedCache = React.useMemo(() => {
     const result: Record<string, string> = {}
     for (const [src, html] of Object.entries(contentCache)) {
-      result[src] = injectBaseTarget(html)
+      result[src] = injectResizeScript(injectBaseTarget(html), src)
     }
     return result
   }, [contentCache])
 
-  const hasCachedContent = Object.keys(contentCache).length > 0
   const hasMultiple = items.length > 1
 
   // Stable onLoadContent callback for the overlay
@@ -205,7 +230,7 @@ export function MarkdownHtmlBlock({ code, className }: MarkdownHtmlBlockProps) {
         </div>
 
         {/* Content area: hidden iframes for cached items + loading/error for uncached active */}
-        <div className="relative max-h-[400px] overflow-hidden">
+        <div className="relative">
           {/* Render all cached items as hidden iframes — prevents flash on tab switch */}
           {items.map((item, i) => {
             const processed = processedCache[item.src]
@@ -213,12 +238,12 @@ export function MarkdownHtmlBlock({ code, className }: MarkdownHtmlBlockProps) {
             return (
               <iframe
                 key={item.src}
-                sandbox="allow-same-origin allow-top-navigation-by-user-activation"
+                sandbox="allow-scripts allow-top-navigation-by-user-activation"
                 srcDoc={processed}
                 title={item.label || spec.title || 'HTML Preview'}
                 className="w-full border-0 bg-white"
                 style={{
-                  height: '400px',
+                  height: iframeHeights[item.src] ? `${iframeHeights[item.src]}px` : '400px',
                   display: i === activeIndex ? 'block' : 'none',
                 }}
               />
@@ -235,15 +260,6 @@ export function MarkdownHtmlBlock({ code, className }: MarkdownHtmlBlockProps) {
             <div className="py-6 text-center text-destructive/70 text-[13px]">{error}</div>
           )}
 
-          {/* Bottom fade gradient */}
-          {hasCachedContent && (
-            <div
-              className="absolute bottom-0 left-0 right-0 h-8 pointer-events-none"
-              style={{
-                background: 'linear-gradient(to bottom, transparent, var(--muted))',
-              }}
-            />
-          )}
         </div>
       </div>
 

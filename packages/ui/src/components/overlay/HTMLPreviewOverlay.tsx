@@ -2,12 +2,13 @@
  * HTMLPreviewOverlay - Fullscreen overlay for viewing rendered HTML content.
  *
  * Uses PreviewOverlay as the base for consistent modal/fullscreen behavior.
- * Renders HTML in a sandboxed iframe (no script execution).
+ * Renders HTML in a sandboxed iframe with script execution enabled but without
+ * same-origin access. Content dimensions are reported via postMessage.
  * Links open in the system browser via Electron's will-navigate handler.
  *
  * Supports multiple items with arrow navigation in the header.
- * The iframe auto-sizes to its content height by reading contentDocument.scrollHeight
- * on load (possible because allow-same-origin is set).
+ * The iframe auto-sizes to its content height via an injected resize script
+ * that uses ResizeObserver + postMessage for dynamic content (e.g. charts).
  */
 
 import * as React from 'react'
@@ -29,6 +30,17 @@ function injectBaseTarget(html: string): string {
     return html.replace(/(<html[^>]*>)/i, '$1<head><base target="_top"></head>')
   }
   return `<head><base target="_top"></head>${html}`
+}
+
+/**
+ * Inject a script that reports content dimensions to the parent via postMessage.
+ * Uses ResizeObserver inside the iframe for dynamic content (charts, lazy images).
+ */
+function injectResizeScript(html: string, id: string): string {
+  const script = `<script>(function(){var id=${JSON.stringify(id)};function s(){var h=document.documentElement.scrollHeight;var w=document.documentElement.scrollWidth;window.parent.postMessage({type:"html-preview-resize",id:id,height:h,width:w},"*")}s();window.addEventListener("load",function(){s();setTimeout(s,300);setTimeout(s,1000);setTimeout(s,3000)});if(window.ResizeObserver){new ResizeObserver(s).observe(document.documentElement)}})()</script>`
+  if (/<\/body>/i.test(html)) return html.replace(/<\/body>/i, script + '</body>')
+  if (/<\/html>/i.test(html)) return html.replace(/<\/html>/i, script + '</html>')
+  return html + script
 }
 
 interface PreviewItem {
@@ -76,7 +88,6 @@ export function HTMLPreviewOverlay({
   }, [items, html])
 
   const [activeIdx, setActiveIdx] = React.useState(initialIndex)
-  const iframeRef = React.useRef<HTMLIFrameElement>(null)
   const [contentSize, setContentSize] = React.useState<{ width: number; height: number } | null>(null)
 
   // Internal content cache (merges external + locally loaded)
@@ -129,29 +140,24 @@ export function HTMLPreviewOverlay({
 
   // Preprocess active HTML
   const processedHtml = React.useMemo(
-    () => activeContent ? injectBaseTarget(activeContent) : null,
-    [activeContent]
+    () => activeContent ? injectResizeScript(injectBaseTarget(activeContent), `overlay:${activeItem?.src || '__single__'}`) : null,
+    [activeContent, activeItem?.src]
   )
 
-  // Read iframe content dimensions after it loads
-  const handleLoad = React.useCallback(() => {
-    const iframe = iframeRef.current
-    if (!iframe) return
-    try {
-      const doc = iframe.contentDocument
-      if (!doc?.body) return
-      doc.documentElement.style.overflow = 'hidden'
-      doc.body.style.overflow = 'hidden'
-      const origWidth = doc.body.style.width
-      doc.body.style.width = 'fit-content'
-      const naturalWidth = doc.body.scrollWidth
-      doc.body.style.width = origWidth
-      const height = doc.body.scrollHeight
-      setContentSize({ width: naturalWidth, height })
-    } catch {
-      // Cross-origin access denied
+  // Listen for postMessage from iframe reporting content dimensions
+  const overlayId = `overlay:${activeItem?.src || '__single__'}`
+  React.useEffect(() => {
+    const handler = (e: MessageEvent) => {
+      if (e.data?.type === 'html-preview-resize' && e.data.id === overlayId && typeof e.data.height === 'number') {
+        const { height, width } = e.data
+        if (height > 0) {
+          setContentSize({ width: width || 0, height })
+        }
+      }
     }
-  }, [])
+    window.addEventListener('message', handler)
+    return () => window.removeEventListener('message', handler)
+  }, [overlayId])
 
   const iframeHeight = contentSize
     ? `${contentSize.height}px`
@@ -198,10 +204,8 @@ export function HTMLPreviewOverlay({
             }}
           >
             <iframe
-              ref={iframeRef}
-              sandbox="allow-same-origin allow-top-navigation-by-user-activation"
+              sandbox="allow-scripts allow-top-navigation-by-user-activation"
               srcDoc={processedHtml}
-              onLoad={handleLoad}
               title={activeItem?.label || title || 'HTML Preview'}
               className="w-full border-0"
               style={{ height: iframeHeight, minHeight: '400px' }}

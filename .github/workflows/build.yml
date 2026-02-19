@@ -34,7 +34,7 @@ jobs:
           path: |
             apps/electron/release/*.dmg
             apps/electron/release/*.zip
-            apps/electron/release/*.yml
+            apps/electron/release/latest-mac.yml
             apps/electron/release/*.blockmap
 
   build-win:
@@ -59,7 +59,7 @@ jobs:
           name: win-installer
           path: |
             apps/electron/release/*.exe
-            apps/electron/release/*.yml
+            apps/electron/release/latest.yml
             apps/electron/release/*.blockmap
 
   build-linux:
@@ -88,7 +88,7 @@ jobs:
           name: linux-appimage
           path: |
             apps/electron/release/*.AppImage
-            apps/electron/release/*.yml
+            apps/electron/release/latest-linux.yml
             apps/electron/release/*.blockmap
 
   release:

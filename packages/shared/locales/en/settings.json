@@ -233,6 +233,10 @@
         "label": "App",
         "description": "Notifications, API connection, updates"
       },
+      "ai": {
+        "label": "AI",
+        "description": "Model, thinking, connections"
+      },
       "appearance": {
         "label": "Appearance",
         "description": "Theme, font, tool icons"

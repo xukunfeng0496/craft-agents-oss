@@ -233,6 +233,10 @@
         "label": "应用",
         "description": "通知、API 连接与更新"
       },
+      "ai": {
+        "label": "AI",
+        "description": "模型、思考与连接"
+      },
       "appearance": {
         "label": "外观",
         "description": "主题、字体与工具图标"

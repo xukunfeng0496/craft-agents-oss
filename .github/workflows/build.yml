@@ -31,7 +31,11 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: mac-dmg
-          path: apps/electron/release/*.dmg
+          path: |
+            apps/electron/release/*.dmg
+            apps/electron/release/*.zip
+            apps/electron/release/*.yml
+            apps/electron/release/*.blockmap
 
   build-win:
     runs-on: windows-latest
@@ -53,7 +57,10 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: win-installer
-          path: apps/electron/release/*.exe
+          path: |
+            apps/electron/release/*.exe
+            apps/electron/release/*.yml
+            apps/electron/release/*.blockmap
 
   build-linux:
     runs-on: ubuntu-latest
@@ -79,7 +86,10 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: linux-appimage
-          path: apps/electron/release/*.AppImage
+          path: |
+            apps/electron/release/*.AppImage
+            apps/electron/release/*.yml
+            apps/electron/release/*.blockmap
 
   release:
     needs: [build-mac, build-win, build-linux]

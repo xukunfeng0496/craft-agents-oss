@@ -1,9 +1,10 @@
 # Craft Agents Windows Installer
-# Usage: irm https://agents.craft.do/install-app.ps1 | iex
+# Usage: irm https://github.com/xukunfeng0496/craft-agents-oss/raw/cvte/main/scripts/install-app.ps1 | iex
 
 $ErrorActionPreference = "Stop"
 
-$VERSIONS_URL = "https://agents.craft.do/electron"
+$GITHUB_REPO = "xukunfeng0496/craft-agents-oss"
+$GITHUB_API_URL = "https://api.github.com/repos/$GITHUB_REPO/releases/latest"
 $DOWNLOAD_DIR = "$env:TEMP\craft-agent-install"
 $APP_NAME = "Craft Agents"
 
@@ -28,25 +29,35 @@ Write-Info "Detected platform: $platform (arch: $arch)"
 # Create download directory
 New-Item -ItemType Directory -Force -Path $DOWNLOAD_DIR | Out-Null
 
-# Get latest version
+# Get latest version from GitHub Releases
 Write-Info "Fetching latest version..."
 try {
-    $latestJson = Invoke-RestMethod -Uri "$VERSIONS_URL/latest" -UseBasicParsing
-    $version = $latestJson.version
+    $latestJson = Invoke-RestMethod -Uri $GITHUB_API_URL -UseBasicParsing
+    $tagName = $latestJson.tag_name
 } catch {
     Write-Err "Failed to fetch latest version: $_"
 }
 
-if (-not $version) {
+if (-not $tagName) {
     Write-Err "Failed to get latest version"
+}
+
+# Strip leading 'v' and trailing '-cvte' from tag like "v1.2.3-cvte"
+$version = $tagName -replace '^v', '' -replace '-cvte$', ''
+
+if (-not $version) {
+    Write-Err "Failed to parse version from tag: $tagName"
 }
 
 Write-Info "Latest version: $version"
 
+# Build GitHub Release download base URL
+$RELEASE_URL = "https://github.com/$GITHUB_REPO/releases/download/$tagName"
+
 # Download YAML manifest and extract checksum
 Write-Info "Fetching release info..."
 try {
-    $yamlContent = (Invoke-WebRequest -Uri "$VERSIONS_URL/$version/latest.yml" -UseBasicParsing).Content
+    $yamlContent = (Invoke-WebRequest -Uri "$RELEASE_URL/latest.yml" -UseBasicParsing).Content
 } catch {
     Write-Err "Failed to fetch release info: $_"
 }
@@ -111,7 +122,7 @@ if (-not $filename) {
     $filename = "Craft-Agent-$arch.exe"
 }
 
-$installerUrl = "$VERSIONS_URL/$version/$filename"
+$installerUrl = "$RELEASE_URL/$filename"
 
 Write-Info "Expected sha512: $($checksum.Substring(0, 20))..."
 

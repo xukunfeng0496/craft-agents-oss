@@ -2,7 +2,8 @@
 
 set -e
 
-VERSIONS_URL="https://agents.craft.do/electron"
+GITHUB_REPO="xukunfeng0496/craft-agents-oss"
+GITHUB_API_URL="https://api.github.com/repos/${GITHUB_REPO}/releases/latest"
 DOWNLOAD_DIR="$HOME/.craft-agent/downloads"
 
 # Colors for output
@@ -187,25 +188,35 @@ info "Detected platform: $platform"
 mkdir -p "$DOWNLOAD_DIR"
 mkdir -p "$INSTALL_DIR"
 
-# Get latest version
+# Get latest version from GitHub Releases
 info "Fetching latest version..."
-latest_json=$(download_file "$VERSIONS_URL/latest")
+latest_json=$(download_file "$GITHUB_API_URL")
 
 if [ "$HAS_JQ" = true ]; then
-    version=$(echo "$latest_json" | jq -r '.version // empty')
+    tag_name=$(echo "$latest_json" | jq -r '.tag_name // empty')
 else
-    version=$(get_json_value "$latest_json" "version")
+    tag_name=$(get_json_value "$latest_json" "tag_name")
 fi
 
-if [ -z "$version" ]; then
+if [ -z "$tag_name" ]; then
     error "Failed to get latest version"
+fi
+
+# Strip leading 'v' and trailing '-cvte' from tag like "v1.2.3-cvte"
+version=$(echo "$tag_name" | sed 's/^v//' | sed 's/-cvte$//')
+
+if [ -z "$version" ]; then
+    error "Failed to parse version from tag: $tag_name"
 fi
 
 info "Latest version: $version"
 
+# Build GitHub Release download base URL
+RELEASE_URL="https://github.com/${GITHUB_REPO}/releases/download/${tag_name}"
+
 # Download YAML manifest and extract checksum
 info "Fetching release info..."
-manifest_yaml=$(download_file "$VERSIONS_URL/$version/$yml_file")
+manifest_yaml=$(download_file "$RELEASE_URL/$yml_file")
 
 if [ -z "$manifest_yaml" ]; then
     error "Failed to fetch release info from $yml_file"
@@ -233,7 +244,7 @@ fi
 info "Expected sha512: ${checksum:0:20}..."
 
 # Download installer
-installer_url="$VERSIONS_URL/$version/$filename"
+installer_url="$RELEASE_URL/$filename"
 installer_path="$DOWNLOAD_DIR/$filename"
 
 info "Downloading $filename..."
@@ -377,7 +388,7 @@ ELECTRON_CACHE_ALT="$HOME/.cache/@craft-agent"
 # Verify AppImage exists
 if [ ! -f "$APPIMAGE_PATH" ]; then
     echo "Error: Craft Agent not found at $APPIMAGE_PATH"
-    echo "Reinstall: curl -fsSL https://agents.craft.do/install-app.sh | bash"
+    echo "Reinstall: curl -fsSL https://raw.githubusercontent.com/xukunfeng0496/craft-agents-oss/cvte/main/scripts/install-app.sh | bash"
     exit 1
 fi
 

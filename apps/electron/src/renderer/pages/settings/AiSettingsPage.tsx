@@ -47,7 +47,7 @@ import { useWorkspaceIcon } from '@/hooks/useWorkspaceIcon'
 import { OnboardingWizard } from '@/components/onboarding'
 import { RenameDialog } from '@/components/ui/rename-dialog'
 import { useAppShellContext } from '@/context/AppShellContext'
-import { getModelShortName, type ModelDefinition } from '@config/models'
+import { getModelDisplayName, type ModelDefinition } from '@config/models'
 import { getModelsForProviderType } from '@config/llm-connections'
 
 /**
@@ -63,7 +63,7 @@ function getModelOptionsForConnection(
   if (connection.models && connection.models.length > 0) {
     return connection.models.map((m) => {
       if (typeof m === 'string') {
-        return { value: m, label: getModelShortName(m), description: '' }
+        return { value: m, label: getModelDisplayName(m), description: '' }
       }
       // ModelDefinition object
       const def = m as ModelDefinition
@@ -358,7 +358,7 @@ function WorkspaceOverrideCard({ workspace, llmConnections, onSettingsChange }: 
       parts.push(conn?.name || settings.defaultLlmConnection)
     }
     if (settings?.model) {
-      parts.push(getModelShortName(settings.model))
+      parts.push(getModelDisplayName(settings.model))
     }
     if (settings?.thinkingLevel) {
       const level = THINKING_LEVELS.find(l => l.id === settings.thinkingLevel)

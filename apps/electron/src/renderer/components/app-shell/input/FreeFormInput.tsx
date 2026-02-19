@@ -55,7 +55,7 @@ import { cn } from '@/lib/utils'
 import { isMac, PATH_SEP, getPathBasename } from '@/lib/platform'
 import { applySmartTypography } from '@/lib/smart-typography'
 import { AttachmentPreview } from '../AttachmentPreview'
-import { ANTHROPIC_MODELS, getModelShortName, getModelDisplayName, getModelContextWindow, isCodexModel, isCopilotModel } from '@config/models'
+import { ANTHROPIC_MODELS, getModelDisplayName, getModelContextWindow, isCodexModel, isCopilotModel } from '@config/models'
 import { resolveEffectiveConnectionSlug, isCompatProvider } from '@config/llm-connections'
 import { useOptionalAppShellContext } from '@/context/AppShellContext'
 import { EditPopover, getEditConfig } from '@/components/ui/EditPopover'
@@ -1740,7 +1740,7 @@ Model
                               {/* Show models for this connection - use provider-specific models as fallback */}
                               {(conn.models || ANTHROPIC_MODELS).map((model) => {
                                 const modelId = typeof model === 'string' ? model : model.id
-                                const modelName = typeof model === 'string' ? getModelShortName(model) : model.name
+                                const modelName = typeof model === 'string' ? getModelDisplayName(model) : model.name
                                 const isSelectedModel = isCurrentConnection && currentModel === modelId
                                 return (
                                   <StyledDropdownMenuItem
@@ -1787,7 +1787,7 @@ Model
                   {/* Model options based on effective connection's provider type */}
                   {availableModels.map((model) => {
                     const modelId = typeof model === 'string' ? model : model.id
-                    const modelName = typeof model === 'string' ? getModelShortName(model) : model.name
+                    const modelName = typeof model === 'string' ? getModelDisplayName(model) : model.name
                     const isSelected = currentModel === modelId
                     const description = typeof model !== 'string' && 'description' in model ? (model.description as string) : ''
                     return (

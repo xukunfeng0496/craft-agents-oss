@@ -35,6 +35,8 @@ import type {
   UserMessageEvent,
   SessionSharedEvent,
   SessionUnsharedEvent,
+  RemoteControlStartedEvent,
+  RemoteControlStoppedEvent,
   AuthRequestEvent,
   AuthCompletedEvent,
   UsageUpdateEvent,
@@ -742,6 +744,48 @@ export function handleSessionUnshared(
         ...session,
         sharedUrl: undefined,
         sharedId: undefined,
+      },
+      streaming,
+    },
+    effects: [],
+  }
+}
+
+/**
+ * Handle remote_control_started - remote control session was started
+ */
+export function handleRemoteControlStarted(
+  state: SessionState,
+  event: RemoteControlStartedEvent
+): ProcessResult {
+  const { session, streaming } = state
+
+  return {
+    state: {
+      session: {
+        ...session,
+        remoteUrl: event.remoteUrl,
+      },
+      streaming,
+    },
+    effects: [],
+  }
+}
+
+/**
+ * Handle remote_control_stopped - remote control session was stopped
+ */
+export function handleRemoteControlStopped(
+  state: SessionState,
+  _event: RemoteControlStoppedEvent
+): ProcessResult {
+  const { session, streaming } = state
+
+  return {
+    state: {
+      session: {
+        ...session,
+        remoteUrl: undefined,
       },
       streaming,
     },

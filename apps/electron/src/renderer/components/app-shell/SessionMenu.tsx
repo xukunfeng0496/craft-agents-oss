@@ -38,6 +38,8 @@ import {
   Globe,
   RefreshCw,
   Tag,
+  MonitorSmartphone,
+  MonitorOff,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useMenuComponents } from '@/components/ui/menu-context'
@@ -58,6 +60,8 @@ export interface SessionMenuProps {
   isArchived?: boolean
   /** Shared URL if session is shared */
   sharedUrl?: string | null
+  /** Remote control URL if remote control is active */
+  remoteUrl?: string | null
   /** Whether session has messages */
   hasMessages: boolean
   /** Whether session has unread messages */
@@ -131,6 +135,7 @@ export function SessionMenu({
   isFlagged,
   isArchived = false,
   sharedUrl,
+  remoteUrl,
   hasMessages,
   hasUnreadMessages,
   currentSessionStatus,
@@ -195,6 +200,31 @@ export function SessionMenu({
       toast.success(i18nLabels.toast.sharingStopped)
     } else {
       toast.error(i18nLabels.toast.stopSharingFailed, { description: result?.error })
+    }
+  }
+
+  const handleStartRemoteControl = async () => {
+    const result = await window.electronAPI.sessionCommand(sessionId, { type: 'startRemoteControl' }) as { success: boolean; url?: string; error?: string } | undefined
+    if (result?.success && result.url) {
+      await navigator.clipboard.writeText(result.url)
+      toast.success('Remote control link copied', {
+        description: result.url,
+        action: {
+          label: 'Open',
+          onClick: () => window.electronAPI.openUrl(result.url!),
+        },
+      })
+    } else {
+      toast.error('Failed to start remote control', { description: result?.error })
+    }
+  }
+
+  const handleStopRemoteControl = async () => {
+    const result = await window.electronAPI.sessionCommand(sessionId, { type: 'stopRemoteControl' }) as { success: boolean; error?: string } | undefined
+    if (result?.success) {
+      toast.success('Remote control stopped')
+    } else {
+      toast.error('Failed to stop remote control', { description: result?.error })
     }
   }
 
@@ -272,6 +302,34 @@ export function SessionMenu({
             <MenuItem onClick={handleRevokeShare} variant="destructive">
               <Link2Off className="h-3.5 w-3.5" />
               <span className="flex-1">{i18nLabels.menu.stopSharing}</span>
+            </MenuItem>
+          </SubContent>
+        </Sub>
+      )}
+      {/* Remote Control */}
+      {!remoteUrl ? (
+        <MenuItem onClick={handleStartRemoteControl}>
+          <MonitorSmartphone className="h-3.5 w-3.5" />
+          <span className="flex-1">Remote Control</span>
+        </MenuItem>
+      ) : (
+        <Sub>
+          <SubTrigger className="pr-2">
+            <MonitorSmartphone className="h-3.5 w-3.5" />
+            <span className="flex-1">Remote Control</span>
+          </SubTrigger>
+          <SubContent>
+            <MenuItem onClick={() => window.electronAPI.openUrl(remoteUrl!)}>
+              <Globe className="h-3.5 w-3.5" />
+              <span className="flex-1">Open in Browser</span>
+            </MenuItem>
+            <MenuItem onClick={() => navigator.clipboard.writeText(remoteUrl!)}>
+              <Copy className="h-3.5 w-3.5" />
+              <span className="flex-1">Copy Link</span>
+            </MenuItem>
+            <MenuItem onClick={handleStopRemoteControl} variant="destructive">
+              <MonitorOff className="h-3.5 w-3.5" />
+              <span className="flex-1">Stop Remote Control</span>
             </MenuItem>
           </SubContent>
         </Sub>

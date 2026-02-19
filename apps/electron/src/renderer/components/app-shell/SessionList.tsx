@@ -793,6 +793,7 @@ function SessionItem({
                     isFlagged={item.isFlagged ?? false}
                     isArchived={item.isArchived ?? false}
                     sharedUrl={item.sharedUrl}
+                    remoteUrl={item.remoteUrl}
                     hasMessages={hasMessages(item)}
                     hasUnreadMessages={hasUnreadMessages(item)}
                     currentSessionStatus={currentSessionStatus}
@@ -830,6 +831,7 @@ function SessionItem({
                 isFlagged={item.isFlagged ?? false}
                 isArchived={item.isArchived ?? false}
                 sharedUrl={item.sharedUrl}
+                remoteUrl={item.remoteUrl}
                 hasMessages={hasMessages(item)}
                 hasUnreadMessages={hasUnreadMessages(item)}
                 currentSessionStatus={currentSessionStatus}

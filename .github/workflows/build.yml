@@ -110,6 +110,11 @@ jobs:
           VERSION=$(cat apps/electron/package.json | grep '"version"' | head -1 | sed 's/.*"version": *"\([^"]*\)".*/\1/')
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
+      - name: Delete existing release
+        run: gh release delete "v${{ steps.version.outputs.version }}-cvte" --yes --cleanup-tag || true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:

@@ -51,7 +51,7 @@ export function MainContentPanel({
   className,
 }: MainContentPanelProps) {
   const { t } = useTranslation(['common'])
-  const labels = getMainContentLabels(t)
+  const i18nLabels = getMainContentLabels(t)
   const navState = useNavigationState()
   const {
     activeWorkspaceId,
@@ -163,7 +163,7 @@ export function MainContentPanel({
     return wrapWithStoplight(
       <Panel variant="grow" className={className}>
         <div className="flex items-center justify-center h-full text-muted-foreground">
-          <p className="text-sm">{labels.noSourcesConfigured}</p>
+          <p className="text-sm">{i18nLabels.noSourcesConfigured}</p>
         </div>
       </Panel>
     )
@@ -185,7 +185,7 @@ export function MainContentPanel({
     return wrapWithStoplight(
       <Panel variant="grow" className={className}>
         <div className="flex items-center justify-center h-full text-muted-foreground">
-          <p className="text-sm">{labels.noSkillsConfigured}</p>
+          <p className="text-sm">{i18nLabels.noSkillsConfigured}</p>
         </div>
       </Panel>
     )
@@ -225,8 +225,8 @@ export function MainContentPanel({
         <div className="flex items-center justify-center h-full text-muted-foreground">
           <p className="text-sm">
             {navState.filter.kind === 'flagged'
-              ? labels.noFlaggedConversations
-              : labels.noConversationsYet}
+              ? i18nLabels.noFlaggedConversations
+              : i18nLabels.noConversationsYet}
           </p>
         </div>
       </Panel>
@@ -237,7 +237,7 @@ export function MainContentPanel({
   return wrapWithStoplight(
     <Panel variant="grow" className={className}>
       <div className="flex items-center justify-center h-full text-muted-foreground">
-        <p className="text-sm">{labels.selectConversation}</p>
+        <p className="text-sm">{i18nLabels.selectConversation}</p>
       </div>
     </Panel>
   )

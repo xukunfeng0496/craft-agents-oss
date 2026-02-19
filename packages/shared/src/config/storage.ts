@@ -118,7 +118,26 @@ export function loadConfigDefaults(): ConfigDefaults {
   if (existsSync(CONFIG_DEFAULTS_FILE)) {
     return readJsonFileSync<ConfigDefaults>(CONFIG_DEFAULTS_FILE);
   }
-  throw new Error('config-defaults.json not found at ' + CONFIG_DEFAULTS_FILE + '. Ensure ensureConfigDir() was called at startup.');
+  // Fallback defaults when config-defaults.json hasn't been synced yet (e.g. in tests)
+  return {
+    version: '1.0',
+    description: 'Default configuration values for Craft Agents',
+    defaults: {
+      notificationsEnabled: true,
+      colorTheme: 'default',
+      autoCapitalisation: true,
+      sendMessageKey: 'enter',
+      spellCheck: false,
+      keepAwakeWhileRunning: false,
+      richToolDescriptions: true,
+    },
+    workspaceDefaults: {
+      thinkingLevel: 'think',
+      permissionMode: 'safe',
+      cyclablePermissionModes: ['safe', 'allow-all'],
+      localMcpServers: { enabled: true },
+    },
+  };
 }
 
 /**

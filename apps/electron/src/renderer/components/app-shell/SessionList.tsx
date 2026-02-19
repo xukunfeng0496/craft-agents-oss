@@ -246,7 +246,7 @@ function sessionMatchesCurrentFilter(
       return labelIds.includes(currentFilter.labelId)
     }
 
-    case 'view':
+    case 'view': {
       // Exclude archived sessions from view filters
       if (session.isArchived === true) return false
       if (!evaluateViews) return true

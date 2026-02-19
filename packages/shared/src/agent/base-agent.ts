@@ -812,9 +812,9 @@ Please continue the conversation naturally from where we left off.
    * @param message - The user's message to generate a title from
    * @returns Generated title (2-5 words), or null if generation fails
    */
-  async generateTitle(message: string): Promise<string | null> {
+  async generateTitle(message: string, language?: string): Promise<string | null> {
     try {
-      const prompt = buildTitlePrompt(message);
+      const prompt = buildTitlePrompt(message, language);
       const result = await this.runMiniCompletion(prompt);
       return validateTitle(result);
     } catch (error) {
@@ -831,9 +831,9 @@ Please continue the conversation naturally from where we left off.
    * @param lastAssistantResponse - The most recent assistant response
    * @returns Generated title (2-5 words), or null if generation fails
    */
-  async regenerateTitle(recentUserMessages: string[], lastAssistantResponse: string): Promise<string | null> {
+  async regenerateTitle(recentUserMessages: string[], lastAssistantResponse: string, language?: string): Promise<string | null> {
     try {
-      const prompt = buildRegenerateTitlePrompt(recentUserMessages, lastAssistantResponse);
+      const prompt = buildRegenerateTitlePrompt(recentUserMessages, lastAssistantResponse, language);
       const result = await this.runMiniCompletion(prompt);
       return validateTitle(result);
     } catch (error) {

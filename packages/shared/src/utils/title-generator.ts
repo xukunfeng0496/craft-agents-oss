@@ -13,11 +13,15 @@
  * @param message - The user's message to generate a title from
  * @returns Formatted prompt string
  */
-export function buildTitlePrompt(message: string): string {
+export function buildTitlePrompt(message: string, language?: string): string {
   const snippet = message.slice(0, 500);
+  const langInstruction = language && language !== 'en'
+    ? `Reply in the same language as the user's message (language code: ${language}).`
+    : '';
   return [
     'What is the user trying to do? Reply with ONLY a short task description (2-5 words).',
     'Start with a verb. Use plain text only - no markdown.',
+    ...(langInstruction ? [langInstruction] : []),
     'Examples: "Fix authentication bug", "Add dark mode", "Refactor API layer", "Explain codebase structure"',
     '',
     'User: ' + snippet,
@@ -35,17 +39,22 @@ export function buildTitlePrompt(message: string): string {
  */
 export function buildRegenerateTitlePrompt(
   recentUserMessages: string[],
-  lastAssistantResponse: string
+  lastAssistantResponse: string,
+  language?: string,
 ): string {
   const userContext = recentUserMessages
     .map((msg) => msg.slice(0, 300))
     .join('\n\n');
   const assistantSnippet = lastAssistantResponse.slice(0, 500);
+  const langInstruction = language && language !== 'en'
+    ? `Reply in the same language as the conversation (language code: ${language}).`
+    : '';
 
   return [
     'Based on these recent messages, what is the current focus of this conversation?',
     'Reply with ONLY a short task description (2-5 words).',
     'Start with a verb. Use plain text only - no markdown.',
+    ...(langInstruction ? [langInstruction] : []),
     'Examples: "Fix authentication bug", "Add dark mode", "Refactor API layer", "Explain codebase structure"',
     '',
     'Recent user messages:',

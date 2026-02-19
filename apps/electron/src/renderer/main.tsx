@@ -8,7 +8,8 @@ import App from './App'
 import { ThemeProvider } from './context/ThemeContext'
 import { windowWorkspaceIdAtom } from './atoms/sessions'
 import { Toaster } from '@/components/ui/sonner'
-import './i18n-init'
+import { initRendererI18n } from './i18n'
+import { STARTUP_RENDERER_NAMESPACES } from './i18n-namespaces'
 import './index.css'
 
 // Known-harmless console messages that should NOT be sent to Sentry.
@@ -102,12 +103,20 @@ function Root() {
   )
 }
 
-ReactDOM.createRoot(document.getElementById('root')!).render(
-  <React.StrictMode>
-    <Sentry.ErrorBoundary fallback={<CrashFallback />}>
-      <JotaiProvider>
-        <Root />
-      </JotaiProvider>
-    </Sentry.ErrorBoundary>
-  </React.StrictMode>
-)
+async function bootstrap() {
+  await initRendererI18n({ namespaces: [...STARTUP_RENDERER_NAMESPACES] }).catch((error) => {
+    console.error('Failed to initialize renderer i18n:', error)
+  })
+
+  ReactDOM.createRoot(document.getElementById('root')!).render(
+    <React.StrictMode>
+      <Sentry.ErrorBoundary fallback={<CrashFallback />}>
+        <JotaiProvider>
+          <Root />
+        </JotaiProvider>
+      </Sentry.ErrorBoundary>
+    </React.StrictMode>
+  )
+}
+
+void bootstrap()

@@ -101,7 +101,7 @@ export function ensureDefaultPermissions(language?: string): void {
   }
 
   const destPath = join(permissionsDir, 'default.json');
-  const srcPath = join(bundledPermissionsDir, 'default.json');
+  const srcPath = resolveDefaultPermissionsTemplate(bundledPermissionsDir, language);
 
   if (!existsSync(srcPath)) {
     return;

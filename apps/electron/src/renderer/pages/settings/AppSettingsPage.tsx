@@ -17,12 +17,8 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { Button } from '@/components/ui/button'
 import { HeaderMenu } from '@/components/ui/HeaderMenu'
 import { routes } from '@/lib/navigate'
-import { X } from 'lucide-react'
-import { Spinner, FullscreenOverlayBase } from '@craft-agent/ui'
+import { Spinner } from '@craft-agent/ui'
 import { useTranslation } from 'react-i18next'
-import { useSetAtom } from 'jotai'
-import { fullscreenOverlayOpenAtom } from '@/atoms/overlay'
-import type { AuthType } from '../../../shared/types'
 import type { DetailsPageMeta } from '@/lib/navigation-registry'
 
 import {
@@ -33,9 +29,6 @@ import {
   SettingsMenuSelectRow,
 } from '@/components/settings'
 import { useUpdateChecker } from '@/hooks/useUpdateChecker'
-import { useOnboarding } from '@/hooks/useOnboarding'
-import { OnboardingWizard } from '@/components/onboarding'
-import { useAppShellContext } from '@/context/AppShellContext'
 import { changeRendererLanguage } from '../../i18n'
 
 export const meta: DetailsPageMeta = {
@@ -81,14 +74,7 @@ export function getSettingsLabels(t: (key: string) => string) {
 
 export default function AppSettingsPage() {
   const { t } = useTranslation(['settings'])
-  const { refreshCustomModel } = useAppShellContext()
   const labels = getSettingsLabels(t)
-
-  // API Connection state (read-only display — editing is done via OnboardingWizard overlay)
-  const [authType, setAuthType] = useState<AuthType>('api_key')
-  const [hasCredential, setHasCredential] = useState(false)
-  const [showApiSetup, setShowApiSetup] = useState(false)
-  const setFullscreenOverlayOpen = useSetAtom(fullscreenOverlayOpenAtom)
 
   // Notifications state
   const [notificationsEnabled, setNotificationsEnabled] = useState(true)
@@ -116,8 +102,7 @@ export default function AppSettingsPage() {
   const loadSettings = useCallback(async () => {
     if (!window.electronAPI) return
     try {
-      const [billing, notificationsOn, keepAwakeOn, storedLanguage] = await Promise.all([
-        window.electronAPI.getApiSetup(),
+      const [notificationsOn, keepAwakeOn, storedLanguage] = await Promise.all([
         window.electronAPI.getNotificationsEnabled(),
         window.electronAPI.getKeepAwakeWhileRunning(),
         window.electronAPI.getAppLanguage(),

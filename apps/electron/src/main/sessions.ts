@@ -3701,7 +3701,7 @@ export class SessionManager {
     this.sendEvent({ type: 'title_regenerating', sessionId, isRegenerating: true }, managed.workspace.id)
 
     try {
-      const title = await agent.regenerateTitle(userMessages, assistantResponse)
+      const title = await agent.regenerateTitle(userMessages, assistantResponse, loadStoredConfig()?.language)
       sessionLog.info(`refreshTitle: regenerateTitle returned: ${title ? `"${title}"` : 'null'}`)
       if (title) {
         managed.name = title
@@ -4807,7 +4807,7 @@ To view this task's output:
     }
 
     try {
-      const title = await agent.generateTitle(userMessage)
+      const title = await agent.generateTitle(userMessage, loadStoredConfig()?.language)
       if (title) {
         managed.name = title
         this.persistSession(managed)

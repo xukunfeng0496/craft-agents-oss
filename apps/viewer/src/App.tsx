@@ -51,7 +51,7 @@ function getSessionIdFromUrl(): string | null {
 
 /** Extract room ID from URL path /r/{id} */
 function getRemoteRoomIdFromUrl(): string | null {
-  const match = window.location.pathname.match(/^\/r\/([a-f0-9]{16})$/)
+  const match = window.location.pathname.match(/^\/s\/r\/([a-f0-9]{16})$/)
   return match ? match[1] : null
 }
 

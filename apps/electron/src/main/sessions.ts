@@ -3409,7 +3409,7 @@ export class SessionManager {
       }
 
       // 5. Persist
-      const remoteUrl = `${RELAY_PUBLIC_BASE}/r/${roomId}`
+      const remoteUrl = `${RELAY_PUBLIC_BASE}/s/r/${roomId}`
       managed.remoteWs = ws
       managed.remoteRoomId = roomId
       managed.remoteUrl = remoteUrl

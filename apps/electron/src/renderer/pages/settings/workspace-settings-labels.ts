@@ -46,5 +46,7 @@ export function getWorkspaceLabels(t: (key: string) => string) {
     workingDirectoryChange: t('settings:workspace.actions.change'),
     localMcpLabel: t('settings:workspace.advanced.localMcp.label'),
     localMcpDescription: t('settings:workspace.advanced.localMcp.description'),
+    isolateSessionDirLabel: t('settings:workspace.advanced.isolateSessionDirectory.label'),
+    isolateSessionDirDescription: t('settings:workspace.advanced.isolateSessionDirectory.description'),
   }
 }

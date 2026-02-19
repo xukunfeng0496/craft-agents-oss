@@ -60,6 +60,7 @@ import {
 // Skill extraction for Codex/Copilot backends (Claude uses native SDK Skill tool)
 import { parseMentions, stripAllMentions } from '../mentions/index.ts';
 import { loadAllSkills } from '../skills/storage.ts';
+import type { LoadedSkill } from '../skills/types.ts';
 
 // ============================================================
 // Mini Agent Configuration
@@ -135,6 +136,7 @@ export abstract class BaseAgent implements AgentBackend {
   // Additional State (protected for subclass access)
   // ============================================================
   protected temporaryClarifications: string | null = null;
+  protected cachedSkills: LoadedSkill[] = [];
 
   // ============================================================
   // Callbacks (public for facade wiring)
@@ -219,15 +221,23 @@ export abstract class BaseAgent implements AgentBackend {
         this.debug(`Sources list changed: ${sources.length} sources`);
         this.onSourcesListChange?.(sources);
       },
+      onSkillsListChange: (skills) => {
+        this.debug(`Skills list changed: ${skills.length} skills`);
+        this.cachedSkills = skills;
+      },
       onValidationError: (file, errors) => {
         this.debug(`Config validation error: ${file}`);
         this.onConfigValidationError?.(file, errors);
       },
     };
 
+    // Load initial skills (ConfigWatcher.scanSkills only populates slugs, doesn't fire callback)
+    this.cachedSkills = loadAllSkills(this.config.workspace.rootPath, this.workingDirectory);
+    this.debug(`Loaded ${this.cachedSkills.length} skills from workspace`);
+
     this.configWatcherManager = new ConfigWatcherManager(
       {
-        workspaceRootPath: this.workingDirectory,
+        workspaceRootPath: this.config.workspace.rootPath,
         isHeadless: this.config.isHeadless,
         onDebug: (msg) => this.debug(msg),
       },
@@ -246,6 +256,19 @@ export abstract class BaseAgent implements AgentBackend {
       this.configWatcherManager = null;
       this.debug('Config watcher stopped');
     }
+  }
+
+  /**
+   * Format cached skills as XML block for injection into user messages.
+   * Returns null if no skills are available.
+   */
+  protected formatSkillState(): string | null {
+    if (this.cachedSkills.length === 0) return null;
+    const lines = this.cachedSkills.map(s => `- ${s.slug}: ${s.metadata.description}`);
+    return `<available_skills>
+If there is even a 1% chance a skill below applies to the user's request, you MUST invoke it via the Skill tool before responding.
+${lines.join('\n')}
+</available_skills>`;
   }
 
   // ============================================================

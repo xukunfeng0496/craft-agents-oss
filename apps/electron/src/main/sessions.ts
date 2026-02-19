@@ -2126,6 +2126,8 @@ export class SessionManager {
     // Get new session defaults from workspace config (with global fallback)
     // Options.permissionMode overrides the workspace default (used by EditPopover for auto-execute)
     const workspaceRootPath = workspace.rootPath
+    // Ensure ConfigWatcher is running for this workspace (may differ from window's workspace)
+    this.setupConfigWatcher(workspaceRootPath, workspace.id)
     const wsConfig = loadWorkspaceConfig(workspaceRootPath)
     const globalDefaults = loadConfigDefaults()
 
@@ -2269,6 +2271,8 @@ export class SessionManager {
     }
 
     const workspaceRootPath = workspace.rootPath
+    // Ensure ConfigWatcher is running for this workspace
+    this.setupConfigWatcher(workspaceRootPath, workspace.id)
 
     // Create the sub-session using storage layer (validates parent exists and prevents nesting)
     const storedSession = await createStoredSubSession(workspaceRootPath, parentSessionId, {

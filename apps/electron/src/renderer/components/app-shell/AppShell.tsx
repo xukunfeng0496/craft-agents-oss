@@ -1202,8 +1202,9 @@ function AppShellContent({
     : undefined
   React.useEffect(() => {
     if (!activeWorkspaceId) return
-    void activeSessionWorkingDirectory
-    window.electronAPI.getSkills(activeWorkspaceId).then((loaded) => {
+    console.log('[AppShell] Loading skills for workspace:', activeWorkspaceId, 'projectRoot:', activeSessionWorkingDirectory)
+    window.electronAPI.getSkills(activeWorkspaceId, activeSessionWorkingDirectory).then((loaded) => {
+      console.log('[AppShell] Loaded skills:', loaded?.length, loaded)
       setSkills(loaded || [])
     }).catch(err => {
       console.error('[Chat] Failed to load skills:', err)

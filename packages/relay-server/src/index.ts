@@ -89,8 +89,8 @@ const server = Bun.serve<WsData>({
 
       const raw = typeof message === 'string' ? message : message.toString()
 
-      // Reject oversized messages
-      if (raw.length > 1_000_000) return
+      // Reject oversized messages (10MB to support file attachments)
+      if (raw.length > 10_000_000) return
 
       if (role === 'owner') {
         // Owner → buffer + broadcast to viewers

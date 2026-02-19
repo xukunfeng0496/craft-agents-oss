@@ -3358,6 +3358,25 @@ export class SessionManager {
   }
 
 
+  /**
+   * Build config payload for remote control viewer snapshots
+   */
+  private buildRemoteConfig(managed: ManagedSession) {
+    const wsConfig = loadWorkspaceConfig(managed.workspace.rootPath)
+    const conn = resolveSessionConnection(managed.llmConnection, wsConfig?.defaults?.defaultLlmConnection)
+    const models = conn?.models ?? []
+    return {
+      permissionMode: managed.permissionMode ?? 'ask',
+      thinkingLevel: managed.thinkingLevel ?? 'think',
+      model: managed.model ?? conn?.defaultModel ?? null,
+      connectionLocked: managed.connectionLocked ?? false,
+      isProcessing: managed.isProcessing,
+      availableModels: models.map(m =>
+        typeof m === 'string' ? { id: m, name: m } : { id: m.id, name: m.shortName || m.name }
+      ),
+    }
+  }
+
   async startRemoteControl(sessionId: string): Promise<import('../shared/types').ShareResult> {
     const managed = this.sessions.get(sessionId)
     if (!managed) return { success: false, error: 'Session not found' }
@@ -3390,9 +3409,50 @@ export class SessionManager {
       // 3. Handle incoming viewer commands
       ws.onmessage = (event: MessageEvent) => {
         try {
-          const cmd = JSON.parse(event.data as string) as { type: string; content?: string }
-          if (cmd.type === 'send_message' && cmd.content) {
-            this.sendMessage(sessionId, cmd.content).catch(() => {})
+          const cmd = JSON.parse(event.data as string) as Record<string, unknown>
+          const type = cmd.type as string
+
+          switch (type) {
+            case 'send_message': {
+              const content = cmd.content as string
+              if (!content) break
+              const rawAttachments = cmd.attachments as Array<{
+                type: string; name: string; mimeType: string;
+                base64?: string; text?: string; size: number
+              }> | undefined
+              const attachments: FileAttachment[] | undefined = rawAttachments?.map(a => ({
+                type: a.type as FileAttachment['type'],
+                path: '',
+                name: a.name,
+                mimeType: a.mimeType,
+                base64: a.base64,
+                text: a.text,
+                size: a.size,
+              }))
+              this.sendMessage(sessionId, content, attachments).catch(() => {})
+              break
+            }
+            case 'set_permission_mode': {
+              const mode = cmd.mode as string
+              if (mode === 'safe' || mode === 'ask' || mode === 'allow-all') {
+                this.setSessionPermissionMode(sessionId, mode)
+              }
+              break
+            }
+            case 'set_thinking_level': {
+              const level = cmd.level as string
+              if (level === 'off' || level === 'think' || level === 'max') {
+                this.setSessionThinkingLevel(sessionId, level)
+              }
+              break
+            }
+            case 'set_model': {
+              const model = cmd.model as string | null
+              if (managed) {
+                this.updateSessionModel(sessionId, managed.workspace.id, model ?? null).catch(() => {})
+              }
+              break
+            }
           }
         } catch {}
       }
@@ -3405,7 +3465,11 @@ export class SessionManager {
       // 4. Send initial snapshot so viewers get current state
       const storedSession = loadStoredSession(managed.workspace.rootPath, sessionId)
       if (storedSession) {
-        ws.send(JSON.stringify({ type: 'session_snapshot', session: storedSession }))
+        ws.send(JSON.stringify({
+          type: 'session_snapshot',
+          session: storedSession,
+          config: this.buildRemoteConfig(managed),
+        }))
       }
 
       // 5. Persist
@@ -5554,7 +5618,11 @@ To view this task's output:
           if (eventType === 'complete' || eventType === 'user_message') {
             const snapshot = loadStoredSession(relayManaged.workspace.rootPath, relaySessionId)
             if (snapshot) {
-              relayManaged.remoteWs.send(JSON.stringify({ type: 'session_snapshot', session: snapshot }))
+              relayManaged.remoteWs.send(JSON.stringify({
+                type: 'session_snapshot',
+                session: snapshot,
+                config: this.buildRemoteConfig(relayManaged),
+              }))
             }
           }
         } catch {

@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@craft-agent/core": "workspace:*",
+    "@craft-agent/shared": "workspace:*",
     "@craft-agent/ui": "workspace:*",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"

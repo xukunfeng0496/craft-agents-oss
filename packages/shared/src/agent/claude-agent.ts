@@ -8,6 +8,7 @@ import type { BackendConfig, PermissionRequestType } from './backend/types.ts';
 // Plan types are used by UI components; not needed in craft-agent.ts since Safe Mode is user-controlled
 import { parseError, type AgentError } from './errors.ts';
 import { runErrorDiagnostics } from './diagnostics.ts';
+import { getLastApiError } from '../network-interceptor.ts';
 import { loadStoredConfig, loadConfigDefaults, type Workspace, type AuthType, getDefaultLlmConnection, getLlmConnection } from '../config/storage.ts';
 import { isLocalMcpEnabled } from '../workspaces/storage.ts';
 import { loadPlanFromPath, type SessionConfig as Session } from '../sessions/storage.ts';
@@ -1995,6 +1996,8 @@ export class ClaudeAgent extends BaseAgent {
   ): Promise<{ type: 'typed_error'; error: AgentError }> {
     // Try to extract actual error message from SDK debug log file
     const actualError = await this.parseApiErrorFromDebugLog();
+    // Fallback: read HTTP error captured by network interceptor (works with custom providers)
+    const httpError = !actualError ? getLastApiError() : null;
     const errorMap: Record<SDKAssistantMessageError, AgentError> = {
       'authentication_failed': {
         code: 'invalid_api_key',
@@ -2072,6 +2075,10 @@ export class ClaudeAgent extends BaseAgent {
             `Error: ${actualError.message}`,
             `Type: ${actualError.errorType}`,
             ...(actualError.requestId ? [`Request ID: ${actualError.requestId}`] : []),
+          ] : httpError ? [
+            httpError.status > 0
+              ? `HTTP ${httpError.status}: ${httpError.message}`
+              : `API Error (${httpError.statusText}): ${httpError.message}`,
           ] : []),
           'This may be a temporary issue',
           'Check your network connection',

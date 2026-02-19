@@ -287,6 +287,24 @@ function createSseMetadataStrippingStream(): TransformStream<Uint8Array, Uint8Ar
       return;
     }
 
+    // Capture SSE error events for error handler (always, not just in DEBUG mode)
+    if (eventType === 'error') {
+      try {
+        const errorData = data as { type?: string; error?: { type?: string; message?: string } };
+        const errorMessage = errorData.error?.message || dataStr;
+        const errorType = errorData.error?.type || 'sse_error';
+        setStoredError({
+          status: 0, // SSE error (not HTTP error)
+          statusText: errorType,
+          message: errorMessage,
+          timestamp: Date.now(),
+        });
+      } catch {
+        // ignore parse errors
+      }
+      debugLog(`[SSE Error] Captured error event: ${dataStr}`);
+    }
+
     // All other events pass through unchanged
     emitSseEvent(eventType, dataStr, controller);
   }

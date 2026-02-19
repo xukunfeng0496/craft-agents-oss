@@ -36,6 +36,11 @@ export default defineConfig({
         changeOrigin: true,
         secure: true,
       },
+      '/rooms': {
+        target: 'ws://localhost:4747',
+        ws: true,
+        changeOrigin: true,
+      },
     },
   },
 })

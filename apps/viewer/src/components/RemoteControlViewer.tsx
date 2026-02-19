@@ -12,6 +12,7 @@ export function RemoteControlViewer({ roomId, relayWsUrl }: Props) {
   const [connected, setConnected] = useState(false)
   const [input, setInput] = useState('')
   const wsRef = useRef<WebSocket | null>(null)
+  const [isAgentTyping, setIsAgentTyping] = useState(false)
 
   useEffect(() => {
     const ws = new WebSocket(`${relayWsUrl}/rooms/${roomId}/ws?role=viewer`)
@@ -24,6 +25,11 @@ export function RemoteControlViewer({ roomId, relayWsUrl }: Props) {
         const msg = JSON.parse(event.data as string) as { type: string; [key: string]: unknown }
         if (msg.type === 'session_snapshot') {
           setSession(msg.session as StoredSession)
+          setIsAgentTyping(false)
+        } else if (msg.type === 'text_delta') {
+          setIsAgentTyping(true)
+        } else if (msg.type === 'complete') {
+          setIsAgentTyping(false)
         }
       } catch {}
     }
@@ -90,6 +96,11 @@ export function RemoteControlViewer({ roomId, relayWsUrl }: Props) {
         footer={footer}
         className="flex-1 min-h-0"
       />
+      {isAgentTyping && (
+        <div className="px-4 py-1 text-xs text-muted-foreground animate-pulse">
+          Agent is typing...
+        </div>
+      )}
     </div>
   )
 }

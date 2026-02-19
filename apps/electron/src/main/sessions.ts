@@ -5546,7 +5546,17 @@ To view this task's output:
       const relayManaged = this.sessions.get(relaySessionId)
       if (relayManaged?.remoteWs?.readyState === WebSocket.OPEN) {
         try {
+          // Forward the raw event for potential future incremental processing
           relayManaged.remoteWs.send(JSON.stringify(event))
+
+          // On key events, send a fresh snapshot so the viewer gets updated state
+          const eventType = (event as { type: string }).type
+          if (eventType === 'complete' || eventType === 'user_message') {
+            const snapshot = loadStoredSession(relayManaged.workspace.rootPath, relaySessionId)
+            if (snapshot) {
+              relayManaged.remoteWs.send(JSON.stringify({ type: 'session_snapshot', session: snapshot }))
+            }
+          }
         } catch {
           // Silently ignore - expected during WebSocket close race conditions
         }

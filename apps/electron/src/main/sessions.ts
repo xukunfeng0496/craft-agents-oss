@@ -2167,6 +2167,18 @@ export class SessionManager {
       isFlagged: options?.isFlagged,
     })
 
+    // If isolation is enabled and a working directory is configured, create a
+    // session-specific subdirectory and update the session's workingDirectory.
+    const isolateSessionDir = wsConfig?.defaults?.isolateSessionDirectory ?? true
+    if (isolateSessionDir && resolvedWorkingDir) {
+      const isolatedDir = join(resolvedWorkingDir, storedSession.id)
+      await mkdir(isolatedDir, { recursive: true })
+      await updateSessionMetadata(workspaceRootPath, storedSession.id, {
+        workingDirectory: isolatedDir,
+      })
+      resolvedWorkingDir = isolatedDir
+    }
+
     // Resolve connection to determine provider for model compatibility check
     const sessionConnection = resolveSessionConnection(
       options?.llmConnection,

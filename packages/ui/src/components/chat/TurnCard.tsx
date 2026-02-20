@@ -648,9 +648,20 @@ function getPreviewText(
 
   // Show running tool names
   if (runningTools.length > 0) {
-    const toolNames = runningTools
-      .map(a => getToolDisplayName(a.toolName!))
-      .slice(0, 3) // Max 3 names
+    const toolNames = runningTools.map(a => {
+      if (a.toolName === 'Skill') {
+        // Show skill name for better visibility (like Claude Code CLI)
+        const displayName = a.toolDisplayMeta?.displayName
+        if (displayName) return `Loading ${displayName}`
+        if (a.toolInput?.skill) {
+          const skillId = String(a.toolInput.skill)
+          const colonIdx = skillId.indexOf(':')
+          const slug = colonIdx > 0 ? skillId.slice(colonIdx + 1) : skillId
+          return `Loading ${slug}`
+        }
+      }
+      return getToolDisplayName(a.toolName!)
+    }).slice(0, 3) // Max 3 names
     return `${toolNames.join(', ')}...`
   }
 
@@ -982,7 +993,20 @@ function ActivityRow({ activity, onOpenDetails, isLastChild, sessionFolderPath, 
         )}
         {/* Native tools: Tool name (shrink-0) */}
         {!isMcpOrApiTool && (
-          <span className={cn("shrink-0", onOpenDetails && isComplete && "group-hover/row:underline")}>{displayedName}</span>
+          <span className={cn(
+            "shrink-0",
+            activity.toolName === 'Skill' && "text-accent",
+            onOpenDetails && isComplete && "group-hover/row:underline"
+          )}>{displayedName}</span>
+        )}
+        {/* Skill badge - shown for Skill tool activities */}
+        {!isMcpOrApiTool && activity.toolName === 'Skill' && (
+          <span
+            className="px-1.5 py-0.5 bg-[color-mix(in_oklab,var(--accent)_8%,var(--background))] shadow-tinted rounded-[4px] text-[10px] text-accent shrink-0"
+            style={{ '--shadow-color': 'var(--accent-rgb)' } as React.CSSProperties}
+          >
+            skill
+          </span>
         )}
         {/* Diff stats and filename badges - after tool name */}
         {!isMcpOrApiTool && !isBackgrounded && diffStats && (

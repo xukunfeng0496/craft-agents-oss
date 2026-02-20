@@ -316,12 +316,12 @@ const transformDataSchema = {
 const askUserQuestionSchema = {
   questions: z.array(z.object({
     question: z.string().describe('The question to ask the user'),
-    header: z.string().max(12).describe('Short label displayed as a chip/tag (max 12 chars)'),
+    header: z.string().max(12).optional().describe('Short label displayed as a chip/tag (max 12 chars)'),
     options: z.array(z.object({
       label: z.string().describe('Display text for this option (1-5 words)'),
-      description: z.string().describe('Explanation of what this option means'),
+      description: z.string().optional().describe('Explanation of what this option means'),
     })).min(2).max(4).describe('Available choices (2-4 options)'),
-    multiSelect: z.boolean().describe('Whether multiple options can be selected'),
+    multiSelect: z.boolean().default(false).describe('Whether multiple options can be selected'),
   })).min(1).max(4).describe('Questions to ask (1-4 questions)'),
 };
 

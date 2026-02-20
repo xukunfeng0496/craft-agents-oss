@@ -693,6 +693,12 @@ export function registerIpcHandlers(sessionManager: SessionManager, windowManage
     return sessionManager.respondToCredential(sessionId, requestId, response)
   })
 
+  // Respond to a user question request (AskUserQuestion)
+  // Returns true if the response was delivered, false if no pending request found
+  ipcMain.handle(IPC_CHANNELS.RESPOND_TO_QUESTION, async (_event, sessionId: string, requestId: string, response: import('../shared/types').UserQuestionResponse) => {
+    return sessionManager.respondToQuestion(sessionId, requestId, response)
+  })
+
   // ==========================================================================
   // Consolidated Command Handlers
   // ==========================================================================

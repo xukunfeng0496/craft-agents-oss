@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useTheme } from '@/hooks/useTheme'
 import type { ThemeOverrides } from '@config/theme'
 import { useSetAtom, useStore, useAtomValue, useAtom } from 'jotai'
-import type { Session, Workspace, SessionEvent, Message, FileAttachment, StoredAttachment, PermissionRequest, CredentialRequest, CredentialResponse, SetupNeeds, SessionStatus, NewChatActionParams, ContentBadge, LlmConnectionWithStatus } from '../shared/types'
+import type { Session, Workspace, SessionEvent, Message, FileAttachment, StoredAttachment, PermissionRequest, CredentialRequest, CredentialResponse, UserQuestionRequest, UserQuestionResponse, SetupNeeds, SessionStatus, NewChatActionParams, ContentBadge, LlmConnectionWithStatus } from '../shared/types'
 import type { SessionOptions, SessionOptionUpdates } from './hooks/useSessionOptions'
 import { defaultSessionOptions, mergeSessionOptions } from './hooks/useSessionOptions'
 import { generateMessageId } from '../shared/types'
@@ -206,6 +206,8 @@ export default function App() {
   const [pendingPermissions, setPendingPermissions] = useState<Map<string, PermissionRequest[]>>(new Map())
   // Credential requests per session (queue to handle multiple concurrent requests)
   const [pendingCredentials, setPendingCredentials] = useState<Map<string, CredentialRequest[]>>(new Map())
+  // User question requests per session (queue to handle multiple concurrent requests)
+  const [pendingQuestions, setPendingQuestions] = useState<Map<string, UserQuestionRequest[]>>(new Map())
   // Draft input text per session (preserved across mode switches and conversation changes)
   // Using ref instead of state to avoid re-renders during typing - drafts are only
   // needed for initial value restoration and disk persistence, not reactive updates
@@ -501,6 +503,15 @@ export default function App() {
             })
             break
           }
+          case 'user_question_request': {
+            setPendingQuestions(prevQuestions => {
+              const next = new Map(prevQuestions)
+              const existingQueue = next.get(sessionId) || []
+              next.set(sessionId, [...existingQueue, effect.request])
+              return next
+            })
+            break
+          }
           case 'auto_retry': {
             // A source was auto-activated, automatically re-send the original message
             // Add suffix to indicate the source was activated
@@ -532,6 +543,7 @@ export default function App() {
           }
           return prevCreds
         })
+        // Note: Don't clear pendingQuestions on complete - the tool blocks until answered
       }
     }
 
@@ -1078,6 +1090,23 @@ export default function App() {
     }
   }, [])
 
+  const handleRespondToQuestion = useCallback(async (sessionId: string, requestId: string, response: UserQuestionResponse) => {
+    const success = await window.electronAPI.respondToQuestion(sessionId, requestId, response)
+
+    // Remove the first question from the queue regardless of success
+    setPendingQuestions(prev => {
+      const next = new Map(prev)
+      const queue = next.get(sessionId) || []
+      const remainingQueue = queue.slice(1)
+      if (remainingQueue.length === 0) {
+        next.delete(sessionId)
+      } else {
+        next.set(sessionId, remainingQueue)
+      }
+      return next
+    })
+  }, [])
+
   // Centralized link interceptor: classifies file types and decides whether to
   // show an in-app preview overlay or open externally. Replaces the old
   // handleOpenFile/handleOpenUrl that always opened in external apps.
@@ -1226,6 +1255,7 @@ export default function App() {
     refreshLlmConnections,
     pendingPermissions,
     pendingCredentials,
+    pendingQuestions,
     getDraft,
     sessionOptions,
     // Session callbacks
@@ -1243,6 +1273,7 @@ export default function App() {
     onDeleteSession: handleDeleteSession,
     onRespondToPermission: handleRespondToPermission,
     onRespondToCredential: handleRespondToCredential,
+    onRespondToQuestion: handleRespondToQuestion,
     // File/URL handlers
     onOpenFile: handleOpenFile,
     onOpenUrl: handleOpenUrl,
@@ -1269,6 +1300,7 @@ export default function App() {
     refreshLlmConnections,
     pendingPermissions,
     pendingCredentials,
+    pendingQuestions,
     getDraft,
     sessionOptions,
     handleCreateSession,
@@ -1285,6 +1317,7 @@ export default function App() {
     handleDeleteSession,
     handleRespondToPermission,
     handleRespondToCredential,
+    handleRespondToQuestion,
     handleOpenFile,
     handleOpenUrl,
     handleSelectWorkspace,

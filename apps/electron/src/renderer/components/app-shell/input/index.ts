@@ -17,4 +17,5 @@ export type {
   StructuredInputData,
   StructuredResponse,
   PermissionResponse,
+  UserQuestionStructuredResponse,
 } from './structured/types'

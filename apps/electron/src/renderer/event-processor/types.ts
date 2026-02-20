@@ -5,7 +5,7 @@
  * All agent events flow through a single pure function for consistent state transitions.
  */
 
-import type { Session, Message, PermissionRequest, CredentialRequest, TypedError, PermissionMode, SessionStatus, AuthRequest, ToolDisplayMeta } from '../../shared/types'
+import type { Session, Message, PermissionRequest, CredentialRequest, UserQuestionRequest, TypedError, PermissionMode, SessionStatus, AuthRequest, ToolDisplayMeta } from '../../shared/types'
 
 /**
  * Streaming state for a session - replaces streamingTextRef
@@ -313,6 +313,15 @@ export interface CredentialRequestEvent {
 }
 
 /**
+ * User question request event - prompts user to answer questions
+ */
+export interface UserQuestionRequestEvent {
+  type: 'user_question_request'
+  sessionId: string
+  request: UserQuestionRequest
+}
+
+/**
  * Task backgrounded event - background agent started
  */
 export interface TaskBackgroundedEvent {
@@ -456,6 +465,7 @@ export type AgentEvent =
   | TypedErrorEvent
   | PermissionRequestEvent
   | CredentialRequestEvent
+  | UserQuestionRequestEvent
   | SourcesChangedEvent
   | LabelsChangedEvent
   | SessionStatusChangedEvent
@@ -494,6 +504,7 @@ export type AgentEvent =
 export type Effect =
   | { type: 'permission_request'; request: PermissionRequest }
   | { type: 'credential_request'; request: CredentialRequest }
+  | { type: 'user_question_request'; request: UserQuestionRequest }
   | { type: 'generate_title'; sessionId: string; userMessage: string }
   | { type: 'permission_mode_changed'; sessionId: string; permissionMode: PermissionMode }
   | { type: 'auto_retry'; sessionId: string; originalMessage: string; sourceSlug: string }

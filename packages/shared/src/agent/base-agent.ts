@@ -37,6 +37,7 @@ import type {
 } from './backend/types.ts';
 import { AbortReason } from './backend/types.ts';
 import type { AuthRequest } from './session-scoped-tools.ts';
+import { respondToQuestion as respondToQuestionImpl } from './session-scoped-tools.ts';
 import type { Workspace } from '../config/storage.ts';
 
 // Core modules
@@ -151,6 +152,7 @@ export abstract class BaseAgent implements AgentBackend {
   onDebug: ((message: string) => void) | null = null;
   onSourceActivationRequest: SourceActivationCallback | null = null;
   onUsageUpdate: ((update: UsageUpdate) => void) | null = null;
+  onQuestionRequest: ((request: { requestId: string; questions: import('@craft-agent/core/types').UserQuestion[]; sessionId?: string }) => void) | null = null;
 
   // ============================================================
   // Constructor
@@ -266,7 +268,7 @@ export abstract class BaseAgent implements AgentBackend {
     if (this.cachedSkills.length === 0) return null;
     const lines = this.cachedSkills.map(s => `- ${s.slug}: ${s.metadata.description}`);
     return `<available_skills>
-If there is even a 1% chance a skill below applies to the user's request, you MUST invoke it via the Skill tool before responding.
+Invoke a skill via the Skill tool only when it is clearly and directly relevant to the user's request. Do NOT invoke skills for general conversation, simple questions, or tasks you can handle directly.
 ${lines.join('\n')}
 </available_skills>`;
   }
@@ -799,6 +801,13 @@ Please continue the conversation naturally from where we left off.
    * Respond to a pending permission request.
    */
   abstract respondToPermission(requestId: string, allowed: boolean, alwaysAllow?: boolean): void;
+
+  /**
+   * Respond to a pending user question.
+   */
+  respondToQuestion(requestId: string, answers: Record<string, string[]>): boolean {
+    return respondToQuestionImpl(requestId, answers);
+  }
 
   /**
    * Run a simple text completion using the agent's auth infrastructure.

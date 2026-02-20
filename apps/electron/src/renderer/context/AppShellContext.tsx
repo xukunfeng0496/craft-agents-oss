@@ -18,6 +18,8 @@ import type {
   PermissionRequest,
   CredentialRequest,
   CredentialResponse,
+  UserQuestionRequest,
+  UserQuestionResponse,
   PermissionMode,
   SessionStatus,
   LoadedSource,
@@ -47,6 +49,7 @@ export interface AppShellContextType {
   refreshLlmConnections: () => Promise<void>
   pendingPermissions: Map<string, PermissionRequest[]>
   pendingCredentials: Map<string, CredentialRequest[]>
+  pendingQuestions: Map<string, UserQuestionRequest[]>
   /** Get draft input text for a session - reads from ref without triggering re-renders */
   getDraft: (sessionId: string) => string
   /** All enabled sources for this workspace - provided by AppShell component */
@@ -94,6 +97,13 @@ export interface AppShellContextType {
     sessionId: string,
     requestId: string,
     response: CredentialResponse
+  ) => void
+
+  // User question handling
+  onRespondToQuestion?: (
+    sessionId: string,
+    requestId: string,
+    response: UserQuestionResponse
   ) => void
 
   // File/URL handlers - these can open in tabs or external apps
@@ -199,6 +209,14 @@ export function usePendingPermission(sessionId: string): PermissionRequest | und
 export function usePendingCredential(sessionId: string): CredentialRequest | undefined {
   const { pendingCredentials } = useAppShellContext()
   return pendingCredentials.get(sessionId)?.[0]
+}
+
+/**
+ * Get pending user question for a session (first in queue)
+ */
+export function usePendingQuestion(sessionId: string): UserQuestionRequest | undefined {
+  const { pendingQuestions } = useAppShellContext()
+  return pendingQuestions.get(sessionId)?.[0]
 }
 
 /**

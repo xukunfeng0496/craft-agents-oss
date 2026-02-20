@@ -16,7 +16,7 @@ import { toast } from 'sonner'
 import { HeaderIconButton } from '@/components/ui/HeaderIconButton'
 import { DropdownMenu, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { StyledDropdownMenuContent, StyledDropdownMenuItem, StyledDropdownMenuSeparator } from '@/components/ui/styled-dropdown'
-import { useAppShellContext, usePendingPermission, usePendingCredential, useSessionOptionsFor, useSession as useSessionData } from '@/context/AppShellContext'
+import { useAppShellContext, usePendingPermission, usePendingCredential, usePendingQuestion, useSessionOptionsFor, useSession as useSessionData } from '@/context/AppShellContext'
 import { rendererPerf } from '@/lib/perf'
 import { routes } from '@/lib/navigate'
 import { ensureSessionMessagesLoadedAtom, loadedSessionsAtom, sessionMetaMapAtom } from '@/atoms/sessions'
@@ -45,6 +45,7 @@ const ChatPage = React.memo(function ChatPage({ sessionId }: ChatPageProps) {
     onOpenUrl,
     onRespondToPermission,
     onRespondToCredential,
+    onRespondToQuestion,
     onMarkSessionRead,
     onMarkSessionUnread,
     onSetActiveViewingSession,
@@ -127,6 +128,7 @@ const ChatPage = React.memo(function ChatPage({ sessionId }: ChatPageProps) {
   // Get pending permission and credential for this session
   const pendingPermission = usePendingPermission(sessionId)
   const pendingCredential = usePendingCredential(sessionId)
+  const pendingQuestion = usePendingQuestion(sessionId)
 
   // Track draft value for this session
   const [inputValue, setInputValue] = React.useState(() => getDraft(sessionId))
@@ -512,6 +514,8 @@ const ChatPage = React.memo(function ChatPage({ sessionId }: ChatPageProps) {
                 onRespondToPermission={onRespondToPermission}
                 pendingCredential={undefined}
                 onRespondToCredential={onRespondToCredential}
+                pendingQuestion={undefined}
+                onRespondToQuestion={onRespondToQuestion}
                 thinkingLevel={sessionOpts.thinkingLevel}
                 onThinkingLevelChange={(level) => setOption('thinkingLevel', level)}
                 ultrathinkEnabled={sessionOpts.ultrathinkEnabled}
@@ -585,6 +589,8 @@ const ChatPage = React.memo(function ChatPage({ sessionId }: ChatPageProps) {
             onRespondToPermission={onRespondToPermission}
             pendingCredential={pendingCredential}
             onRespondToCredential={onRespondToCredential}
+            pendingQuestion={pendingQuestion}
+            onRespondToQuestion={onRespondToQuestion}
             thinkingLevel={sessionOpts.thinkingLevel}
             onThinkingLevelChange={(level) => setOption('thinkingLevel', level)}
             ultrathinkEnabled={sessionOpts.ultrathinkEnabled}

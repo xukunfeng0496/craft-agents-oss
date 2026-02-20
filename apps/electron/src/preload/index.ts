@@ -18,6 +18,8 @@ const api: ElectronAPI = {
     ipcRenderer.invoke(IPC_CHANNELS.RESPOND_TO_PERMISSION, sessionId, requestId, allowed, alwaysAllow),
   respondToCredential: (sessionId: string, requestId: string, response: import('../shared/types').CredentialResponse) =>
     ipcRenderer.invoke(IPC_CHANNELS.RESPOND_TO_CREDENTIAL, sessionId, requestId, response),
+  respondToQuestion: (sessionId: string, requestId: string, response: import('../shared/types').UserQuestionResponse) =>
+    ipcRenderer.invoke(IPC_CHANNELS.RESPOND_TO_QUESTION, sessionId, requestId, response),
 
   // Consolidated session command handler
   sessionCommand: (sessionId: string, command: import('../shared/types').SessionCommand) =>

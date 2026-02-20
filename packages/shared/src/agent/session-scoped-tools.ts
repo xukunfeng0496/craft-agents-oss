@@ -24,6 +24,7 @@
 
 import { createSdkMcpServer, tool } from '@anthropic-ai/claude-agent-sdk';
 import { z } from 'zod';
+import { randomUUID } from 'node:crypto';
 import { getSessionPlansPath, getSessionDataPath, getSessionPath } from '../sessions/storage.ts';
 import { debug } from '../utils/debug.ts';
 import { DOC_REFS } from '../docs/index.ts';
@@ -99,6 +100,12 @@ export interface SessionScopedToolCallbacks {
    * Each agent backend sets this to its own queryLlm implementation.
    */
   queryFn?: (request: LLMQueryRequest) => Promise<LLMQueryResult>;
+
+  /**
+   * Called when the agent asks the user a question via AskUserQuestion tool.
+   * The UI should display the question and collect the user's response.
+   */
+  onQuestionRequest?: (request: { requestId: string; questions: import('@craft-agent/core/types').UserQuestion[]; sessionId?: string }) => void;
 }
 
 // Registry of callbacks keyed by sessionId
@@ -156,6 +163,46 @@ function setLastPlanFilePath(sessionId: string, path: string): void {
  */
 export function clearPlanFileState(sessionId: string): void {
   sessionPlanFilePaths.delete(sessionId);
+}
+
+// ============================================================
+// Pending User Questions
+// ============================================================
+
+interface PendingQuestion {
+  resolve: (response: Record<string, string[]>) => void;
+  reject: (reason: Error) => void;
+  sessionId: string;
+}
+
+// Map of requestId -> pending question resolver
+const pendingQuestions = new Map<string, PendingQuestion>();
+
+/**
+ * Respond to a pending user question.
+ * Called from the main process when the user submits their answer.
+ */
+export function respondToQuestion(requestId: string, answers: Record<string, string[]>): boolean {
+  const pending = pendingQuestions.get(requestId);
+  if (pending) {
+    pending.resolve(answers);
+    pendingQuestions.delete(requestId);
+    return true;
+  }
+  return false;
+}
+
+/**
+ * Clean up pending questions for a session (e.g., when session is destroyed).
+ * Rejects any outstanding promises so tool handlers don't hang forever.
+ */
+export function clearPendingQuestions(sessionId: string): void {
+  for (const [requestId, pending] of pendingQuestions) {
+    if (pending.sessionId === sessionId) {
+      pending.reject(new Error('Session destroyed while waiting for user response'));
+      pendingQuestions.delete(requestId);
+    }
+  }
 }
 
 // ============================================================
@@ -264,6 +311,18 @@ const transformDataSchema = {
   script: z.string().describe('Transform script source code. Receives input file paths as command-line args (sys.argv[1:] or process.argv.slice(2)), last arg is the output file path.'),
   inputFiles: z.array(z.string()).describe('Input file paths relative to session dir (e.g., "long_responses/stripe_txns.txt")'),
   outputFile: z.string().describe('Output file name relative to session data/ dir (e.g., "transactions.json")'),
+};
+
+const askUserQuestionSchema = {
+  questions: z.array(z.object({
+    question: z.string().describe('The question to ask the user'),
+    header: z.string().max(12).describe('Short label displayed as a chip/tag (max 12 chars)'),
+    options: z.array(z.object({
+      label: z.string().describe('Display text for this option (1-5 words)'),
+      description: z.string().describe('Explanation of what this option means'),
+    })).min(2).max(4).describe('Available choices (2-4 options)'),
+    multiSelect: z.boolean().describe('Whether multiple options can be selected'),
+  })).min(1).max(4).describe('Questions to ask (1-4 questions)'),
 };
 
 // ============================================================
@@ -406,6 +465,19 @@ The user will see a secure input UI with appropriate fields based on the auth mo
 - \`query\`: API Key for query parameter auth
 
 **IMPORTANT:** After calling this tool, execution will be paused for user input.`,
+
+  AskUserQuestion: `Ask the user a question with predefined options.
+
+Use this when you need to gather user preferences, clarify ambiguous instructions, get decisions on implementation choices, or offer choices about what direction to take.
+
+The user will see a structured UI with selectable options for each question. They can always provide custom text via an "Other" option.
+
+**Guidelines:**
+- Keep questions clear and specific
+- Provide 2-4 distinct options per question
+- Use multiSelect when choices are not mutually exclusive
+- Include brief descriptions to help the user decide
+- Ask 1-4 questions at a time`,
 };
 
 // ============================================================
@@ -776,6 +848,49 @@ export function getSessionScopedTools(
         const callbacks = getSessionScopedToolCallbacks(sessionId);
         return callbacks?.queryFn;
       },
+    }),
+
+    // AskUserQuestion — ask the user structured questions
+    tool('AskUserQuestion', TOOL_DESCRIPTIONS.AskUserQuestion, askUserQuestionSchema, async (args) => {
+      const requestId = randomUUID();
+      const callbacks = getSessionScopedToolCallbacks(sessionId);
+
+      if (!callbacks?.onQuestionRequest) {
+        return {
+          content: [{ type: 'text' as const, text: 'AskUserQuestion is not available in this environment.' }],
+          isError: true,
+        };
+      }
+
+      // Create a promise that will be resolved when the user responds
+      const responsePromise = new Promise<Record<string, string[]>>((resolve, reject) => {
+        pendingQuestions.set(requestId, { resolve, reject, sessionId });
+      });
+
+      // Notify the UI to show the question
+      callbacks.onQuestionRequest({
+        requestId,
+        questions: args.questions as import('@craft-agent/core/types').UserQuestion[],
+        sessionId,
+      });
+
+      // Block until the user responds
+      const answers = await responsePromise;
+
+      // Format the response as text for the agent
+      const lines: string[] = [];
+      for (let i = 0; i < args.questions.length; i++) {
+        const q = args.questions[i]!;
+        const idx = String(i);
+        const selected = answers[idx] || [];
+        lines.push(`Q: ${q.question}`);
+        lines.push(`A: ${selected.join(', ')}`);
+        lines.push('');
+      }
+
+      return {
+        content: [{ type: 'text' as const, text: lines.join('\n').trim() }],
+      };
     }),
 
   ];

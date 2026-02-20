@@ -39,13 +39,13 @@ import {
 } from "@craft-agent/ui"
 import { useFocusZone } from "@/hooks/keyboard"
 import { useTheme } from "@/hooks/useTheme"
-import type { Session, Message, FileAttachment, StoredAttachment, PermissionRequest, CredentialRequest, CredentialResponse, LoadedSource, LoadedSkill } from "../../../shared/types"
+import type { Session, Message, FileAttachment, StoredAttachment, PermissionRequest, CredentialRequest, CredentialResponse, UserQuestionRequest, UserQuestionResponse, LoadedSource, LoadedSkill } from "../../../shared/types"
 import type { PermissionMode } from "@craft-agent/shared/agent/modes"
 import type { ThinkingLevel } from "@craft-agent/shared/agent/thinking-levels"
 import { TurnCard, UserMessageBubble, groupMessagesByTurn, formatTurnAsMarkdown, formatActivityAsMarkdown, type Turn, type AssistantTurn, type UserTurn, type SystemTurn, type AuthRequestTurn } from "@craft-agent/ui"
 import { MemoizedAuthRequestCard } from "@/components/chat/AuthRequestCard"
 import { ActiveOptionBadges } from "./ActiveOptionBadges"
-import { InputContainer, type StructuredInputState, type StructuredResponse, type PermissionResponse } from "./input"
+import { InputContainer, type StructuredInputState, type StructuredResponse, type PermissionResponse, type UserQuestionStructuredResponse } from "./input"
 import type { RichTextInputHandle } from "@/components/ui/rich-text-input"
 import { useBackgroundTasks } from "@/hooks/useBackgroundTasks"
 import { useTurnCardExpansion } from "@/hooks/useTurnCardExpansion"
@@ -116,6 +116,10 @@ interface ChatDisplayProps {
   pendingCredential?: CredentialRequest
   /** Callback to respond to credential request */
   onRespondToCredential?: (sessionId: string, requestId: string, response: CredentialResponse) => void
+  /** Pending user question request for this session */
+  pendingQuestion?: UserQuestionRequest
+  /** Callback to respond to user question request */
+  onRespondToQuestion?: (sessionId: string, requestId: string, response: UserQuestionResponse) => void
   // Thinking level (session-level setting)
   /** Current thinking level ('off', 'think', 'max') */
   thinkingLevel?: ThinkingLevel
@@ -387,6 +391,8 @@ export const ChatDisplay = React.forwardRef<ChatDisplayHandle, ChatDisplayProps>
   onRespondToPermission,
   pendingCredential,
   onRespondToCredential,
+  pendingQuestion,
+  onRespondToQuestion,
   // Thinking level
   thinkingLevel = 'think',
   onThinkingLevelChange,
@@ -1184,7 +1190,7 @@ export const ChatDisplay = React.forwardRef<ChatDisplayHandle, ChatDisplayProps>
     viewport.scrollTop += delta
   }, [])
 
-  // Handle structured input responses (permissions and credentials)
+  // Handle structured input responses (permissions, credentials, and questions)
   const handleStructuredResponse = (response: StructuredResponse) => {
     if (response.type === 'permission' && pendingPermission && onRespondToPermission) {
       const permResponse = response as PermissionResponse
@@ -1201,6 +1207,13 @@ export const ChatDisplay = React.forwardRef<ChatDisplayHandle, ChatDisplayProps>
         pendingCredential.requestId,
         credResponse
       )
+    } else if (response.type === 'user_question' && pendingQuestion && onRespondToQuestion) {
+      const questionResponse = response as UserQuestionStructuredResponse
+      onRespondToQuestion(
+        questionResponse.sessionId,
+        questionResponse.requestId,
+        { answers: questionResponse.answers }
+      )
     }
   }
 
@@ -1212,8 +1225,11 @@ export const ChatDisplay = React.forwardRef<ChatDisplayHandle, ChatDisplayProps>
     if (pendingCredential) {
       return { type: 'credential', data: pendingCredential }
     }
+    if (pendingQuestion) {
+      return { type: 'user_question', data: pendingQuestion }
+    }
     return undefined
-  }, [pendingPermission, pendingCredential])
+  }, [pendingPermission, pendingCredential, pendingQuestion])
 
   // Memoize turn grouping - avoids O(n) iteration on every render/keystroke
   const allTurns = React.useMemo(() => {

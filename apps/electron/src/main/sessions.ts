@@ -2850,6 +2850,19 @@ export class SessionManager {
       // Auth refresh for mid-session token expiry is handled by the error handler in sendMessage
       // which destroys/recreates the agent to get fresh credentials
 
+      // Set up user question handler to forward requests to renderer
+      managed.agent.onQuestionRequest = (request) => {
+        sessionLog.info(`User question request for session ${managed.id}: ${request.requestId}`)
+        this.sendEvent({
+          type: 'user_question_request',
+          sessionId: managed.id,
+          request: {
+            ...request,
+            sessionId: managed.id,
+          }
+        }, managed.workspace.id)
+      }
+
       // Set up mode change handlers
       managed.agent.onPermissionModeChange = (mode) => {
         sessionLog.info(`Permission mode changed for session ${managed.id}:`, mode)
@@ -4842,6 +4855,21 @@ To view this task's output:
       return true
     } else {
       sessionLog.warn(`Cannot respond to credential - no pending request for ${requestId}`)
+      return false
+    }
+  }
+
+  /**
+   * Respond to a pending user question request
+   * Returns true if the response was delivered, false if no pending request found
+   */
+  respondToQuestion(sessionId: string, requestId: string, response: import('../shared/types').UserQuestionResponse): boolean {
+    const managed = this.sessions.get(sessionId)
+    if (managed?.agent) {
+      sessionLog.info(`User question response for ${requestId}`)
+      return managed.agent.respondToQuestion(requestId, response.answers)
+    } else {
+      sessionLog.warn(`Cannot respond to question - no agent for session ${sessionId}`)
       return false
     }
   }

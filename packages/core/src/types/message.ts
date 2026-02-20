@@ -351,6 +351,24 @@ export interface TypedError {
 }
 
 /**
+ * Option for a user question (matching Claude Code's AskUserQuestion schema)
+ */
+export interface UserQuestionOption {
+  label: string;
+  description: string;
+}
+
+/**
+ * A single question in an AskUserQuestion request
+ */
+export interface UserQuestion {
+  question: string;
+  header: string;
+  options: UserQuestionOption[];
+  multiSelect: boolean;
+}
+
+/**
  * Permission request type categories
  */
 export type PermissionRequestType = 'bash' | 'file_write' | 'mcp_mutation' | 'api_mutation';
@@ -401,7 +419,8 @@ export type AgentEvent =
   | { type: 'task_progress'; toolUseId: string; elapsedSeconds: number; turnId?: string }
   | { type: 'shell_killed'; shellId: string; turnId?: string }
   | { type: 'source_activated'; sourceSlug: string; originalMessage: string }
-  | { type: 'usage_update'; usage: Pick<AgentEventUsage, 'inputTokens' | 'contextWindow'> };
+  | { type: 'usage_update'; usage: Pick<AgentEventUsage, 'inputTokens' | 'contextWindow'> }
+  | { type: 'user_question_request'; requestId: string; questions: UserQuestion[]; sessionId?: string };
 
 /**
  * Generate a unique message ID

@@ -12,6 +12,8 @@ import type {
   StoredAttachment as CoreStoredAttachment,
   ContentBadge,
   ToolDisplayMeta,
+  UserQuestion as CoreUserQuestion,
+  UserQuestionOption as CoreUserQuestionOption,
 } from '@craft-agent/core/types';
 
 // Import mode types from dedicated subpath export (avoids pulling in SDK)
@@ -225,6 +227,31 @@ export interface CredentialResponse {
   headers?: Record<string, string>
   /** Whether user cancelled */
   cancelled: boolean
+}
+
+// ============================================
+// User Question Types (AskUserQuestion flow)
+// ============================================
+
+// Re-export core types for convenience
+export type UserQuestion = CoreUserQuestion
+export type UserQuestionOption = CoreUserQuestionOption
+
+/**
+ * User question request with session context (for multi-session Electron app)
+ */
+export interface UserQuestionRequest {
+  sessionId: string
+  requestId: string
+  questions: CoreUserQuestion[]
+}
+
+/**
+ * User question response from renderer
+ * Maps question index → selected option labels (or custom text for "Other")
+ */
+export interface UserQuestionResponse {
+  answers: Record<string, string[]>
 }
 
 // ============================================
@@ -452,6 +479,7 @@ export type SessionEvent =
   | { type: 'working_directory_changed'; sessionId: string; workingDirectory: string }
   | { type: 'permission_request'; sessionId: string; request: PermissionRequest }
   | { type: 'credential_request'; sessionId: string; request: CredentialRequest }
+  | { type: 'user_question_request'; sessionId: string; request: UserQuestionRequest }
   // Permission mode events
   | { type: 'permission_mode_changed'; sessionId: string; permissionMode: PermissionMode }
   | { type: 'plan_submitted'; sessionId: string; message: CoreMessage }
@@ -584,6 +612,7 @@ export const IPC_CHANNELS = {
   GET_TASK_OUTPUT: 'tasks:getOutput',
   RESPOND_TO_PERMISSION: 'sessions:respondToPermission',
   RESPOND_TO_CREDENTIAL: 'sessions:respondToCredential',
+  RESPOND_TO_QUESTION: 'sessions:respondToQuestion',
 
   // Consolidated session command
   SESSION_COMMAND: 'sessions:command',
@@ -896,6 +925,7 @@ export interface ElectronAPI {
   getTaskOutput(taskId: string): Promise<string | null>
   respondToPermission(sessionId: string, requestId: string, allowed: boolean, alwaysAllow: boolean): Promise<boolean>
   respondToCredential(sessionId: string, requestId: string, response: CredentialResponse): Promise<boolean>
+  respondToQuestion(sessionId: string, requestId: string, response: UserQuestionResponse): Promise<boolean>
 
   // Consolidated session command handler
   sessionCommand(sessionId: string, command: SessionCommand): Promise<void | ShareResult | RefreshTitleResult | SessionFamily | { count: number }>

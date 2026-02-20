@@ -26,6 +26,7 @@ import {
   unregisterSessionScopedToolCallbacks,
   getSessionScopedTools,
   cleanupSessionScopedTools,
+  clearPendingQuestions,
   type AuthRequest,
 } from './session-scoped-tools.ts';
 import { type HookSystem, type SdkHookCallbackMatcher } from '../hooks-simple/index.ts';
@@ -478,6 +479,10 @@ export class ClaudeAgent extends BaseAgent {
         this.onAuthRequest?.(request);
       },
       queryFn: (request) => this.queryLlm(request),
+      onQuestionRequest: (request) => {
+        this.onDebug?.(`[ClaudeAgent] onQuestionRequest received: ${request.requestId}`);
+        this.onQuestionRequest?.(request);
+      },
     });
 
     // Start config watcher for hot-reloading source changes
@@ -1077,6 +1082,11 @@ export class ClaudeAgent extends BaseAgent {
                     reason: 'User denied permission',
                   };
                 }
+              }
+
+              // AskUserQuestion is a UI interaction tool - always auto-approve
+              if (input.tool_name === 'mcp__session__AskUserQuestion') {
+                return { continue: true };
               }
 
               // For MCP mutation tools in 'ask' mode, prompt for permission
@@ -1797,7 +1807,7 @@ export class ClaudeAgent extends BaseAgent {
 
     parts.push(...contextParts);
 
-    const skillsBlock = this.formatSkillState();
+    const skillsBlock = this.isMiniAgent() ? null : this.formatSkillState();
     if (skillsBlock) parts.push(skillsBlock);
 
     // Add file attachments with stored path info (agent uses Read tool to access content)
@@ -1843,7 +1853,7 @@ export class ClaudeAgent extends BaseAgent {
       contentBlocks.push({ type: 'text', text: part });
     }
 
-    const skillsBlock = this.formatSkillState();
+    const skillsBlock = this.isMiniAgent() ? null : this.formatSkillState();
     if (skillsBlock) contentBlocks.push({ type: 'text', text: skillsBlock });
 
     // Add attachments - images/PDFs are uploaded inline, text files are path-only
@@ -2376,6 +2386,7 @@ export class ClaudeAgent extends BaseAgent {
       clearPlanFileState(configSessionId);
       unregisterSessionScopedToolCallbacks(configSessionId);
       cleanupSessionScopedTools(configSessionId);
+      clearPendingQuestions(configSessionId);
       cleanupModeState(configSessionId);
     }
 

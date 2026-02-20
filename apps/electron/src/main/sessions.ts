@@ -792,6 +792,10 @@ interface ManagedSession {
   envOverrides?: Record<string, string>
   // Whether the previous turn was interrupted (for context injection on next message).
   // Ephemeral — not persisted to disk. Cleared after one-shot injection.
+  // Remote control relay state
+  remoteWs?: WebSocket
+  remoteRoomId?: string
+  remoteUrl?: string
   wasInterrupted?: boolean
 }
 
@@ -920,6 +924,11 @@ function storedToMessage(stored: StoredMessage): Message {
 
 // Performance: Batch IPC delta events to reduce renderer load
 const DELTA_BATCH_INTERVAL_MS = 50  // Flush batched deltas every 50ms
+
+const RELAY_URL = process.env.RELAY_URL ?? 'ws://localhost:4747'
+const RELAY_HTTP_URL = RELAY_URL.replace(/^wss?:\/\//, (m) => m === 'wss://' ? 'https://' : 'http://')
+const RELAY_SECRET = process.env.RELAY_SECRET ?? ''
+const RELAY_PUBLIC_BASE = process.env.RELAY_PUBLIC_BASE ?? 'http://localhost:5173'
 
 interface PendingDelta {
   delta: string
@@ -3352,6 +3361,157 @@ export class SessionManager {
     }
   }
 
+
+  /**
+   * Build config payload for remote control viewer snapshots
+   */
+  private buildRemoteConfig(managed: ManagedSession) {
+    const wsConfig = loadWorkspaceConfig(managed.workspace.rootPath)
+    const conn = resolveSessionConnection(managed.llmConnection, wsConfig?.defaults?.defaultLlmConnection)
+    const models = conn?.models ?? []
+    return {
+      permissionMode: managed.permissionMode ?? 'ask',
+      thinkingLevel: managed.thinkingLevel ?? 'think',
+      model: managed.model ?? conn?.defaultModel ?? null,
+      connectionLocked: managed.connectionLocked ?? false,
+      isProcessing: managed.isProcessing,
+      availableModels: models.map(m =>
+        typeof m === 'string' ? { id: m, name: m } : { id: m.id, name: m.shortName || m.name }
+      ),
+    }
+  }
+
+  async startRemoteControl(sessionId: string): Promise<import('../shared/types').ShareResult> {
+    const managed = this.sessions.get(sessionId)
+    if (!managed) return { success: false, error: 'Session not found' }
+    if (managed.remoteWs) return { success: true, url: managed.remoteUrl }
+
+    let ws: WebSocket | undefined
+    try {
+      // 1. Create room on relay server
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+      if (RELAY_SECRET) headers['x-relay-secret'] = RELAY_SECRET
+      const res = await fetch(`${RELAY_HTTP_URL}/rooms`, { method: 'POST', headers })
+      if (!res.ok) return { success: false, error: 'Failed to create relay room' }
+      const { roomId } = await res.json() as { roomId: string }
+      if (!roomId || typeof roomId !== 'string') {
+        return { success: false, error: 'Invalid room ID from relay server' }
+      }
+
+      // 2. Connect as owner
+      const wsUrl = `${RELAY_URL}/rooms/${roomId}/ws?role=owner`
+      const wsOptions: Record<string, unknown> = {}
+      if (RELAY_SECRET) wsOptions.headers = { 'x-relay-secret': RELAY_SECRET }
+      ws = new WebSocket(wsUrl, wsOptions as never)
+
+      await new Promise<void>((resolve, reject) => {
+        ws.onopen = () => resolve()
+        ws.onerror = () => reject(new Error('WebSocket connection failed'))
+        setTimeout(() => reject(new Error('WebSocket timeout')), 5000)
+      })
+
+      // 3. Handle incoming viewer commands
+      ws.onmessage = (event: MessageEvent) => {
+        try {
+          const cmd = JSON.parse(event.data as string) as Record<string, unknown>
+          const type = cmd.type as string
+
+          switch (type) {
+            case 'send_message': {
+              const content = cmd.content as string
+              if (!content) break
+              const rawAttachments = cmd.attachments as Array<{
+                type: string; name: string; mimeType: string;
+                base64?: string; text?: string; size: number
+              }> | undefined
+              const attachments: FileAttachment[] | undefined = rawAttachments?.map(a => ({
+                type: a.type as FileAttachment['type'],
+                path: '',
+                name: a.name,
+                mimeType: a.mimeType,
+                base64: a.base64,
+                text: a.text,
+                size: a.size,
+              }))
+              this.sendMessage(sessionId, content, attachments).catch(() => {})
+              break
+            }
+            case 'set_permission_mode': {
+              const mode = cmd.mode as string
+              if (mode === 'safe' || mode === 'ask' || mode === 'allow-all') {
+                this.setSessionPermissionMode(sessionId, mode)
+              }
+              break
+            }
+            case 'set_thinking_level': {
+              const level = cmd.level as string
+              if (level === 'off' || level === 'think' || level === 'max') {
+                this.setSessionThinkingLevel(sessionId, level)
+              }
+              break
+            }
+            case 'set_model': {
+              const model = cmd.model as string | null
+              if (managed) {
+                this.updateSessionModel(sessionId, managed.workspace.id, model ?? null).catch(() => {})
+              }
+              break
+            }
+          }
+        } catch {}
+      }
+
+      ws.onclose = () => {
+        const m = this.sessions.get(sessionId)
+        if (m) m.remoteWs = undefined
+      }
+
+      // 4. Send initial snapshot so viewers get current state
+      const storedSession = loadStoredSession(managed.workspace.rootPath, sessionId)
+      if (storedSession) {
+        ws.send(JSON.stringify({
+          type: 'session_snapshot',
+          session: storedSession,
+          config: this.buildRemoteConfig(managed),
+        }))
+      }
+
+      // 5. Persist
+      const remoteUrl = `${RELAY_PUBLIC_BASE}/s/r/${roomId}`
+      managed.remoteWs = ws
+      managed.remoteRoomId = roomId
+      managed.remoteUrl = remoteUrl
+      await updateSessionMetadata(managed.workspace.rootPath, sessionId, {
+        remoteRoomId: roomId,
+        remoteUrl,
+      })
+
+      this.sendEvent({ type: 'remote_control_started', sessionId, remoteUrl }, managed.workspace.id)
+      return { success: true, url: remoteUrl }
+    } catch (error) {
+      ws?.close()
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
+    }
+  }
+
+  async stopRemoteControl(sessionId: string): Promise<import('../shared/types').ShareResult> {
+    const managed = this.sessions.get(sessionId)
+    if (!managed) return { success: false, error: 'Session not found' }
+
+    managed.remoteWs?.close()
+    managed.remoteWs = undefined
+    managed.remoteRoomId = undefined
+    managed.remoteUrl = undefined
+
+    await updateSessionMetadata(managed.workspace.rootPath, sessionId, {
+      remoteRoomId: undefined,
+      remoteUrl: undefined,
+    })
+
+    this.sendEvent({ type: 'remote_control_stopped', sessionId }, managed.workspace.id)
+    return { success: true }
+  }
+
   /**
    * Revoke a shared session
    * Deletes from viewer and clears local shared state
@@ -5444,6 +5604,33 @@ To view this task's output:
           window.webContents.send(IPC_CHANNELS.SESSION_EVENT, event)
         } catch {
           // Silently ignore - expected during window closure race conditions
+        }
+      }
+    }
+
+    // Forward to remote control relay if active
+    const relaySessionId = (event as { sessionId?: string }).sessionId
+    if (relaySessionId) {
+      const relayManaged = this.sessions.get(relaySessionId)
+      if (relayManaged?.remoteWs?.readyState === WebSocket.OPEN) {
+        try {
+          // Forward the raw event for potential future incremental processing
+          relayManaged.remoteWs.send(JSON.stringify(event))
+
+          // On key events, send a fresh snapshot so the viewer gets updated state
+          const eventType = (event as { type: string }).type
+          if (eventType === 'complete' || eventType === 'user_message') {
+            const snapshot = loadStoredSession(relayManaged.workspace.rootPath, relaySessionId)
+            if (snapshot) {
+              relayManaged.remoteWs.send(JSON.stringify({
+                type: 'session_snapshot',
+                session: snapshot,
+                config: this.buildRemoteConfig(relayManaged),
+              }))
+            }
+          }
+        } catch {
+          // Silently ignore - expected during WebSocket close race conditions
         }
       }
     }

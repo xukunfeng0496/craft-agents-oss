@@ -29,6 +29,7 @@ import {
 } from '@craft-agent/ui'
 import { SessionUpload } from './components/SessionUpload'
 import { Header } from './components/Header'
+import { RemoteControlViewer } from './components/RemoteControlViewer'
 
 /** Default session ID for development */
 const DEV_SESSION_ID = 'tz5-13I84pwK_he'
@@ -48,7 +49,16 @@ function getSessionIdFromUrl(): string | null {
   return null
 }
 
+/** Extract room ID from URL path /r/{id} */
+function getRemoteRoomIdFromUrl(): string | null {
+  const match = window.location.pathname.match(/^\/s\/r\/([a-f0-9]{16})$/)
+  return match ? match[1] : null
+}
+
 export function App() {
+  const remoteRoomId = getRemoteRoomIdFromUrl()
+  const RELAY_WS_URL = import.meta.env.VITE_RELAY_WS_URL ?? 'ws://localhost:4747'
+
   const [session, setSession] = useState<StoredSession | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -182,6 +192,11 @@ export function App() {
   }
 
   const theme = isDark ? 'dark' : 'light'
+
+  // Early return after all hooks — safe per Rules of Hooks
+  if (remoteRoomId) {
+    return <RemoteControlViewer roomId={remoteRoomId} relayWsUrl={RELAY_WS_URL} />
+  }
 
   return (
     <TooltipProvider>

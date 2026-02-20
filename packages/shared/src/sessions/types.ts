@@ -38,6 +38,8 @@ export const SESSION_PERSISTENT_FIELDS = [
   'model', 'llmConnection', 'connectionLocked', 'thinkingLevel',
   // Sharing
   'sharedUrl', 'sharedId',
+  // Remote control
+  'remoteRoomId', 'remoteUrl',
   // Plan execution
   'pendingPlanExecution',
   // Archive
@@ -126,6 +128,10 @@ export interface SessionConfig {
   sharedUrl?: string;
   /** Shared session ID in viewer (for revoke) */
   sharedId?: string;
+  /** Remote control room ID (relay server) */
+  remoteRoomId?: string;
+  /** Remote control public URL */
+  remoteUrl?: string;
   /** Model to use for this session (overrides global config if set) */
   model?: string;
   /** LLM connection slug for this session (locked after first message) */
@@ -210,6 +216,10 @@ export interface SessionHeader {
   sharedUrl?: string;
   /** Shared session ID in viewer (for revoke) */
   sharedId?: string;
+  /** Remote control room ID (relay server) */
+  remoteRoomId?: string;
+  /** Remote control public URL */
+  remoteUrl?: string;
   /** Model to use for this session (overrides global config if set) */
   model?: string;
   /** LLM connection slug for this session (locked after first message) */

@@ -347,6 +347,8 @@ export interface Session {
   sharedUrl?: string
   // Shared session ID in viewer (for revoke)
   sharedId?: string
+  // Remote control URL (if remote control is active)
+  remoteUrl?: string
   // Model to use for this session (overrides global config if set)
   model?: string
   // LLM connection slug for this session (locked after first message)
@@ -481,6 +483,8 @@ export type SessionEvent =
   | { type: 'session_deleted_cascade'; sessionId: string; count: number }
   | { type: 'session_shared'; sessionId: string; sharedUrl: string }
   | { type: 'session_unshared'; sessionId: string }
+  | { type: 'remote_control_started'; sessionId: string; remoteUrl: string }
+  | { type: 'remote_control_stopped'; sessionId: string }
   // Auth request events (unified auth flow)
   | { type: 'auth_request'; sessionId: string; message: CoreMessage; request: SharedAuthRequest }
   | { type: 'auth_completed'; sessionId: string; requestId: string; success: boolean; cancelled?: boolean; error?: string }
@@ -530,6 +534,8 @@ export type SessionCommand =
   | { type: 'shareToViewer' }
   | { type: 'updateShare' }
   | { type: 'revokeShare' }
+  | { type: 'startRemoteControl' }
+  | { type: 'stopRemoteControl' }
   | { type: 'startOAuth'; requestId: string }
   | { type: 'refreshTitle' }
   // Connection selection (locked after first message)

@@ -43,6 +43,8 @@ import {
   handleUserMessage,
   handleSessionShared,
   handleSessionUnshared,
+  handleRemoteControlStarted,
+  handleRemoteControlStopped,
   handleAuthRequest,
   handleAuthCompleted,
   handleUsageUpdate,
@@ -178,6 +180,12 @@ export function processEvent(
 
     case 'session_unshared':
       return handleSessionUnshared(state, event)
+
+    case 'remote_control_started':
+      return handleRemoteControlStarted(state, event)
+
+    case 'remote_control_stopped':
+      return handleRemoteControlStopped(state, event)
 
     case 'auth_request':
       return handleAuthRequest(state, event)

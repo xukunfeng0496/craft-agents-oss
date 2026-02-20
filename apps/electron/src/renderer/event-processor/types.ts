@@ -379,6 +379,23 @@ export interface SessionUnsharedEvent {
 }
 
 /**
+ * Remote control started event - remote control session was started
+ */
+export interface RemoteControlStartedEvent {
+  type: 'remote_control_started'
+  sessionId: string
+  remoteUrl: string
+}
+
+/**
+ * Remote control stopped event - remote control session was stopped
+ */
+export interface RemoteControlStoppedEvent {
+  type: 'remote_control_stopped'
+  sessionId: string
+}
+
+/**
  * Auth request event - unified auth flow (credential or OAuth)
  * Adds auth-request message to session and displays inline auth UI
  */
@@ -464,6 +481,8 @@ export type AgentEvent =
   | UserMessageEvent
   | SessionSharedEvent
   | SessionUnsharedEvent
+  | RemoteControlStartedEvent
+  | RemoteControlStoppedEvent
   | AuthRequestEvent
   | AuthCompletedEvent
   | SourceActivatedEvent

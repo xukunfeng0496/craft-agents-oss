@@ -124,6 +124,7 @@
       "version": "0.4.8",
       "dependencies": {
         "@craft-agent/core": "workspace:*",
+        "@craft-agent/shared": "workspace:*",
         "@craft-agent/ui": "workspace:*",
         "react": "^18.3.1",
         "react-dom": "^18.3.1",
@@ -183,6 +184,13 @@
       },
       "devDependencies": {
         "shiki": "^3.19.0",
+      },
+    },
+    "packages/relay-server": {
+      "name": "@craft-agent/relay-server",
+      "version": "0.1.0",
+      "devDependencies": {
+        "typescript": "^5.7.3",
       },
     },
     "packages/session-mcp-server": {
@@ -451,6 +459,8 @@
     "@craft-agent/electron": ["@craft-agent/electron@workspace:apps/electron"],
 
     "@craft-agent/mermaid": ["@craft-agent/mermaid@workspace:packages/mermaid"],
+
+    "@craft-agent/relay-server": ["@craft-agent/relay-server@workspace:packages/relay-server"],
 
     "@craft-agent/session-mcp-server": ["@craft-agent/session-mcp-server@workspace:packages/session-mcp-server"],
 

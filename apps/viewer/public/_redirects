@@ -1,6 +1,9 @@
 # Rewrite /s/assets/* to /assets/* (must be before SPA fallback)
 /s/assets/*  /assets/:splat  200
 
+# Remote control viewer route
+/s/r/*  /index.html  200
+
 # SPA routing - serve index.html for /s/* routes
 /s/*  /index.html  200
 

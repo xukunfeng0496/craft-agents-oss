@@ -32,6 +32,8 @@ export interface SessionMeta {
   sharedUrl?: string
   /** Shared session ID in viewer (for revoke) */
   sharedId?: string
+  /** Remote control URL (if remote control is active) */
+  remoteUrl?: string
   /** ID of the last final (non-intermediate) assistant message - for unread detection */
   lastFinalMessageId?: string
   /**
@@ -117,6 +119,7 @@ export function extractSessionMeta(session: Session): SessionMeta {
     enabledSourceSlugs: session.enabledSourceSlugs,
     sharedUrl: session.sharedUrl,
     sharedId: session.sharedId,
+    remoteUrl: session.remoteUrl,
     lastFinalMessageId,
     // Explicit unread flag - source of truth for NEW badge
     hasUnread: session.hasUnread,

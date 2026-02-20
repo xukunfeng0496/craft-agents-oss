@@ -3482,6 +3482,14 @@ export class SessionManager {
               }
               break
             }
+            case 'respond_to_question': {
+              const requestId = cmd.requestId as string
+              const answers = cmd.answers as Record<string, string[]>
+              if (requestId && answers) {
+                this.respondToQuestion(sessionId, requestId, { answers })
+              }
+              break
+            }
           }
         } catch {}
       }
@@ -4879,7 +4887,11 @@ To view this task's output:
     const managed = this.sessions.get(sessionId)
     if (managed?.agent) {
       sessionLog.info(`User question response for ${requestId}`)
-      return managed.agent.respondToQuestion(requestId, response.answers)
+      const success = managed.agent.respondToQuestion(requestId, response.answers)
+      if (success) {
+        this.sendEvent({ type: 'question_answered', sessionId, requestId }, managed.workspace.id)
+      }
+      return success
     } else {
       sessionLog.warn(`Cannot respond to question - no agent for session ${sessionId}`)
       return false

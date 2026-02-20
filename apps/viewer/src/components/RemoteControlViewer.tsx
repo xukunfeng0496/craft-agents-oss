@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { StoredSession } from '@craft-agent/core'
-import { SessionViewer } from '@craft-agent/ui'
+import type { UserQuestion } from '@craft-agent/core/types'
+import { SessionViewer, UserQuestionCard } from '@craft-agent/ui'
 import {
   PERMISSION_MODE_CONFIG,
   PERMISSION_MODE_ORDER,
@@ -166,6 +167,11 @@ export function RemoteControlViewer({ roomId, relayWsUrl }: Props) {
   const [config, setConfig] = useState<SessionConfig | null>(null)
   const [attachments, setAttachments] = useState<FileEntry[]>([])
   const [isAgentTyping, setIsAgentTyping] = useState(false)
+  const [pendingQuestions, setPendingQuestions] = useState<Array<{
+    requestId: string
+    sessionId: string
+    questions: UserQuestion[]
+  }>>([])
   const wsRef = useRef<WebSocket | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
@@ -205,6 +211,20 @@ export function RemoteControlViewer({ roomId, relayWsUrl }: Props) {
           case 'session_model_changed':
             setConfig(prev => prev ? { ...prev, model: msg.model as string | null } : prev)
             break
+          case 'user_question_request': {
+            const req = msg.request as { requestId: string; sessionId: string; questions: UserQuestion[] }
+            if (req?.requestId && req.questions) {
+              setPendingQuestions(prev => [...prev, req])
+            }
+            break
+          }
+          case 'question_answered': {
+            const answeredRequestId = msg.requestId as string
+            if (answeredRequestId) {
+              setPendingQuestions(prev => prev.filter(q => q.requestId !== answeredRequestId))
+            }
+            break
+          }
         }
       } catch {}
     }
@@ -290,6 +310,18 @@ export function RemoteControlViewer({ roomId, relayWsUrl }: Props) {
   const footer = (
     <div className="border-t border-border bg-background px-4 py-4">
       <div className="mx-auto max-w-3xl">
+        {pendingQuestions.length > 0 && (
+          <div className="mb-3">
+            <UserQuestionCard
+              request={pendingQuestions[0]}
+              onSubmit={(requestId, answers) => {
+                sendWsCommand({ type: 'respond_to_question', requestId, answers })
+                // Optimistically dismiss; question_answered event will confirm
+                setPendingQuestions(prev => prev.slice(1))
+              }}
+            />
+          </div>
+        )}
         <AttachmentPreview
           entries={attachments}
           onRemove={(i) => setAttachments(prev => {

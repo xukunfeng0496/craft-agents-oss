@@ -40,6 +40,7 @@ export {
   mapToolEventToActivity,
   SIZE_CONFIG,
   ActivityStatusIcon,
+  UserQuestionCard,
   type SessionViewerProps,
   type SessionViewerMode,
   type TurnCardProps,
@@ -56,6 +57,7 @@ export {
   type InlineExecutionProps,
   type InlineExecutionStatus,
   type InlineActivityItem,
+  type UserQuestionCardProps,
 } from './components/chat'
 
 // Markdown

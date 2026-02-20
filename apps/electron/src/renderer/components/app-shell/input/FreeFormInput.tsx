@@ -251,7 +251,7 @@ export function FreeFormInput({
   onConnectionChange,
   connectionUnavailable = false,
 }: FreeFormInputProps) {
-  const { t } = useTranslation(['common'])
+  const { t } = useTranslation(['common', 'chat'])
   const i18nLabels = getFreeFormInputLabels(t)
 
   const defaultPlaceholders = React.useMemo(() => [
@@ -613,7 +613,7 @@ export function FreeFormInput({
         if (planPath) {
           onSubmit(`Read the plan at ${planPath} and execute it.`, undefined)
         } else {
-          onSubmit('Plan approved, please execute.', undefined)
+          onSubmit(t('chat:plan.approvedMessage'), undefined)
         }
 
         // Clear the pending state since we just sent the execution message

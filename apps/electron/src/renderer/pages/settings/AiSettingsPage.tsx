@@ -10,6 +10,7 @@
  */
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useTranslation } from 'react-i18next'
 import { PanelHeader } from '@/components/app-shell/PanelHeader'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Button } from '@/components/ui/button'
@@ -89,27 +90,28 @@ export const meta: DetailsPageMeta = {
 // Credential Health Warning Banner
 // ============================================
 
-/** Get user-friendly message for credential health issue */
-function getHealthIssueMessage(issue: CredentialHealthIssue): string {
-  switch (issue.type) {
-    case 'file_corrupted':
-      return 'Credential file is corrupted. Please re-authenticate.'
-    case 'decryption_failed':
-      return 'Credentials from another machine detected. Please re-authenticate on this device.'
-    case 'no_default_credentials':
-      return 'No credentials found for your default connection.'
-    default:
-      return issue.message || 'Credential issue detected.'
-  }
-}
-
 interface CredentialHealthBannerProps {
   issues: CredentialHealthIssue[]
   onReauthenticate: () => void
 }
 
 function CredentialHealthBanner({ issues, onReauthenticate }: CredentialHealthBannerProps) {
+  const { t } = useTranslation(['settings'])
+
   if (issues.length === 0) return null
+
+  const getHealthIssueMessage = (issue: CredentialHealthIssue): string => {
+    switch (issue.type) {
+      case 'file_corrupted':
+        return t('settings:ai.credentialHealth.fileCorrupted')
+      case 'decryption_failed':
+        return t('settings:ai.credentialHealth.decryptionFailed')
+      case 'no_default_credentials':
+        return t('settings:ai.credentialHealth.noDefaultCredentials')
+      default:
+        return issue.message || t('settings:ai.credentialHealth.generic')
+    }
+  }
 
   return (
     <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-4 mb-6">
@@ -117,7 +119,7 @@ function CredentialHealthBanner({ issues, onReauthenticate }: CredentialHealthBa
         <AlertTriangle className="h-5 w-5 text-amber-500 flex-shrink-0 mt-0.5" />
         <div className="flex-1 min-w-0">
           <h4 className="text-sm font-medium text-amber-700 dark:text-amber-400">
-            Credential Issue Detected
+            {t('settings:ai.credentialHealth.title')}
           </h4>
           <p className="mt-1 text-sm text-amber-600 dark:text-amber-300/80">
             {getHealthIssueMessage(issues[0])}
@@ -129,7 +131,7 @@ function CredentialHealthBanner({ issues, onReauthenticate }: CredentialHealthBa
           onClick={onReauthenticate}
           className="flex-shrink-0 border-amber-500/30 text-amber-700 dark:text-amber-400 hover:bg-amber-500/10"
         >
-          Re-authenticate
+          {t('settings:ai.credentialHealth.reauthenticate')}
         </Button>
       </div>
     </div>
@@ -156,13 +158,14 @@ interface ConnectionRowProps {
 
 function ConnectionRow({ connection, isLastConnection, onRenameClick, onDelete, onSetDefault, onValidate, onReauthenticate, validationState, validationError }: ConnectionRowProps) {
   const [menuOpen, setMenuOpen] = useState(false)
+  const { t } = useTranslation(['settings'])
 
   // Build description with provider, default indicator, auth status, and validation state
   const getDescription = () => {
     // Show validation state if not idle
-    if (validationState === 'validating') return 'Validating...'
-    if (validationState === 'success') return 'Connection valid'
-    if (validationState === 'error') return validationError || 'Validation failed'
+    if (validationState === 'validating') return t('settings:ai.connection.validating')
+    if (validationState === 'success') return t('settings:ai.connection.valid')
+    if (validationState === 'error') return validationError || t('settings:ai.connection.validationFailed')
 
     const parts: string[] = []
 
@@ -171,14 +174,14 @@ function ConnectionRow({ connection, isLastConnection, onRenameClick, onDelete, 
     const provider = connection.providerType || connection.type
     const isSubscription = connection.authType === 'oauth'
     switch (provider) {
-      case 'anthropic': parts.push(isSubscription ? 'Anthropic Subscription' : 'Anthropic API'); break
-      case 'anthropic_compat': parts.push('Anthropic Compatible'); break
-      case 'openai': parts.push(isSubscription ? 'OpenAI Subscription' : 'OpenAI API'); break
-      case 'copilot': parts.push('GitHub Copilot'); break
-      case 'openai_compat': parts.push('OpenAI Compatible'); break
-      case 'bedrock': parts.push('AWS Bedrock'); break
-      case 'vertex': parts.push('Google Vertex'); break
-      default: parts.push(provider || 'Unknown')
+      case 'anthropic': parts.push(isSubscription ? t('settings:ai.connection.providers.anthropicSubscription') : t('settings:ai.connection.providers.anthropicApi')); break
+      case 'anthropic_compat': parts.push(t('settings:ai.connection.providers.anthropicCompat')); break
+      case 'openai': parts.push(isSubscription ? t('settings:ai.connection.providers.openaiSubscription') : t('settings:ai.connection.providers.openaiApi')); break
+      case 'copilot': parts.push(t('settings:ai.connection.providers.copilot')); break
+      case 'openai_compat': parts.push(t('settings:ai.connection.providers.openaiCompat')); break
+      case 'bedrock': parts.push(t('settings:ai.connection.providers.bedrock')); break
+      case 'vertex': parts.push(t('settings:ai.connection.providers.vertex')); break
+      default: parts.push(provider || t('settings:ai.connection.providers.unknown'))
     }
 
     // Base URL for API key connections (show custom endpoint or default for provider)
@@ -201,7 +204,7 @@ function ConnectionRow({ connection, isLastConnection, onRenameClick, onDelete, 
     }
 
     // Auth status
-    if (!connection.isAuthenticated) parts.push('Not authenticated')
+    if (!connection.isAuthenticated) parts.push(t('settings:ai.connection.notAuthenticated'))
 
     return parts.join(' · ')
   }
@@ -214,7 +217,7 @@ function ConnectionRow({ connection, isLastConnection, onRenameClick, onDelete, 
           <span>{connection.name}</span>
           {connection.isDefault && (
             <span className="inline-flex items-center h-5 px-2 text-[11px] font-medium rounded-[4px] bg-background shadow-minimal text-foreground/60">
-              Default
+              {t('settings:ai.connection.default')}
             </span>
           )}
         </div>
@@ -233,26 +236,26 @@ function ConnectionRow({ connection, isLastConnection, onRenameClick, onDelete, 
         <StyledDropdownMenuContent align="end">
           <StyledDropdownMenuItem onClick={onRenameClick}>
             <Pencil className="h-3.5 w-3.5" />
-            <span>Rename</span>
+            <span>{t('settings:ai.connection.rename')}</span>
           </StyledDropdownMenuItem>
           {!connection.isDefault && (
             <StyledDropdownMenuItem onClick={onSetDefault}>
               <Star className="h-3.5 w-3.5" />
-              <span>Set as default</span>
+              <span>{t('settings:ai.connection.setAsDefault')}</span>
             </StyledDropdownMenuItem>
           )}
           <StyledDropdownMenuItem
             onClick={onReauthenticate}
           >
             <RefreshCcw className="h-3.5 w-3.5" />
-            <span>Re-authenticate</span>
+            <span>{t('settings:ai.connection.reauthenticate')}</span>
           </StyledDropdownMenuItem>
           <StyledDropdownMenuItem
             onClick={onValidate}
             disabled={validationState === 'validating'}
           >
             <CheckCircle2 className="h-3.5 w-3.5" />
-            <span>Validate Connection</span>
+            <span>{t('settings:ai.connection.validateConnection')}</span>
           </StyledDropdownMenuItem>
           <StyledDropdownMenuSeparator />
           <StyledDropdownMenuItem
@@ -261,7 +264,7 @@ function ConnectionRow({ connection, isLastConnection, onRenameClick, onDelete, 
             disabled={isLastConnection}
           >
             <Trash2 className="h-3.5 w-3.5" />
-            <span>Delete</span>
+            <span>{t('settings:ai.connection.delete')}</span>
           </StyledDropdownMenuItem>
         </StyledDropdownMenuContent>
       </DropdownMenu>
@@ -283,6 +286,7 @@ function WorkspaceOverrideCard({ workspace, llmConnections, onSettingsChange }: 
   const [isExpanded, setIsExpanded] = useState(false)
   const [settings, setSettings] = useState<WorkspaceSettings | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const { t } = useTranslation(['settings'])
 
   // Fetch workspace icon as data URL (file:// URLs don't work in renderer)
   const iconUrl = useWorkspaceIcon(workspace)
@@ -351,7 +355,7 @@ function WorkspaceOverrideCard({ workspace, llmConnections, onSettingsChange }: 
 
   // Get summary text for collapsed state
   const getSummary = () => {
-    if (!hasOverrides) return 'Using defaults'
+    if (!hasOverrides) return t('settings:ai.workspaceCard.usingDefaults')
     const parts: string[] = []
     if (settings?.defaultLlmConnection) {
       const conn = llmConnections.find(c => c.slug === settings.defaultLlmConnection)
@@ -392,7 +396,7 @@ function WorkspaceOverrideCard({ workspace, llmConnections, onSettingsChange }: 
           <div className="text-left">
             <div className="text-sm font-medium">{workspace.name}</div>
             <div className="text-xs text-muted-foreground">
-              {isLoading ? 'Loading...' : getSummary()}
+              {isLoading ? t('settings:ai.workspaceCard.loading') : getSummary()}
             </div>
           </div>
         </div>
@@ -414,39 +418,39 @@ function WorkspaceOverrideCard({ workspace, llmConnections, onSettingsChange }: 
           >
             <div className="border-t border-border/50 px-4 py-2">
               <SettingsMenuSelectRow
-                label="Connection"
-                description="API connection for new chats"
+                label={t('settings:ai.connection.label')}
+                description={t('settings:ai.connection.description')}
                 value={currentConnection}
                 onValueChange={handleConnectionChange}
                 options={[
-                  { value: 'global', label: 'Use default', description: 'Inherit from app settings' },
+                  { value: 'global', label: t('settings:ai.connection.useDefault'), description: t('settings:ai.connection.useDefaultDescription') },
                   ...llmConnections.map((conn) => ({
                     value: conn.slug,
                     label: conn.name,
                     description: conn.providerType === 'anthropic' ? 'Anthropic' :
                                  conn.providerType === 'openai' ? 'OpenAI' :
-                                 conn.providerType === 'copilot' ? 'GitHub Copilot' :
-                                 conn.providerType || 'Unknown',
+                                 conn.providerType === 'copilot' ? t('settings:ai.connection.providers.copilot') :
+                                 conn.providerType || t('settings:ai.connection.providers.unknown'),
                   })),
                 ]}
               />
               <SettingsMenuSelectRow
-                label="Model"
-                description="AI model for new chats"
+                label={t('settings:ai.model.label')}
+                description={t('settings:ai.model.description')}
                 value={currentModel}
                 onValueChange={handleModelChange}
                 options={[
-                  { value: 'global', label: 'Use default', description: 'Inherit from app settings' },
+                  { value: 'global', label: t('settings:ai.connection.useDefault'), description: t('settings:ai.connection.useDefaultDescription') },
                   ...getModelOptionsForConnection(workspaceEffectiveConnection),
                 ]}
               />
               <SettingsMenuSelectRow
-                label="Thinking"
-                description="Reasoning depth for new chats"
+                label={t('settings:ai.thinking.label')}
+                description={t('settings:ai.thinking.description')}
                 value={currentThinking}
                 onValueChange={handleThinkingChange}
                 options={[
-                  { value: 'global', label: 'Use default', description: 'Inherit from app settings' },
+                  { value: 'global', label: t('settings:ai.connection.useDefault'), description: t('settings:ai.connection.useDefaultDescription') },
                   ...THINKING_LEVELS.map(({ id, name, description }) => ({
                     value: id,
                     label: name,
@@ -467,6 +471,7 @@ function WorkspaceOverrideCard({ workspace, llmConnections, onSettingsChange }: 
 // ============================================
 
 export default function AiSettingsPage() {
+  const { t } = useTranslation(['settings'])
   const { llmConnections, refreshLlmConnections } = useAppShellContext()
 
   // API Setup overlay state
@@ -718,7 +723,7 @@ export default function AiSettingsPage() {
 
   return (
     <div className="h-full flex flex-col">
-      <PanelHeader title="AI" actions={<HeaderMenu route={routes.view.settings('ai')} />} />
+      <PanelHeader title={t('settings:ai.pageTitle')} actions={<HeaderMenu route={routes.view.settings('ai')} />} />
       <div className="flex-1 min-h-0 mask-fade-y">
         <ScrollArea className="h-full">
           <div className="px-5 py-7 max-w-3xl mx-auto">
@@ -731,35 +736,35 @@ export default function AiSettingsPage() {
             <div className="space-y-8">
               {/* Default Settings - only show if connections exist */}
               {llmConnections.length > 0 && (
-              <SettingsSection title="Default" description="Settings for new chats when no workspace override is set.">
+              <SettingsSection title={t('settings:ai.default.title')} description={t('settings:ai.default.description')}>
                 <SettingsCard>
                   <SettingsMenuSelectRow
-                    label="Connection"
-                    description="API connection for new chats"
+                    label={t('settings:ai.connection.label')}
+                    description={t('settings:ai.connection.description')}
                     value={defaultConnection?.slug || ''}
                     onValueChange={handleSetDefaultConnection}
                     options={llmConnections.map((conn) => ({
                       value: conn.slug,
                       label: conn.name,
-                      description: conn.providerType === 'anthropic' ? 'Anthropic API' :
-                                   conn.providerType === 'openai' ? 'OpenAI API' :
-                                   conn.providerType === 'copilot' ? 'GitHub Copilot' :
-                                   conn.providerType === 'openai_compat' ? 'OpenAI Compatible' :
-                                   conn.providerType === 'bedrock' ? 'AWS Bedrock' :
-                                   conn.providerType === 'vertex' ? 'Google Vertex' :
-                                   conn.providerType || 'Unknown',
+                      description: conn.providerType === 'anthropic' ? t('settings:ai.connection.providers.anthropicApi') :
+                                   conn.providerType === 'openai' ? t('settings:ai.connection.providers.openaiApi') :
+                                   conn.providerType === 'copilot' ? t('settings:ai.connection.providers.copilot') :
+                                   conn.providerType === 'openai_compat' ? t('settings:ai.connection.providers.openaiCompat') :
+                                   conn.providerType === 'bedrock' ? t('settings:ai.connection.providers.bedrock') :
+                                   conn.providerType === 'vertex' ? t('settings:ai.connection.providers.vertex') :
+                                   conn.providerType || t('settings:ai.connection.providers.unknown'),
                     }))}
                   />
                   <SettingsMenuSelectRow
-                    label="Model"
-                    description="AI model for new chats"
+                    label={t('settings:ai.model.label')}
+                    description={t('settings:ai.model.description')}
                     value={defaultModel}
                     onValueChange={handleDefaultModelChange}
                     options={getModelOptionsForConnection(defaultConnection)}
                   />
                   <SettingsMenuSelectRow
-                    label="Thinking"
-                    description="Reasoning depth for new chats"
+                    label={t('settings:ai.thinking.label')}
+                    description={t('settings:ai.thinking.description')}
                     value={defaultThinking}
                     onValueChange={(v) => handleDefaultThinkingChange(v as ThinkingLevel)}
                     options={THINKING_LEVELS.map(({ id, name, description }) => ({
@@ -774,7 +779,7 @@ export default function AiSettingsPage() {
 
               {/* Workspace Overrides - only show if connections exist */}
               {workspaces.length > 0 && llmConnections.length > 0 && (
-                <SettingsSection title="Workspace Overrides" description="Override default settings per workspace.">
+                <SettingsSection title={t('settings:ai.workspaceOverrides.title')} description={t('settings:ai.workspaceOverrides.description')}>
                   <div className="space-y-2">
                     {workspaces.map((workspace) => (
                       <WorkspaceOverrideCard
@@ -789,11 +794,11 @@ export default function AiSettingsPage() {
               )}
 
               {/* Connections Management */}
-              <SettingsSection title="Connections" description="Manage your AI provider connections.">
+              <SettingsSection title={t('settings:ai.connections.title')} description={t('settings:ai.connections.description')}>
                 <SettingsCard>
                   {llmConnections.length === 0 ? (
                     <div className="px-4 py-6 text-center text-sm text-muted-foreground">
-                      No connections configured. Add a connection to get started.
+                      {t('settings:ai.connections.empty')}
                     </div>
                   ) : (
                     [...llmConnections]
@@ -823,7 +828,7 @@ export default function AiSettingsPage() {
                     onClick={() => openApiSetup()}
                     className="inline-flex items-center h-8 px-3 text-sm rounded-lg bg-background shadow-minimal hover:bg-foreground/[0.02] transition-colors"
                   >
-                    + Add Connection
+                    {t('settings:ai.connections.addConnection')}
                   </button>
                 </div>
               </SettingsSection>
@@ -866,11 +871,11 @@ export default function AiSettingsPage() {
               <RenameDialog
                 open={renameDialogOpen}
                 onOpenChange={setRenameDialogOpen}
-                title="Rename Connection"
+                title={t('settings:ai.renameDialog.title')}
                 value={renameValue}
                 onValueChange={setRenameValue}
                 onSubmit={handleRenameSubmit}
-                placeholder="Enter connection name..."
+                placeholder={t('settings:ai.renameDialog.placeholder')}
               />
             </div>
           </div>

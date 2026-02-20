@@ -437,7 +437,7 @@ export const ChatDisplay = React.forwardRef<ChatDisplayHandle, ChatDisplayProps>
   // Connection unavailable
   connectionUnavailable = false,
 }, ref) {
-  const { t } = useTranslation(['common'])
+  const { t } = useTranslation(['common', 'chat'])
   const chatLabels = getChatDisplayLabels(t)
 
   // Input is only disabled when explicitly disabled (e.g., agent needs activation)
@@ -1439,8 +1439,13 @@ export const ChatDisplay = React.forwardRef<ChatDisplayHandle, ChatDisplayProps>
                         isLastResponse={isLastResponse}
                         compactMode={compactMode}
                         onAcceptPlan={() => {
+                          const planMessage = session?.messages.findLast(m => m.role === 'plan')
+                          const planPath = planMessage?.planPath
+                          const text = planPath
+                            ? `Read the plan at ${planPath} and execute it.`
+                            : t('chat:plan.approvedMessage')
                           window.dispatchEvent(new CustomEvent('craft:approve-plan', {
-                            detail: { text: 'Plan approved, please execute.', sessionId: session?.id }
+                            detail: { text, sessionId: session?.id }
                           }))
                         }}
                         onAcceptPlanWithCompact={() => {

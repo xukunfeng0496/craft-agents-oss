@@ -565,6 +565,20 @@ export default function App() {
         }))
       }
 
+      // Handle question_answered: remove from pending questions (viewer answered or local confirmation)
+      if (event.type === 'question_answered') {
+        const requestId = (event as { requestId: string }).requestId
+        setPendingQuestions(prev => {
+          const next = new Map(prev)
+          const queue = next.get(sessionId) || []
+          const filtered = queue.filter(q => q.requestId !== requestId)
+          if (filtered.length === 0) next.delete(sessionId)
+          else next.set(sessionId, filtered)
+          return next
+        })
+        return
+      }
+
       // Check if session is currently streaming (atom is source of truth)
       const atomSession = store.get(sessionAtomFamily(sessionId))
       const isStreaming = atomSession?.isProcessing === true

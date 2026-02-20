@@ -480,6 +480,7 @@ export type SessionEvent =
   | { type: 'permission_request'; sessionId: string; request: PermissionRequest }
   | { type: 'credential_request'; sessionId: string; request: CredentialRequest }
   | { type: 'user_question_request'; sessionId: string; request: UserQuestionRequest }
+  | { type: 'question_answered'; sessionId: string; requestId: string }
   // Permission mode events
   | { type: 'permission_mode_changed'; sessionId: string; permissionMode: PermissionMode }
   | { type: 'plan_submitted'; sessionId: string; message: CoreMessage }

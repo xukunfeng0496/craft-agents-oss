@@ -302,6 +302,75 @@
       "fullscreenTitle": "自动应用规则"
     }
   },
+  "ai": {
+    "pageTitle": "AI",
+    "default": {
+      "title": "默认",
+      "description": "无工作区覆盖时新聊天的默认设置。"
+    },
+    "workspaceOverrides": {
+      "title": "工作区覆盖",
+      "description": "为每个工作区单独覆盖默认设置。"
+    },
+    "connections": {
+      "title": "连接",
+      "description": "管理你的 AI 服务商连接。",
+      "empty": "未配置任何连接，请添加连接以开始使用。",
+      "addConnection": "+ 添加连接"
+    },
+    "connection": {
+      "label": "连接",
+      "description": "新聊天使用的 API 连接",
+      "useDefault": "使用默认",
+      "useDefaultDescription": "继承应用设置",
+      "default": "默认",
+      "rename": "重命名",
+      "setAsDefault": "设为默认",
+      "reauthenticate": "重新认证",
+      "validateConnection": "验证连接",
+      "delete": "删除",
+      "validating": "正在验证...",
+      "valid": "连接有效",
+      "validationFailed": "验证失败",
+      "notAuthenticated": "未认证",
+      "providers": {
+        "anthropicSubscription": "Anthropic 订阅",
+        "anthropicApi": "Anthropic API",
+        "anthropicCompat": "Anthropic 兼容",
+        "openaiSubscription": "OpenAI 订阅",
+        "openaiApi": "OpenAI API",
+        "copilot": "GitHub Copilot",
+        "openaiCompat": "OpenAI 兼容",
+        "bedrock": "AWS Bedrock",
+        "vertex": "Google Vertex",
+        "unknown": "未知"
+      }
+    },
+    "model": {
+      "label": "模型",
+      "description": "新聊天使用的 AI 模型"
+    },
+    "thinking": {
+      "label": "思考",
+      "description": "新聊天的推理深度"
+    },
+    "workspaceCard": {
+      "loading": "加载中...",
+      "usingDefaults": "使用默认值"
+    },
+    "credentialHealth": {
+      "title": "检测到凭证问题",
+      "reauthenticate": "重新认证",
+      "fileCorrupted": "凭证文件已损坏，请重新认证。",
+      "decryptionFailed": "检测到来自其他设备的凭证，请在本设备重新认证。",
+      "noDefaultCredentials": "未找到默认连接的凭证。",
+      "generic": "检测到凭证问题。"
+    },
+    "renameDialog": {
+      "title": "重命名连接",
+      "placeholder": "输入连接名称..."
+    }
+  },
   "workspace": {
     "add": {
       "title": "添加工作区",

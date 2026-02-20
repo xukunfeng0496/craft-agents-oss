@@ -18,3 +18,6 @@ export { FileTypeIcon, getFileTypeLabel, type FileTypeIconProps } from './attach
 
 // Accept plan dropdown (for plan cards)
 export { AcceptPlanDropdown } from './AcceptPlanDropdown'
+
+// User question card (shared between Electron and remote viewer)
+export { UserQuestionCard, type UserQuestionCardProps } from './UserQuestionCard'

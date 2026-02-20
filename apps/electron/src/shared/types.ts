@@ -1266,6 +1266,8 @@ export interface WorkspaceSettings {
   /** Default thinking level for new sessions ('off', 'think', 'max'). Defaults to 'think'. */
   thinkingLevel?: ThinkingLevel
   workingDirectory?: string
+  /** When true (default), each session gets its own subdirectory under workingDirectory */
+  isolateSessionDirectory?: boolean
   /** Whether local (stdio) MCP servers are enabled */
   localMcpEnabled?: boolean
   /** Default LLM connection slug for new sessions in this workspace */

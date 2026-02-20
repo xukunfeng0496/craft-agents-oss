@@ -434,6 +434,10 @@
       "localMcp": {
         "label": "Local MCP Servers",
         "description": "Enable stdio subprocess servers"
+      },
+      "isolateSessionDirectory": {
+        "label": "Isolate Session Directories",
+        "description": "Give each session its own subdirectory under the working directory"
       }
     }
   }

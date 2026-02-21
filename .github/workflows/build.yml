@@ -125,10 +125,10 @@ jobs:
 
           | Platform | File |
           |----------|------|
-          | macOS Apple Silicon | \`Work-Agent-arm64.dmg\` |
-          | macOS Intel | \`Work-Agent-x64.dmg\` |
-          | Windows x64 | \`Work-Agent-x64.exe\` |
-          | Linux x64 | \`Work-Agent-x64.AppImage\` |
+          | macOS Apple Silicon | \`Work-Agent-osx-arm64.dmg\` |
+          | macOS Intel | \`Work-Agent-osx-x64.dmg\` |
+          | Windows x64 | \`Work-Agent-windows-x64.exe\` |
+          | Linux x64 | \`Work-Agent-linux-x64.AppImage\` |
 
           ---
 

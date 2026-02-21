@@ -24,6 +24,8 @@
     "learnMoreMcp": "Learn More about MCP",
     "learnMoreLocalFolders": "Learn More about Local Folders",
     "learnMoreSources": "Learn More about Sources",
+    "remoteControl": "Remote Control",
+    "stopRemoteControl": "Stop Remote Control",
     "showInFinder": "Show in Finder",
     "deleteSource": "Delete Source",
     "deleteSkill": "Delete Skill",
@@ -498,6 +500,12 @@
     "titleRefresh": {
       "success": "Title refreshed",
       "failed": "Failed to refresh title"
+    },
+    "remoteControl": {
+      "linkCopied": "Remote control link copied",
+      "startFailed": "Failed to start remote control",
+      "stopped": "Remote control stopped",
+      "stopFailed": "Failed to stop remote control"
     }
   },
   "sessionSearch": {

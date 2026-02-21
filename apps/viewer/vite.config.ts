@@ -29,7 +29,6 @@ export default defineConfig({
   server: {
     host: '0.0.0.0', // Listen on all interfaces for LAN access
     port: 5174, // Different from Electron dev server
-    host: '0.0.0.0', // Allow LAN access
     open: true,
     proxy: {
       // Proxy API requests to production R2 during local dev

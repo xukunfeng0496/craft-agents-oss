@@ -1,7 +1,7 @@
 import { app, ipcMain, nativeTheme, nativeImage, dialog, shell, BrowserWindow } from 'electron'
 import { readFile, readdir, stat, realpath, mkdir, writeFile, unlink, rm } from 'fs/promises'
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs'
-import { normalize, isAbsolute, join, basename, dirname, resolve, relative } from 'path'
+import { normalize, isAbsolute, join, basename, dirname, resolve, relative, sep } from 'path'
 import { homedir, tmpdir } from 'os'
 import { randomUUID } from 'crypto'
 import { execSync } from 'child_process'
@@ -397,8 +397,9 @@ export function stopCodexModelRefresh(): void {
 }
 
 /**
- * Validates a file path to prevent reading sensitive credential files.
- * Blocks known sensitive file patterns (SSH keys, credentials, etc.).
+ * Validates that a file path is within allowed directories to prevent path traversal attacks.
+ * Allowed directories: user's home directory and /tmp.
+ * Additionally blocks known sensitive file patterns within the home directory.
  */
 async function validateFilePath(filePath: string): Promise<string> {
   // Normalize the path to resolve . and .. components
@@ -423,7 +424,24 @@ async function validateFilePath(filePath: string): Promise<string> {
     realPath = normalizedPath
   }
 
-  // Block sensitive credential files
+  // Define allowed base directories
+  const allowedDirs = [
+    homedir(),  // User's home directory
+    tmpdir(),   // Platform-appropriate temp directory
+  ]
+
+  // Check if the real path is within an allowed directory (cross-platform)
+  const isAllowed = allowedDirs.some(dir => {
+    const normalizedDir = normalize(dir)
+    const normalizedReal = normalize(realPath)
+    return normalizedReal.startsWith(normalizedDir + sep) || normalizedReal === normalizedDir
+  })
+
+  if (!isAllowed) {
+    throw new Error('Access denied: file path is outside allowed directories')
+  }
+
+  // Block sensitive files even within home directory
   const sensitivePatterns = [
     /\.ssh\//,
     /\.gnupg\//,
@@ -434,6 +452,10 @@ async function validateFilePath(filePath: string): Promise<string> {
     /secrets?\./i,
     /\.pem$/,
     /\.key$/,
+    /\.netrc$/,
+    /\.kube\/config/,
+    /\.config\/git\/credentials/,
+    /credentials\.enc$/,
   ]
 
   if (sensitivePatterns.some(pattern => pattern.test(realPath))) {
@@ -2801,7 +2823,7 @@ export function registerIpcHandlers(sessionManager: SessionManager, windowManage
 
   // Expand ~ in a path (session metadata stores portable paths)
   function expandWorkingDir(p: string): string {
-    return p.startsWith('~') ? p.replace('~', homedir()) : p
+    return p.startsWith('~') ? p.replace(/^~/, homedir()) : p
   }
 
   // Get files in session directory (recursive tree structure)
@@ -2874,7 +2896,6 @@ export function registerIpcHandlers(sessionManager: SessionManager, windowManage
         }
         fileChangeDebounceTimer = setTimeout(() => {
           // Notify all windows that session files changed
-          const { BrowserWindow } = require('electron')
           for (const win of BrowserWindow.getAllWindows()) {
             win.webContents.send(IPC_CHANNELS.SESSION_FILES_CHANGED, watchedSessionId)
           }
@@ -2897,7 +2918,6 @@ export function registerIpcHandlers(sessionManager: SessionManager, windowManage
               if (filename && filename.startsWith('.')) return
               if (fileChangeDebounceTimer) clearTimeout(fileChangeDebounceTimer)
               fileChangeDebounceTimer = setTimeout(() => {
-                const { BrowserWindow } = require('electron')
                 for (const win of BrowserWindow.getAllWindows()) {
                   win.webContents.send(IPC_CHANNELS.SESSION_FILES_CHANGED, watchedSessionId)
                 }

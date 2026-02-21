@@ -1587,6 +1587,14 @@ export class SessionManager {
             }
           }
 
+          // Migration: clear stale remote control state from previous run.
+          // The WebSocket connection is gone after restart, so persisted remoteUrl/remoteRoomId
+          // would show a broken remote control link in the UI.
+          if ((meta as { remoteRoomId?: string; remoteUrl?: string }).remoteRoomId || (meta as { remoteRoomId?: string; remoteUrl?: string }).remoteUrl) {
+            sessionLog.info(`Session ${meta.id} has stale remote control state, clearing`)
+            updateSessionMetadata(workspace.rootPath, meta.id, { remoteRoomId: undefined, remoteUrl: undefined }).catch(() => {})
+          }
+
           this.sessions.set(meta.id, managed)
 
           // Initialize session metadata in HookSystem for diffing
@@ -2187,7 +2195,7 @@ export class SessionManager {
 
     // If isolation is enabled and a working directory is configured, create a
     // session-specific subdirectory and update the session's workingDirectory.
-    const isolateSessionDir = wsConfig?.defaults?.isolateSessionDirectory ?? true
+    const isolateSessionDir = wsConfig?.defaults?.isolateSessionDirectory ?? false
     if (isolateSessionDir && resolvedWorkingDir) {
       const isolatedDir = join(resolvedWorkingDir, storedSession.id)
       await mkdir(isolatedDir, { recursive: true })
@@ -3468,9 +3476,22 @@ export class SessionManager {
               let attachments: FileAttachment[] | undefined
               let storedAttachments: StoredAttachment[] | undefined
               if (rawAttachments && rawAttachments.length > 0 && managed) {
+                // Server-side validation: cap count and size to prevent abuse
+                const MAX_ATTACHMENTS = 10
+                const MAX_ATTACHMENT_SIZE = 5 * 1024 * 1024 // 5MB per file
+                const ALLOWED_TYPES: ReadonlySet<string> = new Set(['image', 'pdf', 'text', 'unknown'])
+
+                const validAttachments = rawAttachments
+                  .slice(0, MAX_ATTACHMENTS)
+                  .filter(a => ALLOWED_TYPES.has(a.type) && (a.size == null || a.size <= MAX_ATTACHMENT_SIZE))
+
+                if (validAttachments.length < rawAttachments.length) {
+                  sessionLog.warn(`[RemoteControl] Dropped ${rawAttachments.length - validAttachments.length} invalid/oversized attachments for session ${sessionId}`)
+                }
+
                 const attachmentsDir = getSessionAttachmentsPath(managed.workspace.rootPath, sessionId)
                 await mkdir(attachmentsDir, { recursive: true })
-                const pairs = await Promise.all(rawAttachments.map(async (a) => {
+                const pairs = await Promise.all(validAttachments.map(async (a) => {
                   const id = randomUUID()
                   const safeName = a.name.replace(/[^a-zA-Z0-9._-]/g, '_')
                   const storedPath = join(attachmentsDir, `${id}_${safeName}`)

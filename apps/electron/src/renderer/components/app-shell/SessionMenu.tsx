@@ -97,6 +97,8 @@ export function getSessionMenuLabels(t: TFunction) {
       copyLink: t('common:sessionList.share.copyLink'),
       updateShare: t('common:sessionList.share.updateShare'),
       stopSharing: t('common:sessionList.share.stopSharing'),
+      remoteControl: t('common:menu.remoteControl'),
+      stopRemoteControl: t('common:menu.stopRemoteControl'),
       status: t('common:menu.status'),
       labels: t('common:menu.labels'),
       flag: t('common:menu.flag'),
@@ -116,6 +118,10 @@ export function getSessionMenuLabels(t: TFunction) {
       updateShareFailed: t('common:sessionList.share.updateFailed'),
       sharingStopped: t('common:sessionList.share.stopped'),
       stopSharingFailed: t('common:sessionList.share.stopFailed'),
+      remoteControlLinkCopied: t('common:sessionMenu.remoteControl.linkCopied'),
+      remoteControlStartFailed: t('common:sessionMenu.remoteControl.startFailed'),
+      remoteControlStopped: t('common:sessionMenu.remoteControl.stopped'),
+      remoteControlStopFailed: t('common:sessionMenu.remoteControl.stopFailed'),
       pathCopied: t('common:pathCopied'),
       titleRefreshed: t('common:sessionMenu.titleRefresh.success'),
       titleRefreshFailed: t('common:sessionMenu.titleRefresh.failed'),
@@ -207,24 +213,24 @@ export function SessionMenu({
     const result = await window.electronAPI.sessionCommand(sessionId, { type: 'startRemoteControl' }) as { success: boolean; url?: string; error?: string } | undefined
     if (result?.success && result.url) {
       await navigator.clipboard.writeText(result.url)
-      toast.success('Remote control link copied', {
+      toast.success(i18nLabels.toast.remoteControlLinkCopied, {
         description: result.url,
         action: {
-          label: 'Open',
+          label: i18nLabels.toast.open,
           onClick: () => window.electronAPI.openUrl(result.url!),
         },
       })
     } else {
-      toast.error('Failed to start remote control', { description: result?.error })
+      toast.error(i18nLabels.toast.remoteControlStartFailed, { description: result?.error })
     }
   }
 
   const handleStopRemoteControl = async () => {
     const result = await window.electronAPI.sessionCommand(sessionId, { type: 'stopRemoteControl' }) as { success: boolean; error?: string } | undefined
     if (result?.success) {
-      toast.success('Remote control stopped')
+      toast.success(i18nLabels.toast.remoteControlStopped)
     } else {
-      toast.error('Failed to stop remote control', { description: result?.error })
+      toast.error(i18nLabels.toast.remoteControlStopFailed, { description: result?.error })
     }
   }
 
@@ -310,26 +316,26 @@ export function SessionMenu({
       {!remoteUrl ? (
         <MenuItem onClick={handleStartRemoteControl}>
           <MonitorSmartphone className="h-3.5 w-3.5" />
-          <span className="flex-1">Remote Control</span>
+          <span className="flex-1">{i18nLabels.menu.remoteControl}</span>
         </MenuItem>
       ) : (
         <Sub>
           <SubTrigger className="pr-2">
             <MonitorSmartphone className="h-3.5 w-3.5" />
-            <span className="flex-1">Remote Control</span>
+            <span className="flex-1">{i18nLabels.menu.remoteControl}</span>
           </SubTrigger>
           <SubContent>
             <MenuItem onClick={() => window.electronAPI.openUrl(remoteUrl!)}>
               <Globe className="h-3.5 w-3.5" />
-              <span className="flex-1">Open in Browser</span>
+              <span className="flex-1">{i18nLabels.menu.openInBrowser}</span>
             </MenuItem>
             <MenuItem onClick={() => navigator.clipboard.writeText(remoteUrl!)}>
               <Copy className="h-3.5 w-3.5" />
-              <span className="flex-1">Copy Link</span>
+              <span className="flex-1">{i18nLabels.menu.copyLink}</span>
             </MenuItem>
             <MenuItem onClick={handleStopRemoteControl} variant="destructive">
               <MonitorOff className="h-3.5 w-3.5" />
-              <span className="flex-1">Stop Remote Control</span>
+              <span className="flex-1">{i18nLabels.menu.stopRemoteControl}</span>
             </MenuItem>
           </SubContent>
         </Sub>

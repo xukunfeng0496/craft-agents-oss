@@ -133,8 +133,8 @@ export function loadConfigDefaults(): ConfigDefaults {
     },
     workspaceDefaults: {
       thinkingLevel: 'think',
-      permissionMode: 'safe',
-      cyclablePermissionModes: ['safe', 'allow-all'],
+      permissionMode: 'ask',
+      cyclablePermissionModes: ['ask', 'safe', 'allow-all'],
       localMcpServers: { enabled: true },
     },
   };

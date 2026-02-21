@@ -104,13 +104,19 @@ export function MissingToolsStep({
     navigator.clipboard.writeText(command)
   }
 
-  // Update found state when recheck completes (tools prop changes)
+  // Update state when tools prop changes (recheck completes)
   useEffect(() => {
     setToolState(prev => {
       const next = { ...prev }
       for (const tool of tools) {
-        if (next[tool.id] && tool.found && !next[tool.id].found) {
-          next[tool.id] = { ...next[tool.id], found: true, status: 'idle' }
+        if (!next[tool.id]) continue
+        // Always reset rechecking status and sync found state
+        if (next[tool.id].status === 'rechecking' || tool.found !== next[tool.id].found) {
+          next[tool.id] = {
+            ...next[tool.id],
+            found: tool.found,
+            status: tool.found ? 'idle' : (next[tool.id].status === 'rechecking' ? 'idle' : next[tool.id].status),
+          }
         }
       }
       return next

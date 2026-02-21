@@ -130,7 +130,7 @@
     "installing": "安装中...",
     "downloadProgress": "下载中... {{percent}}%  {{downloadedMB}}/{{totalMB}} MB",
     "launching": "正在打开安装程序...",
-    "installerLaunched": "安装程序已打开，完成安装后请点击"重新检测"。",
+    "installerLaunched": "安装程序已打开，完成安装后请点击\"重新检测\"。",
     "installError": "安装失败：{{error}}",
     "linux": {
       "note": "在终端运行以下命令安装：",

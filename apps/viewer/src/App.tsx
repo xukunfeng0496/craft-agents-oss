@@ -198,7 +198,11 @@ export function App() {
 
   // Early return after all hooks — safe per Rules of Hooks
   if (remoteRoomId) {
-    return <RemoteControlViewer roomId={remoteRoomId} relayWsUrl={RELAY_WS_URL} />
+    return (
+      <TooltipProvider>
+        <RemoteControlViewer roomId={remoteRoomId} relayWsUrl={RELAY_WS_URL} />
+      </TooltipProvider>
+    )
   }
 
   return (

@@ -15,7 +15,7 @@ export interface Room {
   createdAt: number
 }
 
-const MAX_BUFFER = 500
+const MAX_BUFFER = 5000
 const ROOM_TTL_MS = 24 * 60 * 60 * 1000 // 24h
 
 export class RoomManager {
@@ -63,6 +63,21 @@ export class RoomManager {
   }
 
   bufferEvent(room: Room, message: string): void {
+    // If this is a permission_cleared event, remove the matching permission_request from buffer
+    // so reconnecting viewers don't see stale permission dialogs
+    try {
+      const parsed = JSON.parse(message) as { type?: string; requestId?: string }
+      if (parsed.type === 'permission_cleared' && parsed.requestId) {
+        const reqId = parsed.requestId
+        room.eventBuffer = room.eventBuffer.filter(e => {
+          try {
+            const ev = JSON.parse(e) as { type?: string; request?: { requestId?: string } }
+            return !(ev.type === 'permission_request' && ev.request?.requestId === reqId)
+          } catch { return true }
+        })
+      }
+    } catch { /* not JSON, ignore */ }
+
     room.eventBuffer.push(message)
     if (room.eventBuffer.length > MAX_BUFFER) {
       room.eventBuffer.shift()

@@ -12,6 +12,54 @@ import {
   type ThinkingLevel,
 } from '@craft-agent/shared/agent/thinking-levels'
 
+const PROCESSING_MESSAGES = [
+  'Thinking...', 'Working on it...', 'Let me see...', 'One moment...',
+  'Hold on...', 'Bear with me...', 'Just a sec...', 'Hang tight...',
+  'Getting there...', 'Almost...', 'Working...', 'Busy busy...',
+  'Crunching...', 'Brewing...', 'Connecting dots...', 'Hmm...',
+]
+
+function formatElapsed(seconds: number): string {
+  if (seconds < 60) return `${seconds}s`
+  const m = Math.floor(seconds / 60)
+  return `${m}:${(seconds % 60).toString().padStart(2, '0')}`
+}
+
+function ProcessingIndicator({ startTime }: { startTime?: number }) {
+  const [elapsed, setElapsed] = useState(0)
+  const [msgIdx, setMsgIdx] = useState(() => Math.floor(Math.random() * PROCESSING_MESSAGES.length))
+
+  useEffect(() => {
+    const start = startTime || Date.now()
+    setElapsed(Math.floor((Date.now() - start) / 1000))
+    const t = setInterval(() => setElapsed(Math.floor((Date.now() - start) / 1000)), 1000)
+    return () => clearInterval(t)
+  }, [startTime])
+
+  useEffect(() => {
+    const t = setInterval(() => {
+      setMsgIdx(prev => {
+        let next = Math.floor(Math.random() * PROCESSING_MESSAGES.length)
+        while (next === prev && PROCESSING_MESSAGES.length > 1) next = Math.floor(Math.random() * PROCESSING_MESSAGES.length)
+        return next
+      })
+    }, 10000)
+    return () => clearInterval(t)
+  }, [])
+
+  return (
+    <div className="flex items-center gap-2 px-1 text-sm text-muted-foreground">
+      <span className="flex gap-1">
+        <span className="h-2 w-2 animate-bounce rounded-full bg-muted-foreground/50" style={{ animationDelay: '0ms' }} />
+        <span className="h-2 w-2 animate-bounce rounded-full bg-muted-foreground/50" style={{ animationDelay: '150ms' }} />
+        <span className="h-2 w-2 animate-bounce rounded-full bg-muted-foreground/50" style={{ animationDelay: '300ms' }} />
+      </span>
+      <span>{PROCESSING_MESSAGES[msgIdx]}</span>
+      {elapsed >= 1 && <span className="text-muted-foreground/60 tabular-nums">{formatElapsed(elapsed)}</span>}
+    </div>
+  )
+}
+
 interface Props {
   roomId: string
   relayWsUrl: string
@@ -55,6 +103,14 @@ function inferFileType(file: File): string {
   return 'unknown'
 }
 
+interface PendingPermission {
+  requestId: string
+  toolName: string
+  command?: string
+  description: string
+  type?: string
+}
+
 // --- Sub-components ---
 
 function PermissionModeBadge({ mode, disabled, onChange }: {
@@ -83,47 +139,74 @@ function PermissionModeBadge({ mode, disabled, onChange }: {
   )
 }
 
-function ModelDropdown({ model, availableModels, disabled, onChange }: {
+function ModelThinkingButton({ model, availableModels, thinkingLevel, disabled, onModelChange, onThinkingChange }: {
   model: string | null
   availableModels: Array<{ id: string; name: string }>
+  thinkingLevel: ThinkingLevel
   disabled: boolean
-  onChange: (model: string) => void
+  onModelChange: (model: string) => void
+  onThinkingChange: (level: ThinkingLevel) => void
 }) {
-  if (availableModels.length === 0) return null
-  return (
-    <select
-      value={model ?? ''}
-      disabled={disabled}
-      onChange={(e) => onChange(e.target.value)}
-      className="rounded-md border border-border bg-transparent px-2 py-1 text-xs outline-none focus:border-ring disabled:opacity-50"
-    >
-      {availableModels.map((m) => (
-        <option key={m.id} value={m.id}>{m.name}</option>
-      ))}
-    </select>
-  )
-}
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+  const currentModel = availableModels.find(m => m.id === model)
+  const displayName = currentModel?.name ?? model ?? 'Model'
 
-function ThinkingLevelControl({ level, onChange }: {
-  level: ThinkingLevel
-  onChange: (level: ThinkingLevel) => void
-}) {
+  useEffect(() => {
+    if (!open) return
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [open])
+
+  if (availableModels.length === 0) return null
+
   return (
-    <div className="flex rounded-md border border-border">
-      {THINKING_LEVELS.map((tl) => (
-        <button
-          key={tl.id}
-          onClick={() => onChange(tl.id)}
-          title={tl.description}
-          className={`px-2 py-1 text-xs transition-colors first:rounded-l-md last:rounded-r-md ${
-            level === tl.id
-              ? 'bg-primary text-primary-foreground'
-              : 'hover:bg-muted text-muted-foreground'
-          }`}
-        >
-          {tl.id === 'off' ? 'Off' : tl.id === 'think' ? 'Think' : 'Max'}
-        </button>
-      ))}
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => setOpen(o => !o)}
+        className="inline-flex items-center gap-0.5 h-7 px-1.5 text-[13px] rounded-[6px] text-muted-foreground hover:bg-foreground/5 transition-colors disabled:opacity-40 select-none"
+      >
+        {displayName}
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="opacity-50"><path d="m6 9 6 6 6-6"/></svg>
+      </button>
+      {open && (
+        <div className="absolute bottom-full right-0 mb-1 z-50 min-w-[220px] rounded-lg border border-border bg-background shadow-lg py-1">
+          {availableModels.map((m) => (
+            <button
+              key={m.id}
+              onClick={() => { onModelChange(m.id); setOpen(false) }}
+              className={`w-full flex items-center justify-between px-3 py-2 text-sm hover:bg-muted/60 transition-colors ${m.id === model ? 'text-foreground' : 'text-muted-foreground'}`}
+            >
+              <span>{m.name}</span>
+              {m.id === model && (
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+              )}
+            </button>
+          ))}
+          <div className="my-1 border-t border-border" />
+          <div className="px-3 py-1 text-[11px] text-muted-foreground/60 uppercase tracking-wide">Thinking</div>
+          {THINKING_LEVELS.map((tl) => (
+            <button
+              key={tl.id}
+              onClick={() => { onThinkingChange(tl.id); setOpen(false) }}
+              className={`w-full flex items-center justify-between px-3 py-2 text-sm hover:bg-muted/60 transition-colors ${tl.id === thinkingLevel ? 'text-foreground' : 'text-muted-foreground'}`}
+            >
+              <div className="text-left">
+                <div className="font-medium text-sm">{tl.id === 'off' ? 'Off' : tl.id === 'think' ? 'Think' : 'Max'}</div>
+                <div className="text-xs text-muted-foreground/70">{tl.description}</div>
+              </div>
+              {tl.id === thinkingLevel && (
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+              )}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
@@ -160,6 +243,52 @@ function AttachmentPreview({ entries, onRemove }: {
 
 // --- Main Component ---
 
+function PermissionDialog({ permission, onRespond }: {
+  permission: PendingPermission
+  onRespond: (allowed: boolean, alwaysAllow: boolean) => void
+}) {
+  return (
+    <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+      <div className="mx-4 w-full max-w-md rounded-xl border border-border bg-background p-5 shadow-xl">
+        <div className="mb-3 flex items-center gap-2">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-warning shrink-0">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+          </svg>
+          <span className="text-sm font-medium">需要权限</span>
+          {permission.type && (
+            <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">{permission.type}</span>
+          )}
+        </div>
+        <div className="mb-1 text-xs font-medium text-muted-foreground">{permission.toolName}</div>
+        {permission.command && (
+          <pre className="mb-3 overflow-x-auto rounded-md bg-muted px-3 py-2 text-xs font-mono">{permission.command}</pre>
+        )}
+        <p className="mb-4 text-xs text-muted-foreground">{permission.description}</p>
+        <div className="flex gap-2">
+          <button
+            onClick={() => onRespond(true, false)}
+            className="flex-1 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:opacity-90"
+          >
+            允许
+          </button>
+          <button
+            onClick={() => onRespond(true, true)}
+            className="flex-1 rounded-md border border-border px-3 py-1.5 text-xs font-medium hover:bg-muted"
+          >
+            始终允许
+          </button>
+          <button
+            onClick={() => onRespond(false, false)}
+            className="flex-1 rounded-md border border-destructive/50 px-3 py-1.5 text-xs font-medium text-destructive hover:bg-destructive/10"
+          >
+            拒绝
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export function RemoteControlViewer({ roomId, relayWsUrl }: Props) {
   const [session, setSession] = useState<StoredSession | null>(null)
   const [connected, setConnected] = useState(false)
@@ -172,6 +301,8 @@ export function RemoteControlViewer({ roomId, relayWsUrl }: Props) {
     sessionId: string
     questions: UserQuestion[]
   }>>([])
+  const [processingStartTime, setProcessingStartTime] = useState<number | undefined>(undefined)
+  const [pendingPermission, setPendingPermission] = useState<PendingPermission | null>(null)
   const wsRef = useRef<WebSocket | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement | null>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
@@ -193,19 +324,36 @@ export function RemoteControlViewer({ roomId, relayWsUrl }: Props) {
         const msg = JSON.parse(event.data as string) as { type: string; [key: string]: unknown }
         console.log('[viewer] WS message:', msg.type, msg.type === 'session_snapshot' ? `messages: ${(msg.session as StoredSession)?.messages?.length}` : '')
         switch (msg.type) {
-          case 'session_snapshot':
+          case 'session_snapshot': {
             setSession(msg.session as StoredSession)
-            if (msg.config) setConfig(msg.config as SessionConfig)
+            const snapConfig = msg.config as SessionConfig | undefined
+            if (snapConfig) {
+              setConfig(snapConfig)
+              if (snapConfig.isProcessing) {
+                setProcessingStartTime(prev => prev ?? Date.now())
+              } else {
+                setProcessingStartTime(undefined)
+              }
+            }
             setIsAgentTyping(false)
             break
+          }
           case 'text_delta':
             setIsAgentTyping(true)
             setConfig(prev => prev ? { ...prev, isProcessing: true } : prev)
+            setProcessingStartTime(prev => prev ?? Date.now())
             break
           case 'complete':
             setIsAgentTyping(false)
             setConfig(prev => prev ? { ...prev, isProcessing: false } : prev)
+            setPendingPermission(null)
+            setProcessingStartTime(undefined)
             break
+          case 'permission_request': {
+            const req = msg.request as { requestId: string; toolName: string; command?: string; description: string; type?: string }
+            if (req?.requestId) setPendingPermission(req)
+            break
+          }
           case 'permission_mode_changed':
             setConfig(prev => prev ? { ...prev, permissionMode: msg.permissionMode as PermissionMode } : prev)
             break
@@ -310,33 +458,16 @@ export function RemoteControlViewer({ roomId, relayWsUrl }: Props) {
     if (e.dataTransfer.files.length > 0) processFiles(e.dataTransfer.files)
   }, [processFiles])
 
-  const isDisabled = !connected || config?.isProcessing
+  const isDisabled = !connected
+  const isProcessing = config?.isProcessing ?? false
 
-  // --- Config Toolbar ---
-  const toolbar = config ? (
-    <div className="flex items-center gap-3 border-b border-border px-4 py-1.5">
-      <PermissionModeBadge
-        mode={config.permissionMode}
-        disabled={!!isDisabled}
-        onChange={(mode) => sendWsCommand({ type: 'set_permission_mode', mode })}
-      />
-      <ModelDropdown
-        model={config.model}
-        availableModels={config.availableModels}
-        disabled={!!isDisabled}
-        onChange={(model) => sendWsCommand({ type: 'set_model', model })}
-      />
-      <ThinkingLevelControl
-        level={config.thinkingLevel}
-        onChange={(level) => sendWsCommand({ type: 'set_thinking_level', level })}
-      />
-    </div>
-  ) : null
+  // --- Config Toolbar removed — controls moved into input box ---
+  const toolbar = null
 
   // --- Footer (input area) ---
   const footer = (
     <div className="border-t border-border bg-background px-4 py-4">
-      <div className="mx-auto max-w-3xl">
+      <div className="mx-auto max-w-[840px]">
         {pendingQuestions.length > 0 && (
           <div className="mb-3">
             <UserQuestionCard
@@ -349,6 +480,11 @@ export function RemoteControlViewer({ roomId, relayWsUrl }: Props) {
             />
           </div>
         )}
+        {isProcessing && (
+          <div className="mb-3">
+            <ProcessingIndicator startTime={processingStartTime} />
+          </div>
+        )}
         <AttachmentPreview
           entries={attachments}
           onRemove={(i) => setAttachments(prev => {
@@ -359,7 +495,7 @@ export function RemoteControlViewer({ roomId, relayWsUrl }: Props) {
           })}
         />
         <div
-          className="relative flex items-end gap-3 rounded-xl border border-input bg-muted/30 px-4 py-3 shadow-sm focus-within:border-ring focus-within:ring-1 focus-within:ring-ring"
+          className="relative flex flex-col rounded-xl border border-input bg-muted/30 px-4 pt-3 pb-2 shadow-sm focus-within:border-ring focus-within:ring-1 focus-within:ring-ring"
           onDragOver={(e) => e.preventDefault()}
           onDrop={handleDrop}
         >
@@ -370,52 +506,74 @@ export function RemoteControlViewer({ roomId, relayWsUrl }: Props) {
             className="hidden"
             onChange={(e) => { if (e.target.files) processFiles(e.target.files); e.target.value = '' }}
           />
-          <button
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-muted-foreground hover:text-foreground transition-colors disabled:opacity-30"
-            disabled={!!isDisabled || attachments.length >= MAX_FILES}
-            onClick={() => fileInputRef.current?.click()}
-            aria-label="Attach file"
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48" />
-            </svg>
-          </button>
-          <textarea
-            ref={textareaRef}
-            className="flex-1 resize-none bg-transparent text-sm leading-6 outline-none placeholder:text-muted-foreground/60"
-            placeholder={isDisabled ? (config?.isProcessing ? 'Agent is working...' : 'Connecting...') : 'Send a message...'}
-            value={input}
-            disabled={!!isDisabled}
-            rows={1}
-            onChange={handleInput}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault()
-                sendMessage()
-              }
-            }}
-          />
-          <button
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground transition-opacity disabled:opacity-30"
-            disabled={!!isDisabled || (!input.trim() && attachments.length === 0)}
-            onClick={sendMessage}
-            aria-label="Send message"
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M22 2L11 13" /><path d="M22 2L15 22L11 13L2 9L22 2Z" />
-            </svg>
-          </button>
-        </div>
-        {isAgentTyping && (
-          <div className="mt-2 flex items-center gap-2 px-1 text-xs text-muted-foreground">
-            <span className="flex gap-1">
-              <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-muted-foreground/50" style={{ animationDelay: '0ms' }} />
-              <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-muted-foreground/50" style={{ animationDelay: '150ms' }} />
-              <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-muted-foreground/50" style={{ animationDelay: '300ms' }} />
-            </span>
-            Agent is thinking...
+          <div className="flex items-start gap-3">
+            <button
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-muted-foreground hover:text-foreground transition-colors disabled:opacity-30"
+              disabled={!!isDisabled || attachments.length >= MAX_FILES}
+              onClick={() => fileInputRef.current?.click()}
+              aria-label="Attach file"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48" />
+              </svg>
+            </button>
+            <textarea
+              ref={textareaRef}
+              className="flex-1 resize-none bg-transparent text-sm leading-6 outline-none placeholder:text-muted-foreground/60"
+              placeholder={isDisabled ? 'Connecting...' : 'Send a message...'}
+              value={input}
+              disabled={!!isDisabled}
+              rows={3}
+              onChange={handleInput}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault()
+                  sendMessage()
+                }
+              }}
+            />
           </div>
-        )}
+          <div className="flex items-center pt-1">
+            {config && (
+              <PermissionModeBadge
+                mode={config.permissionMode}
+                disabled={!!isDisabled}
+                onChange={(mode) => sendWsCommand({ type: 'set_permission_mode', mode })}
+              />
+            )}
+            <div className="flex-1" />
+            {config && (
+              <ModelThinkingButton
+                model={config.model}
+                availableModels={config.availableModels}
+                thinkingLevel={config.thinkingLevel}
+                disabled={!!isDisabled}
+                onModelChange={(model) => sendWsCommand({ type: 'set_model', model })}
+                onThinkingChange={(level) => sendWsCommand({ type: 'set_thinking_level', level })}
+              />
+            )}
+            {isProcessing ? (
+              <button
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border text-muted-foreground hover:text-foreground hover:border-foreground/40 transition-colors"
+                onClick={() => sendWsCommand({ type: 'cancel_processing' })}
+                aria-label="Stop"
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><rect x="4" y="4" width="16" height="16" rx="2"/></svg>
+              </button>
+            ) : (
+              <button
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground transition-opacity disabled:opacity-30"
+                disabled={!!isDisabled || (!input.trim() && attachments.length === 0)}
+                onClick={sendMessage}
+                aria-label="Send message"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M22 2L11 13" /><path d="M22 2L15 22L11 13L2 9L22 2Z" />
+                </svg>
+              </button>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   )
@@ -423,7 +581,7 @@ export function RemoteControlViewer({ roomId, relayWsUrl }: Props) {
   // --- Loading states ---
   if (!connected && !session) {
     return (
-      <div className="flex h-screen items-center justify-center text-muted-foreground text-sm">
+      <div className="flex h-[100dvh] items-center justify-center text-muted-foreground text-sm">
         Connecting to remote session...
       </div>
     )
@@ -431,25 +589,36 @@ export function RemoteControlViewer({ roomId, relayWsUrl }: Props) {
 
   if (!session) {
     return (
-      <div className="flex h-screen items-center justify-center text-muted-foreground text-sm">
+      <div className="flex h-[100dvh] items-center justify-center text-muted-foreground text-sm">
         Waiting for session data...
       </div>
     )
   }
 
   return (
-    <div className="flex h-screen flex-col bg-background text-foreground">
+    <div className="flex h-[100dvh] flex-col bg-background text-foreground">
       <div className="flex items-center gap-2 border-b border-border px-4 py-2 text-xs text-muted-foreground">
         <span className={`h-2 w-2 rounded-full ${connected ? 'bg-green-500' : 'bg-red-500'}`} />
         {connected ? 'Connected — Remote Control' : 'Disconnected'}
       </div>
       {toolbar}
-      <SessionViewer
-        session={session}
-        mode="interactive"
-        footer={footer}
-        className="flex-1 min-h-0"
-      />
+      <div className="relative flex-1 min-h-0">
+        <SessionViewer
+          session={session}
+          mode="interactive"
+          footer={footer}
+          className="h-full"
+        />
+        {pendingPermission && (
+          <PermissionDialog
+            permission={pendingPermission}
+            onRespond={(allowed, alwaysAllow) => {
+              sendWsCommand({ type: 'permission_response', requestId: pendingPermission.requestId, allowed, alwaysAllow })
+              setPendingPermission(null)
+            }}
+          />
+        )}
+      </div>
     </div>
   )
 }

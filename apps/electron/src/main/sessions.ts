@@ -3,6 +3,7 @@ import * as Sentry from '@sentry/electron/main'
 import { basename, join } from 'path'
 import { existsSync } from 'fs'
 import { rm, readFile, mkdir, writeFile, rename, open } from 'fs/promises'
+import { randomUUID } from 'crypto'
 import { CraftAgent, type AgentEvent, setPermissionMode, type PermissionMode, unregisterSessionScopedToolCallbacks, AbortReason, type AuthRequest, type AuthResult, type CredentialAuthRequest } from '@craft-agent/shared/agent'
 import {
   CodexBackend,
@@ -928,7 +929,7 @@ const DELTA_BATCH_INTERVAL_MS = 50  // Flush batched deltas every 50ms
 const RELAY_URL = process.env.RELAY_URL ?? 'ws://localhost:4747'
 const RELAY_HTTP_URL = RELAY_URL.replace(/^wss?:\/\//, (m) => m === 'wss://' ? 'https://' : 'http://')
 const RELAY_SECRET = process.env.RELAY_SECRET ?? ''
-const RELAY_PUBLIC_BASE = process.env.RELAY_PUBLIC_BASE ?? 'http://localhost:5173'
+const RELAY_PUBLIC_BASE = process.env.RELAY_PUBLIC_BASE ?? 'http://localhost:5174'
 
 interface PendingDelta {
   delta: string
@@ -1610,52 +1611,51 @@ export class SessionManager {
     }
   }
 
+  // Build a StoredSession from in-memory ManagedSession (used for persistence and relay snapshots)
+  private buildStoredSession(managed: ManagedSession, includeStatus = false): StoredSession {
+    const persistableMessages = managed.messages.filter(m =>
+      includeStatus ? true : m.role !== 'status'
+    )
+
+    return {
+      id: managed.id,
+      workspaceRootPath: managed.workspace.rootPath,
+      name: managed.name,
+      createdAt: managed.createdAt ?? Date.now(),
+      lastUsedAt: Date.now(),
+      lastMessageAt: managed.lastMessageAt,
+      sdkSessionId: managed.sdkSessionId,
+      isFlagged: managed.isFlagged,
+      isArchived: managed.isArchived,
+      archivedAt: managed.archivedAt,
+      permissionMode: managed.permissionMode,
+      sessionStatus: managed.sessionStatus,
+      lastReadMessageId: managed.lastReadMessageId,
+      hasUnread: managed.hasUnread,
+      enabledSourceSlugs: managed.enabledSourceSlugs,
+      labels: managed.labels,
+      workingDirectory: managed.workingDirectory,
+      sdkCwd: managed.sdkCwd,
+      model: managed.model,
+      llmConnection: managed.llmConnection,
+      connectionLocked: managed.connectionLocked,
+      thinkingLevel: managed.thinkingLevel,
+      messages: persistableMessages.map(messageToStored),
+      tokenUsage: managed.tokenUsage ?? {
+        inputTokens: 0,
+        outputTokens: 0,
+        totalTokens: 0,
+        contextTokens: 0,
+        costUsd: 0,
+      },
+      hidden: managed.hidden,
+    }
+  }
+
   // Persist a session to disk (async with debouncing)
   private persistSession(managed: ManagedSession): void {
     try {
-      // Filter out transient status messages (progress indicators like "Compacting...")
-      // Error messages are now persisted with rich fields for diagnostics
-      const persistableMessages = managed.messages.filter(m =>
-        m.role !== 'status'
-      )
-
-      const workspaceRootPath = managed.workspace.rootPath
-      const storedSession: StoredSession = {
-        id: managed.id,
-        workspaceRootPath,
-        name: managed.name,
-        createdAt: managed.createdAt ?? Date.now(),
-        lastUsedAt: Date.now(),
-        lastMessageAt: managed.lastMessageAt,  // Preserve actual message time (not persist time)
-        sdkSessionId: managed.sdkSessionId,
-        isFlagged: managed.isFlagged,
-        isArchived: managed.isArchived,
-        archivedAt: managed.archivedAt,
-        permissionMode: managed.permissionMode,
-        sessionStatus: managed.sessionStatus,
-        lastReadMessageId: managed.lastReadMessageId,  // For unread detection
-        hasUnread: managed.hasUnread,  // Explicit unread flag for NEW badge state machine
-        enabledSourceSlugs: managed.enabledSourceSlugs,
-        labels: managed.labels,
-        workingDirectory: managed.workingDirectory,
-        sdkCwd: managed.sdkCwd,
-        model: managed.model,
-        llmConnection: managed.llmConnection,
-        connectionLocked: managed.connectionLocked,
-        thinkingLevel: managed.thinkingLevel,
-        messages: persistableMessages.map(messageToStored),
-        tokenUsage: managed.tokenUsage ?? {
-          inputTokens: 0,
-          outputTokens: 0,
-          totalTokens: 0,
-          contextTokens: 0,
-          costUsd: 0,
-        },
-        hidden: managed.hidden,
-      }
-
-      // Queue for async persistence with debouncing
-      sessionPersistenceQueue.enqueue(storedSession)
+      sessionPersistenceQueue.enqueue(this.buildStoredSession(managed))
     } catch (error) {
       sessionLog.error(`Failed to queue session ${managed.id} for persistence:`, error)
     }
@@ -3452,7 +3452,7 @@ export class SessionManager {
       })
 
       // 3. Handle incoming viewer commands
-      ws.onmessage = (event: MessageEvent) => {
+      ws.onmessage = async (event: MessageEvent) => {
         try {
           const cmd = JSON.parse(event.data as string) as Record<string, unknown>
           const type = cmd.type as string
@@ -3465,16 +3465,49 @@ export class SessionManager {
                 type: string; name: string; mimeType: string;
                 base64?: string; text?: string; size: number
               }> | undefined
-              const attachments: FileAttachment[] | undefined = rawAttachments?.map(a => ({
-                type: a.type as FileAttachment['type'],
-                path: '',
-                name: a.name,
-                mimeType: a.mimeType,
-                base64: a.base64,
-                text: a.text,
-                size: a.size,
-              }))
-              this.sendMessage(sessionId, content, attachments).catch(() => {})
+              let attachments: FileAttachment[] | undefined
+              let storedAttachments: StoredAttachment[] | undefined
+              if (rawAttachments && rawAttachments.length > 0 && managed) {
+                const attachmentsDir = getSessionAttachmentsPath(managed.workspace.rootPath, sessionId)
+                await mkdir(attachmentsDir, { recursive: true })
+                const pairs = await Promise.all(rawAttachments.map(async (a) => {
+                  const id = randomUUID()
+                  const safeName = a.name.replace(/[^a-zA-Z0-9._-]/g, '_')
+                  const storedPath = join(attachmentsDir, `${id}_${safeName}`)
+                  if (a.base64) {
+                    await writeFile(storedPath, Buffer.from(a.base64, 'base64'))
+                  } else if (a.text) {
+                    await writeFile(storedPath, a.text, 'utf8')
+                  }
+                  const fa: FileAttachment = {
+                    type: a.type as FileAttachment['type'],
+                    path: storedPath,
+                    name: a.name,
+                    mimeType: a.mimeType,
+                    base64: a.base64,
+                    text: a.text,
+                    size: a.size,
+                    storedPath,  // agent uses this to reference the file in prompts
+                  }
+                  const sa: StoredAttachment = {
+                    id,
+                    type: a.type as StoredAttachment['type'],
+                    name: a.name,
+                    mimeType: a.mimeType,
+                    size: a.size,
+                    storedPath,
+                    thumbnailBase64: a.type === 'image' && a.base64 ? a.base64 : undefined,
+                  }
+                  return { fa, sa }
+                }))
+                attachments = pairs.map(p => p.fa)
+                storedAttachments = pairs.map(p => p.sa)
+              }
+              this.sendMessage(sessionId, content, attachments, storedAttachments).catch(() => {})
+              break
+            }
+            case 'cancel_processing': {
+              this.cancelProcessing(sessionId).catch(() => {})
               break
             }
             case 'set_permission_mode': {
@@ -3506,6 +3539,19 @@ export class SessionManager {
               }
               break
             }
+            case 'permission_response': {
+              const requestId = cmd.requestId as string
+              const allowed = cmd.allowed as boolean
+              const alwaysAllow = (cmd.alwaysAllow as boolean) ?? false
+              if (requestId !== undefined && allowed !== undefined) {
+                this.respondToPermission(sessionId, requestId, allowed, alwaysAllow)
+                // Notify renderer to clear the permission dialog
+                if (managed) {
+                  this.sendEvent({ type: 'permission_cleared', sessionId, requestId }, managed.workspace.id)
+                }
+              }
+              break
+            }
           }
         } catch {}
       }
@@ -3516,14 +3562,12 @@ export class SessionManager {
       }
 
       // 4. Send initial snapshot so viewers get current state
-      const storedSession = loadStoredSession(managed.workspace.rootPath, sessionId)
-      if (storedSession) {
-        ws.send(JSON.stringify({
-          type: 'session_snapshot',
-          session: storedSession,
-          config: this.buildRemoteConfig(managed),
-        }))
-      }
+      const storedSession = this.buildStoredSession(managed, true)
+      ws.send(JSON.stringify({
+        type: 'session_snapshot',
+        session: storedSession,
+        config: this.buildRemoteConfig(managed),
+      }))
 
       // 5. Persist
       const remoteUrl = `${RELAY_PUBLIC_BASE}/s/r/${roomId}`
@@ -4113,10 +4157,11 @@ export class SessionManager {
     // Ensure messages are loaded before we try to add new ones
     await this.ensureMessagesLoaded(managed)
 
-    // If currently processing, queue the message and interrupt via forceAbort.
-    // The abort throws an AbortError (caught in the catch block) which calls
-    // onProcessingStopped → processNextQueuedMessage to drain the queue.
-    if (managed.isProcessing) {
+    // If currently processing AND this is a new message (not being dequeued),
+    // queue it and interrupt. When existingMessageId is set, the message was
+    // already dequeued by processNextQueuedMessage — skip this check to avoid
+    // re-queuing it (which would cause a deadlock since no agent is running yet).
+    if (managed.isProcessing && !existingMessageId) {
       sessionLog.info(`Session ${sessionId} is processing, queueing message and interrupting`)
 
       // Create user message for queued state (so UI can show it)
@@ -4175,6 +4220,9 @@ export class SessionManager {
 
       // Update lastMessageRole for badge display
       managed.lastMessageRole = 'user'
+
+      // Mark as processing before sending event so relay snapshot has correct isProcessing state
+      managed.isProcessing = true
 
       // Emit user_message event so UI can confirm the optimistic message
       this.sendEvent({
@@ -4713,6 +4761,9 @@ export class SessionManager {
         // Clear isQueued flag and persist - prevents re-queueing if crash during processing
         existingMessage.isQueued = false
         this.persistSession(managed)
+
+        // Mark as processing before sending event so relay snapshot has correct isProcessing state
+        managed.isProcessing = true
 
         this.sendEvent({
           type: 'user_message',
@@ -5662,7 +5713,6 @@ To view this task's output:
 
     if (windows.length === 0) {
       sessionLog.warn(`Cannot send ${event.type} event - no windows for workspace ${workspaceId}`)
-      return
     }
 
     // Send event to all windows for this workspace
@@ -5690,16 +5740,21 @@ To view this task's output:
           relayManaged.remoteWs.send(JSON.stringify(event))
 
           // On key events, send a fresh snapshot so the viewer gets updated state
+          // Build from in-memory data (not disk) to avoid stale reads from debounced persistence
           const eventType = (event as { type: string }).type
-          if (eventType === 'complete' || eventType === 'user_message') {
-            const snapshot = loadStoredSession(relayManaged.workspace.rootPath, relaySessionId)
-            if (snapshot) {
-              relayManaged.remoteWs.send(JSON.stringify({
-                type: 'session_snapshot',
-                session: snapshot,
-                config: this.buildRemoteConfig(relayManaged),
-              }))
-            }
+          const snapshotEvents = new Set([
+            'user_message', 'complete',
+            'text_complete', 'tool_start', 'tool_result',
+            'status', 'error', 'typed_error', 'interrupted',
+            'permission_request',
+          ])
+          if (snapshotEvents.has(eventType)) {
+            const snapshot = this.buildStoredSession(relayManaged, true)
+            relayManaged.remoteWs.send(JSON.stringify({
+              type: 'session_snapshot',
+              session: snapshot,
+              config: this.buildRemoteConfig(relayManaged),
+            }))
           }
         } catch {
           // Silently ignore - expected during WebSocket close race conditions

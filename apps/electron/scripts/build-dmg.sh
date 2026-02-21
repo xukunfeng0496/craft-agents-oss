@@ -178,7 +178,7 @@ npx electron-builder $BUILDER_ARGS --publish never
 
 # 8. Verify the DMG was built
 # electron-builder.yml uses artifactName to output: Work-Agent-${arch}.dmg
-DMG_NAME="Work-Agent-${ARCH}.dmg"
+DMG_NAME="Work-Agent-osx-${ARCH}.dmg"
 DMG_PATH="$ELECTRON_DIR/release/$DMG_NAME"
 
 if [ ! -f "$DMG_PATH" ]; then
@@ -191,6 +191,7 @@ fi
 echo ""
 echo "=== Build Complete ==="
 echo "DMG: $ELECTRON_DIR/release/${DMG_NAME}"
+
 echo "Size: $(du -h "$ELECTRON_DIR/release/${DMG_NAME}" | cut -f1)"
 
 # 9. Create manifest.json for upload script

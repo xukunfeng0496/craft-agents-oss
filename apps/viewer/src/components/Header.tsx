@@ -5,7 +5,7 @@
 import { Sun, Moon, X } from 'lucide-react'
 
 /**
- * WorkAgentLogo - The Work Agent "C" logo
+ * WorkAgentLogo - The Work Agent "W" logo
  */
 function WorkAgentLogo({ className }: { className?: string }) {
   return (
@@ -15,12 +15,11 @@ function WorkAgentLogo({ className }: { className?: string }) {
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
     >
-      <g transform="translate(3.4502, 3)" fill="currentColor">
-        <path
-          d="M3.17890888,3.6 L3.17890888,0 L16,0 L16,3.6 L3.17890888,3.6 Z M9.642,7.2 L9.64218223,10.8 L0,10.8 L0,3.6 L16,3.6 L16,7.2 L9.642,7.2 Z M3.17890888,18 L3.178,14.4 L0,14.4 L0,10.8 L16,10.8 L16,18 L3.17890888,18 Z"
-          fillRule="nonzero"
-        />
-      </g>
+      <rect x="2.5" y="3"  width="4" height="18" rx="1" fill="currentColor"/>
+      <rect x="7.5" y="8"  width="4" height="13" rx="1" fill="currentColor"/>
+      <rect x="12.5" y="8" width="4" height="13" rx="1" fill="currentColor"/>
+      <rect x="17.5" y="3" width="4" height="18" rx="1" fill="currentColor"/>
+      <rect x="2.5" y="17" width="19" height="4"  rx="1" fill="currentColor"/>
     </svg>
   )
 }
@@ -42,7 +41,7 @@ export function Header({ hasSession, sessionTitle, isDark, onToggleTheme, onClea
         className="hover:opacity-80 transition-opacity"
         title="Work Agent"
       >
-        <WorkAgentLogo className="w-6 h-6 text-[#9570BE]" />
+        <WorkAgentLogo className="w-6 h-6 text-[#1E5C35]" />
       </a>
 
       {/* Session title - centered */}

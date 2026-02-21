@@ -29,7 +29,7 @@ export const iconComponents: ComponentEntry[] = [
     id: 'work-agents-symbol',
     name: 'WorkAgentsSymbol',
     category: 'Icons',
-    description: 'Work Agents "E" pixel art symbol icon (brand color: #9570BE)',
+    description: 'Work Agents "W" pixel art symbol icon (brand color: #1E5C35)',
     component: WorkAgentsSymbol,
     props: [
       {

@@ -49,7 +49,7 @@ export interface SessionViewerProps {
 }
 
 /**
- * WorkAgentLogo - The Work Agent "C" logo for branding
+ * WorkAgentLogo - The Work Agent "W" logo for branding
  */
 function WorkAgentLogo({ className }: { className?: string }) {
   return (
@@ -59,12 +59,11 @@ function WorkAgentLogo({ className }: { className?: string }) {
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
     >
-      <g transform="translate(3.4502, 3)" fill="currentColor">
-        <path
-          d="M3.17890888,3.6 L3.17890888,0 L16,0 L16,3.6 L3.17890888,3.6 Z M9.642,7.2 L9.64218223,10.8 L0,10.8 L0,3.6 L16,3.6 L16,7.2 L9.642,7.2 Z M3.17890888,18 L3.178,14.4 L0,14.4 L0,10.8 L16,10.8 L16,18 L3.17890888,18 Z"
-          fillRule="nonzero"
-        />
-      </g>
+      <rect x="2.5" y="3"  width="4" height="18" rx="1" fill="currentColor"/>
+      <rect x="7.5" y="8"  width="4" height="13" rx="1" fill="currentColor"/>
+      <rect x="12.5" y="8" width="4" height="13" rx="1" fill="currentColor"/>
+      <rect x="17.5" y="3" width="4" height="18" rx="1" fill="currentColor"/>
+      <rect x="2.5" y="17" width="19" height="4"  rx="1" fill="currentColor"/>
     </svg>
   )
 }
@@ -219,7 +218,7 @@ export function SessionViewer({
 
             {/* Bottom branding */}
             <div className={CHAT_CLASSES.brandingContainer}>
-              <WorkAgentLogo className="w-8 h-8 text-[#9570BE]/40" />
+              <WorkAgentLogo className="w-8 h-8 text-[#1E5C35]/40" />
             </div>
             </div>
           </div>

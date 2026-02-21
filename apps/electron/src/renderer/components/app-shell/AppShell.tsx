@@ -2075,7 +2075,7 @@ function AppShellContent({
           <div
             ref={sidebarRef}
             style={{ width: sidebarWidth }}
-            className="h-full font-sans relative"
+            className={cn("h-full font-sans relative", !isMac && "bg-background")}
             data-focus-zone="sidebar"
             tabIndex={sidebarFocused ? 0 : -1}
             onKeyDown={handleSidebarKeyDown}

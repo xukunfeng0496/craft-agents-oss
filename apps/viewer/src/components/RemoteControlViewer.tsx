@@ -254,7 +254,7 @@ function PermissionDialog({ permission, onRespond }: {
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-warning shrink-0">
             <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
           </svg>
-          <span className="text-sm font-medium">需要权限</span>
+          <span className="text-sm font-medium">Permission Required</span>
           {permission.type && (
             <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">{permission.type}</span>
           )}
@@ -269,19 +269,19 @@ function PermissionDialog({ permission, onRespond }: {
             onClick={() => onRespond(true, false)}
             className="flex-1 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:opacity-90"
           >
-            允许
+            Allow
           </button>
           <button
             onClick={() => onRespond(true, true)}
             className="flex-1 rounded-md border border-border px-3 py-1.5 text-xs font-medium hover:bg-muted"
           >
-            始终允许
+            Always Allow
           </button>
           <button
             onClick={() => onRespond(false, false)}
             className="flex-1 rounded-md border border-destructive/50 px-3 py-1.5 text-xs font-medium text-destructive hover:bg-destructive/10"
           >
-            拒绝
+            Deny
           </button>
         </div>
       </div>

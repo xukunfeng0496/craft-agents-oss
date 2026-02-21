@@ -24,6 +24,8 @@
     "learnMoreMcp": "了解 MCP",
     "learnMoreLocalFolders": "了解本地文件夹",
     "learnMoreSources": "了解来源",
+    "remoteControl": "远程控制",
+    "stopRemoteControl": "停止远程控制",
     "showInFinder": "在访达中显示",
     "deleteSource": "删除来源",
     "deleteSkill": "删除技能",
@@ -498,6 +500,12 @@
     "titleRefresh": {
       "success": "标题已刷新",
       "failed": "刷新标题失败"
+    },
+    "remoteControl": {
+      "linkCopied": "远程控制链接已复制",
+      "startFailed": "启动远程控制失败",
+      "stopped": "远程控制已停止",
+      "stopFailed": "停止远程控制失败"
     }
   },
   "sessionSearch": {

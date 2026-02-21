@@ -862,9 +862,18 @@ export function getSessionScopedTools(
         };
       }
 
-      // Create a promise that will be resolved when the user responds
+      // Create a promise that will be resolved when the user responds.
+      // Timeout after 60 minutes to prevent indefinite agent hang if user closes
+      // the window or the remote viewer disconnects without answering.
+      const QUESTION_TIMEOUT_MS = 60 * 60 * 1000 // 60 minutes
       const responsePromise = new Promise<Record<string, string[]>>((resolve, reject) => {
         pendingQuestions.set(requestId, { resolve, reject, sessionId });
+        setTimeout(() => {
+          if (pendingQuestions.has(requestId)) {
+            pendingQuestions.delete(requestId);
+            reject(new Error('AskUserQuestion timed out after 60 minutes waiting for user response.'));
+          }
+        }, QUESTION_TIMEOUT_MS);
       });
 
       // Notify the UI to show the question
@@ -874,7 +883,7 @@ export function getSessionScopedTools(
         sessionId,
       });
 
-      // Block until the user responds
+      // Block until the user responds (or timeout)
       const answers = await responsePromise;
 
       // Format the response as text for the agent

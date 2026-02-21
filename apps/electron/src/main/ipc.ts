@@ -2528,6 +2528,136 @@ export function registerIpcHandlers(sessionManager: SessionManager, windowManage
     }
   })
 
+  // Test a single model on an LLM connection (validate that a specific model ID works)
+  ipcMain.handle(IPC_CHANNELS.LLM_CONNECTION_TEST_MODEL, async (_event, slug: string, modelId: string): Promise<{ success: boolean; error?: string }> => {
+    try {
+      const connection = getLlmConnection(slug)
+      if (!connection) {
+        return { success: false, error: 'Connection not found' }
+      }
+
+      const credentialManager = getCredentialManager()
+      const hasCredentials = await credentialManager.hasLlmCredentials(slug, connection.authType)
+      if (!hasCredentials && connection.authType !== 'none') {
+        return { success: false, error: 'No credentials configured' }
+      }
+
+      const isOpenAiProvider = connection.providerType === 'openai' || connection.providerType === 'openai_compat'
+
+      if (isOpenAiProvider) {
+        // OpenAI-compatible: fetch /v1/models and check if model exists
+        const apiKey = (connection.authType === 'api_key' || connection.authType === 'api_key_with_endpoint' || connection.authType === 'bearer_token')
+          ? await credentialManager.getLlmApiKey(slug)
+          : null
+
+        if (!apiKey && connection.authType !== 'none') {
+          return { success: false, error: 'Could not retrieve credentials' }
+        }
+
+        const effectiveBaseUrl = (connection.baseUrl || 'https://api.openai.com').replace(/\/$/, '')
+        const modelsUrl = `${effectiveBaseUrl}/v1/models`
+        const response = await fetch(modelsUrl, {
+          method: 'GET',
+          headers: {
+            ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}),
+            'Content-Type': 'application/json',
+          },
+        })
+
+        if (!response.ok) {
+          if (response.status === 401) return { success: false, error: 'Invalid API key' }
+          if (response.status === 404) return { success: false, error: 'API endpoint not found. Check the base URL.' }
+          return { success: false, error: `API error: ${response.status} ${response.statusText}` }
+        }
+
+        try {
+          const payload = await response.json()
+          const available = new Set((payload?.data ?? []).map((item: { id?: string }) => item.id).filter(Boolean))
+          if (!available.has(modelId)) {
+            return { success: false, error: `Model "${modelId}" not found on this endpoint.` }
+          }
+          return { success: true }
+        } catch (parseError) {
+          const msg = parseError instanceof Error ? parseError.message : String(parseError)
+          return { success: false, error: `Failed to parse model list: ${msg.slice(0, 200)}` }
+        }
+      }
+
+      // Anthropic SDK-based connections: make a minimal API call with the specific model
+      const usesAnthropicSdk = connection.providerType === 'anthropic' ||
+                               connection.providerType === 'anthropic_compat' ||
+                               connection.providerType === 'bedrock' ||
+                               connection.providerType === 'vertex'
+
+      if (usesAnthropicSdk) {
+        const Anthropic = (await import('@anthropic-ai/sdk')).default
+
+        let authKey: string | null = null
+        let useBearer = false
+
+        if (connection.authType === 'api_key' || connection.authType === 'api_key_with_endpoint') {
+          authKey = await credentialManager.getLlmApiKey(slug)
+        } else if (connection.authType === 'bearer_token') {
+          authKey = await credentialManager.getLlmApiKey(slug)
+          useBearer = true
+        } else if (connection.authType === 'environment') {
+          authKey = process.env.ANTHROPIC_API_KEY || null
+          if (!authKey) return { success: false, error: 'ANTHROPIC_API_KEY environment variable not set' }
+        } else if (connection.authType === 'none') {
+          authKey = 'ollama'
+        }
+
+        if (!authKey && connection.authType !== 'none') {
+          return { success: false, error: 'Could not retrieve credentials' }
+        }
+
+        const baseUrl = connection.baseUrl
+        const isCustomUrl = !!baseUrl
+        const useBearerAuth = useBearer || isCustomUrl
+
+        const client = new Anthropic({
+          ...(isCustomUrl ? { baseURL: baseUrl } : {}),
+          ...(useBearerAuth
+            ? { authToken: authKey || 'ollama', apiKey: null }
+            : { apiKey: authKey, authToken: null }
+          ),
+        })
+
+        await client.messages.create({
+          model: modelId,
+          max_tokens: 16,
+          messages: [{ role: 'user', content: 'hi' }],
+          tools: [{
+            name: 'test_tool',
+            description: 'Test tool for validation',
+            input_schema: { type: 'object' as const, properties: {} }
+          }]
+        })
+
+        ipcLog.info(`LLM model validated: ${slug}/${modelId}`)
+        return { success: true }
+      }
+
+      return { success: false, error: 'Unsupported provider type for model validation' }
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error)
+      const lowerMsg = msg.toLowerCase()
+      ipcLog.info(`[LLM_CONNECTION_TEST_MODEL] Error for ${slug}/${modelId}: ${msg.slice(0, 500)}`)
+
+      if (lowerMsg.includes('econnrefused') || lowerMsg.includes('enotfound') || lowerMsg.includes('fetch failed')) {
+        return { success: false, error: 'Cannot connect to API server. Check the URL and ensure the server is running.' }
+      }
+      if (lowerMsg.includes('401') || lowerMsg.includes('unauthorized') || lowerMsg.includes('authentication')) {
+        return { success: false, error: 'Authentication failed. Check your API key.' }
+      }
+      if (lowerMsg.includes('model not found') || lowerMsg.includes('invalid model')) {
+        return { success: false, error: `Model "${modelId}" not found.` }
+      }
+
+      return { success: false, error: msg.slice(0, 200) }
+    }
+  })
+
   // Set global default LLM connection
   ipcMain.handle(IPC_CHANNELS.LLM_CONNECTION_SET_DEFAULT, async (_event, slug: string): Promise<{ success: boolean; error?: string }> => {
     try {

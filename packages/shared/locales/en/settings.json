@@ -348,7 +348,18 @@
     },
     "model": {
       "label": "Model",
-      "description": "AI model for new chats"
+      "description": "AI model for new chats",
+      "addCustom": "Add",
+      "addCustomPlaceholder": "Enter model ID...",
+      "validateAll": "Validate All",
+      "validate": "Validate",
+      "validating": "Validating...",
+      "valid": "Available",
+      "invalid": "Unavailable",
+      "remove": "Remove",
+      "recommended": "Recommended",
+      "presetClaudeSonnet": "Latest Claude flagship, strong capabilities, balanced speed",
+      "presetGlm": "China-accessible, OpenAI API compatible, low cost"
     },
     "thinking": {
       "label": "Thinking",

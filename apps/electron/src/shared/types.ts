@@ -746,6 +746,7 @@ export const IPC_CHANNELS = {
   LLM_CONNECTION_SAVE: 'LLM_Connection:save',
   LLM_CONNECTION_DELETE: 'LLM_Connection:delete',
   LLM_CONNECTION_TEST: 'LLM_Connection:test',
+  LLM_CONNECTION_TEST_MODEL: 'LLM_Connection:testModel',
   LLM_CONNECTION_SET_DEFAULT: 'LLM_Connection:setDefault',
   LLM_CONNECTION_SET_WORKSPACE_DEFAULT: 'LLM_Connection:setWorkspaceDefault',
   LLM_CONNECTION_REFRESH_MODELS: 'LLM_Connection:refreshModels',
@@ -1252,6 +1253,7 @@ export interface ElectronAPI {
   saveLlmConnection(connection: LlmConnection): Promise<{ success: boolean; error?: string }>
   deleteLlmConnection(slug: string): Promise<{ success: boolean; error?: string }>
   testLlmConnection(slug: string): Promise<{ success: boolean; error?: string }>
+  testLlmConnectionModel(slug: string, modelId: string): Promise<{ success: boolean; error?: string }>
   setDefaultLlmConnection(slug: string): Promise<{ success: boolean; error?: string }>
   setWorkspaceDefaultLlmConnection(workspaceId: string, slug: string | null): Promise<{ success: boolean; error?: string }>
 }

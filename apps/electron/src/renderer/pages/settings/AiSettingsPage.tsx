@@ -43,6 +43,7 @@ import {
   SettingsRow,
   SettingsMenuSelectRow,
 } from '@/components/settings'
+import { ModelSelector, type PresetModel } from '@/components/settings/ModelSelector'
 import { useOnboarding } from '@/hooks/useOnboarding'
 import { useWorkspaceIcon } from '@/hooks/useWorkspaceIcon'
 import { OnboardingWizard } from '@/components/onboarding'
@@ -699,6 +700,63 @@ export default function AiSettingsPage() {
 
   const defaultModel = defaultConnection?.defaultModel ?? ''
 
+  // Determine if default connection is a compat/custom endpoint (needs ModelSelector)
+  const isCompatConnection = useMemo(() => {
+    if (!defaultConnection) return false
+    const { providerType, baseUrl } = defaultConnection
+    return providerType === 'anthropic_compat' ||
+           providerType === 'openai_compat' ||
+           !!baseUrl
+  }, [defaultConnection])
+
+  // Preset models for ModelSelector
+  const presetModels = useMemo((): PresetModel[] => {
+    return [
+      { id: 'claude-sonnet-4-6', label: 'claude-sonnet-4-6', description: t('settings:ai.model.presetClaudeSonnet') },
+      { id: 'glm-4-5', label: 'glm-4-5', description: t('settings:ai.model.presetGlm') },
+    ]
+  }, [t])
+
+  // Derive selected models and custom models from connection.models
+  const selectedModels = useMemo(() => {
+    if (!defaultConnection?.models) return new Set<string>()
+    const ids = (defaultConnection.models as (string | { id: string })[])
+      .map(m => typeof m === 'string' ? m : m.id)
+    return new Set(ids)
+  }, [defaultConnection?.models])
+
+  const customModels = useMemo(() => {
+    if (!defaultConnection?.models) return []
+    const presetIds = new Set(presetModels.map(m => m.id))
+    return (defaultConnection.models as (string | { id: string })[])
+      .map(m => typeof m === 'string' ? m : m.id)
+      .filter(id => !presetIds.has(id))
+  }, [defaultConnection?.models, presetModels])
+
+  // Handler for selected models changes (multi-select)
+  const handleSelectedModelsChange = useCallback(async (models: Set<string>) => {
+    if (!window.electronAPI || !defaultConnection) return
+    const modelArray = Array.from(models)
+    const { isAuthenticated: _a, authError: _b, isDefault: _c, ...connectionData } = defaultConnection
+    // First selected model becomes the defaultModel
+    const newDefault = modelArray[0] || defaultConnection.defaultModel
+    await window.electronAPI.saveLlmConnection({ ...connectionData, models: modelArray, defaultModel: newDefault } as import('../../../shared/types').LlmConnection)
+    await refreshLlmConnections()
+  }, [defaultConnection, refreshLlmConnections])
+
+  // Handler for custom models changes from ModelSelector
+  const handleCustomModelsChange = useCallback(async (models: string[]) => {
+    if (!window.electronAPI || !defaultConnection) return
+    // Keep selected preset models + new custom models
+    const presetIds = presetModels.map(m => m.id)
+    const currentSelected = Array.from(selectedModels)
+    const selectedPresets = currentSelected.filter(id => presetIds.includes(id))
+    const allModels = [...selectedPresets, ...models]
+    const { isAuthenticated: _a, authError: _b, isDefault: _c, ...connectionData } = defaultConnection
+    await window.electronAPI.saveLlmConnection({ ...connectionData, models: allModels } as import('../../../shared/types').LlmConnection)
+    await refreshLlmConnections()
+  }, [defaultConnection, presetModels, selectedModels, refreshLlmConnections])
+
   // App-level default handlers
   const handleDefaultModelChange = useCallback(async (model: string) => {
     if (!window.electronAPI || !defaultConnection) return
@@ -755,13 +813,24 @@ export default function AiSettingsPage() {
                                    conn.providerType || t('settings:ai.connection.providers.unknown'),
                     }))}
                   />
-                  <SettingsMenuSelectRow
-                    label={t('settings:ai.model.label')}
-                    description={t('settings:ai.model.description')}
-                    value={defaultModel}
-                    onValueChange={handleDefaultModelChange}
-                    options={getModelOptionsForConnection(defaultConnection)}
-                  />
+                  {isCompatConnection ? (
+                    <ModelSelector
+                      connectionSlug={defaultConnection?.slug || ''}
+                      selectedModels={selectedModels}
+                      onSelectedModelsChange={handleSelectedModelsChange}
+                      presetModels={presetModels}
+                      customModels={customModels}
+                      onCustomModelsChange={handleCustomModelsChange}
+                    />
+                  ) : (
+                    <SettingsMenuSelectRow
+                      label={t('settings:ai.model.label')}
+                      description={t('settings:ai.model.description')}
+                      value={defaultModel}
+                      onValueChange={handleDefaultModelChange}
+                      options={getModelOptionsForConnection(defaultConnection)}
+                    />
+                  )}
                   <SettingsMenuSelectRow
                     label={t('settings:ai.thinking.label')}
                     description={t('settings:ai.thinking.description')}

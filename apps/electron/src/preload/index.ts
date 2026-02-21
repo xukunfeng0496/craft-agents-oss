@@ -547,6 +547,7 @@ const api: ElectronAPI = {
     ipcRenderer.invoke(IPC_CHANNELS.LLM_CONNECTION_SAVE, connection),
   deleteLlmConnection: (slug: string) => ipcRenderer.invoke(IPC_CHANNELS.LLM_CONNECTION_DELETE, slug),
   testLlmConnection: (slug: string) => ipcRenderer.invoke(IPC_CHANNELS.LLM_CONNECTION_TEST, slug),
+  testLlmConnectionModel: (slug: string, modelId: string) => ipcRenderer.invoke(IPC_CHANNELS.LLM_CONNECTION_TEST_MODEL, slug, modelId),
   setDefaultLlmConnection: (slug: string) => ipcRenderer.invoke(IPC_CHANNELS.LLM_CONNECTION_SET_DEFAULT, slug),
   setWorkspaceDefaultLlmConnection: (workspaceId: string, slug: string | null) =>
     ipcRenderer.invoke(IPC_CHANNELS.LLM_CONNECTION_SET_WORKSPACE_DEFAULT, workspaceId, slug),

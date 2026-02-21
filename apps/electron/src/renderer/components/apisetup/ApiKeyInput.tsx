@@ -10,7 +10,8 @@
  * Used in: Onboarding CredentialsStep, Settings API dialog
  */
 
-import { useState } from "react"
+import { useState, useMemo, useCallback } from "react"
+import { useTranslation } from "react-i18next"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import {
@@ -21,6 +22,7 @@ import {
 } from "@/components/ui/styled-dropdown"
 import { cn } from "@/lib/utils"
 import { Check, ChevronDown, Eye, EyeOff } from "lucide-react"
+import { ModelSelector, type PresetModel } from "@/components/settings/ModelSelector"
 
 export type ApiKeyStatus = 'idle' | 'validating' | 'success' | 'error'
 
@@ -75,11 +77,11 @@ interface Preset {
 
 // Anthropic provider presets - for Claude Code backend
 const ANTHROPIC_PRESETS: Preset[] = [
+  { key: 'custom', label: 'Custom', url: '' },
   { key: 'anthropic', label: 'Anthropic', url: 'https://api.anthropic.com' },
   { key: 'openrouter', label: 'OpenRouter', url: 'https://openrouter.ai/api' },
   { key: 'vercel', label: 'Vercel AI Gateway', url: 'https://ai-gateway.vercel.sh' },
   { key: 'ollama', label: 'Ollama', url: 'http://localhost:11434' },
-  { key: 'custom', label: 'Custom', url: '' },
 ]
 
 export function getPresetTriggerLabel(activePreset: PresetKey, customPresetLabel?: string): string {
@@ -138,12 +140,38 @@ export function ApiKeyInput({
   const presets = getPresetsForProvider(providerType)
   const defaultPreset = presets[0]
 
+  const { t } = useTranslation(['settings'])
   const [apiKey, setApiKey] = useState('')
   const [showValue, setShowValue] = useState(false)
   const [baseUrl, setBaseUrl] = useState(defaultPreset.url)
   const [activePreset, setActivePreset] = useState<PresetKey>(defaultPreset.key)
   const [connectionDefaultModel, setConnectionDefaultModel] = useState('')
   const [modelError, setModelError] = useState<string | null>(null)
+
+  // ModelSelector state for compat endpoints (multi-select)
+  const presetModelDefs = useMemo((): PresetModel[] => [
+    { id: 'claude-sonnet-4-6', label: 'claude-sonnet-4-6', description: t('settings:ai.model.presetClaudeSonnet') },
+    { id: 'glm-4-5', label: 'glm-4-5', description: t('settings:ai.model.presetGlm') },
+  ], [t])
+  const [selectedModels, setSelectedModels] = useState<Set<string>>(() => new Set([presetModelDefs[0].id]))
+  const [customModels, setCustomModels] = useState<string[]>([])
+
+  // Sync ModelSelector multi-select state → connectionDefaultModel string for form submission
+  const syncModelsToString = useCallback((selected: Set<string>, customs: string[]) => {
+    const ordered = Array.from(selected)
+    setConnectionDefaultModel(ordered.join(', '))
+    setModelError(null)
+  }, [])
+
+  const handleSelectedModelsChange = useCallback((models: Set<string>) => {
+    setSelectedModels(models)
+    syncModelsToString(models, customModels)
+  }, [customModels, syncModelsToString])
+
+  const handleCustomModelsChange = useCallback((models: string[]) => {
+    setCustomModels(models)
+    syncModelsToString(selectedModels, models)
+  }, [selectedModels, syncModelsToString])
 
   const isDisabled = disabled || status === 'validating'
 
@@ -161,16 +189,22 @@ export function ApiKeyInput({
       setBaseUrl(preset.url)
     }
     setModelError(null)
-    // Pre-fill recommended model for Ollama; clear for all others
-    // (Default provider presets hide the field entirely, others default to provider model IDs when empty)
+    // Pre-fill recommended model for Ollama; for compat presets reset to ModelSelector defaults
     if (preset.key === 'ollama') {
       setConnectionDefaultModel('qwen3-coder')
-    } else if (preset.key === 'openrouter' || preset.key === 'vercel') {
-      setConnectionDefaultModel(providerType === 'openai' ? COMPAT_OPENAI_DEFAULTS : COMPAT_ANTHROPIC_DEFAULTS)
-    } else if (preset.key === 'custom') {
-      setConnectionDefaultModel(providerType === 'openai' ? COMPAT_OPENAI_DEFAULTS : COMPAT_ANTHROPIC_DEFAULTS)
-    } else {
+      setCustomModels([])
+      setSelectedModels(new Set(['qwen3-coder']))
+    } else if (preset.key === 'anthropic' || preset.key === 'openai') {
+      // Default provider presets - clear model field
       setConnectionDefaultModel('')
+      setCustomModels([])
+      setSelectedModels(new Set([presetModelDefs[0].id]))
+    } else {
+      // Compat presets (openrouter, vercel, custom) - select all presets by default
+      const allPresetIds = presetModelDefs.map(m => m.id)
+      setSelectedModels(new Set(allPresetIds))
+      setCustomModels([])
+      setConnectionDefaultModel(allPresetIds.join(', '))
     }
   }
 
@@ -179,11 +213,17 @@ export function ApiKeyInput({
     const presetKey = getPresetForUrl(value, presets)
     setActivePreset(presetKey)
     setModelError(null)
+    // Only set defaults when no models are configured yet
     if (!connectionDefaultModel.trim()) {
       if (presetKey === 'ollama') {
         setConnectionDefaultModel('qwen3-coder')
-      } else if (presetKey === 'openrouter' || presetKey === 'vercel' || presetKey === 'custom') {
-        setConnectionDefaultModel(providerType === 'openai' ? COMPAT_OPENAI_DEFAULTS : COMPAT_ANTHROPIC_DEFAULTS)
+        setSelectedModels(new Set(['qwen3-coder']))
+        setCustomModels([])
+      } else if (presetKey !== 'anthropic' && presetKey !== 'openai') {
+        const allPresetIds = presetModelDefs.map(m => m.id)
+        setSelectedModels(new Set(allPresetIds))
+        setCustomModels([])
+        setConnectionDefaultModel(allPresetIds.join(', '))
       }
     }
   }
@@ -293,74 +333,35 @@ export function ApiKeyInput({
       </div>
       )}
 
-      {/* Default Model (optional) — hidden for default provider presets since they use their own model routing */}
+      {/* Model selection — hidden for default provider presets since they use their own model routing */}
       {!isDefaultProviderPreset && (
         <div className="space-y-2">
-          <Label htmlFor="connection-default-model" className="text-muted-foreground font-normal">
-            Default Model{' '}
+          <Label className="text-muted-foreground font-normal">
+            {customModelLabel ?? 'Default Model'}{' '}
             <span className="text-foreground/30">
-              · {(!isDefaultProviderPreset && baseUrl.trim()) ? 'required' : 'optional'}
+              · {(!isDefaultProviderPreset && baseUrl.trim()) ? 'required' : (optionalLabel ?? 'optional')}
             </span>
           </Label>
-          <div className={cn(
-            "rounded-md shadow-minimal transition-colors",
-            "bg-foreground-2 focus-within:bg-background",
-            modelError && "ring-1 ring-destructive/40"
-          )}>
-            <Input
-              id="connection-default-model"
-              type="text"
-              value={connectionDefaultModel}
-              onChange={(e) => {
-                setConnectionDefaultModel(e.target.value)
-                setModelError(null)
-              }}
-              placeholder={providerType === 'openai' ? "e.g. openai/gpt-5.2-codex, openai/gpt-5.1-codex-mini" : "e.g. anthropic/claude-opus-4.6, anthropic/claude-haiku-4.5"}
-              className="border-0 bg-transparent shadow-none"
-              disabled={isDisabled}
-            />
-          </div>
           {modelError && (
             <p className="text-xs text-destructive">{modelError}</p>
           )}
+          <div className={cn(
+            "rounded-lg border border-border/50",
+            modelError && "ring-1 ring-destructive/40"
+          )}>
+            <ModelSelector
+              selectedModels={selectedModels}
+              onSelectedModelsChange={handleSelectedModelsChange}
+              presetModels={presetModelDefs}
+              customModels={customModels}
+              onCustomModelsChange={handleCustomModelsChange}
+              showLabel={false}
+              disabled={isDisabled}
+            />
+          </div>
           <p className="text-xs text-foreground/30">
-            Comma-separated list. The first model is the default. The last is used for summarization.
+            {t('settings:ai.model.description')}
           </p>
-          {/* Contextual help links for providers that need model format guidance */}
-          {activePreset === 'openrouter' && (
-            <p className="text-xs text-foreground/30">
-              {nonClaudeHint ?? 'Leave empty for Claude models. Only set for non-Claude models.'}
-              <br />
-              {modelFormatPrefix ?? 'Format:'} <code className="text-foreground/40">provider/model-name</code>.{' '}
-              <a href="https://openrouter.ai/models" target="_blank" rel="noopener noreferrer" className="text-foreground/50 underline hover:text-foreground/70">
-                {browseModelsLabel ?? 'Browse models'}
-              </a>
-            </p>
-          )}
-          {activePreset === 'vercel' && (
-            <p className="text-xs text-foreground/30">
-              {nonClaudeHint ?? 'Leave empty for Claude models. Only set for non-Claude models.'}
-              <br />
-              {modelFormatPrefix ?? 'Format:'} <code className="text-foreground/40">provider/model-name</code>.{' '}
-              <a href="https://vercel.com/docs/ai-gateway" target="_blank" rel="noopener noreferrer" className="text-foreground/50 underline hover:text-foreground/70">
-                {viewSupportedModelsLabel ?? 'View supported models'}
-              </a>
-            </p>
-          )}
-          {activePreset === 'ollama' && (
-            <p className="text-xs text-foreground/30">
-              {ollamaHint ?? (
-                <>
-                  Use any model pulled via <code className="text-foreground/40">ollama pull</code>. No API key required.
-                </>
-              )}
-            </p>
-          )}
-          {(activePreset === 'custom' || !activePreset) && (
-            <p className="text-xs text-foreground/30">
-              {customModelDefaultHint ?? 'Defaults to Anthropic model names (Opus, Sonnet, Haiku) when empty'}
-            </p>
-          )}
         </div>
       )}
 

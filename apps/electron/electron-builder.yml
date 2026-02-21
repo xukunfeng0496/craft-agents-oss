@@ -90,8 +90,7 @@ mac:
   artifactName: "Work-Agent-osx-${arch}.${ext}"
   # Code signing: set CSC_LINK (base64 .p12) + CSC_KEY_PASSWORD in environment
   # Notarization: enabled automatically when APPLE_ID + APPLE_APP_SPECIFIC_PASSWORD + APPLE_TEAM_ID are set
-  notarize:
-    teamId: ${APPLE_TEAM_ID}
+  notarize: true
 
 dmg:
   # Use predictable naming: Work-Agent-osx-arm64.dmg, Work-Agent-osx-x64.dmg

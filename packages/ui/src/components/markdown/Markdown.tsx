@@ -128,6 +128,9 @@ function createComponents(
           // Check if it's a file path
           if (FILE_PATH_REGEX.test(href) && onFileClick) {
             onFileClick(href)
+          } else if (href.startsWith('file://') && onFileClick) {
+            // Extract absolute path from file:// URL (e.g. file:///Users/... → /Users/...)
+            onFileClick(decodeURIComponent(href.slice('file://'.length)))
           } else if (onUrlClick) {
             onUrlClick(href)
           }

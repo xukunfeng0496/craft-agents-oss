@@ -11,6 +11,16 @@ import { FILE_EXTENSIONS_PATTERN } from '../../lib/file-classification'
 // Initialize linkify-it with default settings (fuzzy URLs, emails enabled)
 const linkify = new LinkifyIt()
 
+// Register file:// schema so file:///path URIs are detected as links
+linkify.add('file:', {
+  validate(text, pos) {
+    const tail = text.slice(pos)
+    // Match //path or ///path (file:// or file:///) followed by non-whitespace
+    const m = tail.match(/^\/\/[^\s]*/)
+    return m ? m[0].length : 0
+  },
+})
+
 // File path regex - detects /path, ~/path, ./path with common extensions
 // Extensions derived from file-classification.ts to stay in sync with preview support
 const FILE_PATH_REGEX = new RegExp(`(?:^|[\\s([\\{<])((/|~/|./)[\\w\\-./@]+\\.(?:${FILE_EXTENSIONS_PATTERN}))(?=[\\s)\\]}\\.,:;!?>]|$)`, 'gi')

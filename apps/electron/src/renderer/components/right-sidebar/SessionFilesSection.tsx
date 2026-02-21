@@ -16,7 +16,7 @@
 import * as React from 'react'
 import { useState, useEffect, useCallback, useRef, memo } from 'react'
 import { AnimatePresence, motion, type Variants } from 'motion/react'
-import { File, Folder, FolderOpen, FileText, Image, FileCode, ChevronRight } from 'lucide-react'
+import { File, Folder, FolderOpen, FileText, Image, FileCode, ChevronRight, FileSpreadsheet, FileArchive, Globe, Presentation, BookOpen, Video, Music } from 'lucide-react'
 import type { SessionFile } from '../../../shared/types'
 import { cn } from '@/lib/utils'
 import * as storage from '@/lib/local-storage'
@@ -99,6 +99,38 @@ function getFileIcon(file: SessionFile, isExpanded?: boolean) {
 
   if (['ts', 'tsx', 'js', 'jsx', 'json', 'yaml', 'yml', 'py', 'rb', 'go', 'rs'].includes(ext || '')) {
     return <FileCode className={iconClass} />
+  }
+
+  if (['xlsx', 'xls', 'csv'].includes(ext || '')) {
+    return <FileSpreadsheet className={iconClass} />
+  }
+
+  if (['docx', 'doc', 'odt'].includes(ext || '')) {
+    return <FileText className={iconClass} />
+  }
+
+  if (['pptx', 'ppt', 'odp'].includes(ext || '')) {
+    return <Presentation className={iconClass} />
+  }
+
+  if (['zip', 'tar', 'gz', 'rar', '7z', 'bz2'].includes(ext || '')) {
+    return <FileArchive className={iconClass} />
+  }
+
+  if (['html', 'htm'].includes(ext || '')) {
+    return <Globe className={iconClass} />
+  }
+
+  if (ext === 'pdf') {
+    return <BookOpen className={iconClass} />
+  }
+
+  if (['mp4', 'mov', 'avi', 'mkv', 'webm'].includes(ext || '')) {
+    return <Video className={iconClass} />
+  }
+
+  if (['mp3', 'wav', 'flac', 'm4a', 'ogg'].includes(ext || '')) {
+    return <Music className={iconClass} />
   }
 
   return <File className={iconClass} />

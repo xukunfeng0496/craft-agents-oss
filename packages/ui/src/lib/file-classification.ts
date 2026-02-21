@@ -35,7 +35,7 @@ const CODE_EXTENSIONS = new Set([
   'py', 'rb', 'rs', 'go', 'java', 'kt', 'swift',
   'c', 'cpp', 'h', 'hpp', 'cs',
   'css', 'scss', 'less',
-  'html', 'htm', 'xml', 'svg',  // SVG is also code-viewable, but image takes priority
+  'xml', 'svg',  // SVG is also code-viewable, but image takes priority
   'yaml', 'yml', 'toml',
   'sh', 'bash', 'zsh', 'fish',
   'sql', 'graphql',
@@ -63,6 +63,29 @@ const TEXT_EXTENSIONS = new Set([
 
 /** PDF files — rendered in PDFPreviewOverlay via embedded viewer */
 const PDF_EXTENSIONS = new Set(['pdf'])
+
+/**
+ * Extensions that are detected as file path links but have no in-app preview —
+ * they open in an external app via shell.openPath.
+ * Included in FILE_EXTENSIONS_PATTERN for link detection but excluded from
+ * classifyFile's classification chain so they return { type: null, canPreview: false }.
+ */
+const EXTERNAL_EXTENSIONS = new Set([
+  // Web
+  'html', 'htm',
+  // Office documents
+  'xlsx', 'xls', 'xlsm',
+  'docx', 'doc', 'odt',
+  'pptx', 'ppt', 'odp', 'ods',
+  // Archives
+  'zip', 'tar', 'gz', 'tgz', 'bz2', 'xz', 'rar', '7z',
+  // Video
+  'mp4', 'mov', 'avi', 'mkv', 'webm', 'flv', 'wmv',
+  // Audio
+  'mp3', 'wav', 'flac', 'm4a', 'ogg', 'aac',
+  // Executables / packages
+  'exe', 'dmg', 'pkg', 'deb', 'rpm', 'apk', 'msi',
+])
 
 /**
  * Extract the file extension from a path, lowercased.
@@ -107,4 +130,5 @@ export const FILE_EXTENSIONS_PATTERN = [
   ...JSON_EXTENSIONS,
   ...TEXT_EXTENSIONS,
   ...PDF_EXTENSIONS,
+  ...EXTERNAL_EXTENSIONS,
 ].join('|')

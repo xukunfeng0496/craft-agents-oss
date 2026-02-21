@@ -713,7 +713,7 @@ export default function AiSettingsPage() {
   const presetModels = useMemo((): PresetModel[] => {
     return [
       { id: 'claude-sonnet-4-6', label: 'claude-sonnet-4-6', description: t('settings:ai.model.presetClaudeSonnet') },
-      { id: 'glm-4-5', label: 'glm-4-5', description: t('settings:ai.model.presetGlm') },
+      { id: 'glm-5', label: 'glm-5', description: t('settings:ai.model.presetGlm') },
     ]
   }, [t])
 

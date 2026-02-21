@@ -88,10 +88,10 @@ mac:
     - "!**/vendor/copilot/win32-*/**"
   # Use predictable naming for macOS packages (applies to zip; dmg uses its own config below)
   artifactName: "Work-Agent-osx-${arch}.${ext}"
-  # Code signing & notarization (disabled by default for local builds)
-  # To enable: set CSC_LINK, APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD, APPLE_TEAM_ID
-  # notarize:
-  #   teamId: ${APPLE_TEAM_ID}
+  # Code signing: set CSC_LINK (base64 .p12) + CSC_KEY_PASSWORD in environment
+  # Notarization: enabled automatically when APPLE_ID + APPLE_APP_SPECIFIC_PASSWORD + APPLE_TEAM_ID are set
+  notarize:
+    teamId: ${APPLE_TEAM_ID}
 
 dmg:
   # Use predictable naming: Work-Agent-osx-arm64.dmg, Work-Agent-osx-x64.dmg

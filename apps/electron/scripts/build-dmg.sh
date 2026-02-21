@@ -147,34 +147,25 @@ echo "Packaging app with electron-builder..."
 cd "$ELECTRON_DIR"
 
 # Set up environment for electron-builder
-export CSC_IDENTITY_AUTO_DISCOVERY=true
-
-# Build electron-builder arguments
-BUILDER_ARGS="--mac --${ARCH}"
-
-# Add code signing if identity is available
-if [ -n "$APPLE_SIGNING_IDENTITY" ]; then
-    # Strip "Developer ID Application: " prefix if present (electron-builder adds it automatically)
-    CSC_NAME_CLEAN="${APPLE_SIGNING_IDENTITY#Developer ID Application: }"
-    echo "Using signing identity: $CSC_NAME_CLEAN"
-    export CSC_NAME="$CSC_NAME_CLEAN"
+# CSC_LINK / CSC_KEY_PASSWORD: base64-encoded .p12 certificate (set via GitHub Secrets in CI)
+# APPLE_ID / APPLE_APP_SPECIFIC_PASSWORD / APPLE_TEAM_ID: notarization credentials
+if [ -n "$CSC_LINK" ] && [ -n "$CSC_KEY_PASSWORD" ]; then
+    echo "Code signing enabled (CSC_LINK is set)"
+    export CSC_IDENTITY_AUTO_DISCOVERY=false  # use CSC_LINK, not Keychain
+else
+    echo "Warning: CSC_LINK not set, building without code signing (ad-hoc)"
+    export CSC_IDENTITY_AUTO_DISCOVERY=false
+    export CSC_IDENTITY="-"
 fi
 
-# Add notarization if all credentials are available
 if [ -n "$APPLE_ID" ] && [ -n "$APPLE_TEAM_ID" ] && [ -n "$APPLE_APP_SPECIFIC_PASSWORD" ]; then
-    echo "Notarization enabled"
-    export APPLE_ID="$APPLE_ID"
-    export APPLE_TEAM_ID="$APPLE_TEAM_ID"
-    export APPLE_APP_SPECIFIC_PASSWORD="$APPLE_APP_SPECIFIC_PASSWORD"
-
-    # Enable notarization in electron-builder by setting env vars
-    # The electron-builder.yml has notarize section commented out,
-    # but we can enable it via environment
-    export NOTARIZE=true
+    echo "Notarization enabled (APPLE_ID=$APPLE_ID, TEAM_ID=$APPLE_TEAM_ID)"
+else
+    echo "Warning: Notarization credentials not set, skipping notarization"
 fi
 
 # Run electron-builder
-npx electron-builder $BUILDER_ARGS --publish never
+npx electron-builder --mac --${ARCH} --publish never
 
 # 8. Verify the DMG was built
 # electron-builder.yml uses artifactName to output: Work-Agent-${arch}.dmg

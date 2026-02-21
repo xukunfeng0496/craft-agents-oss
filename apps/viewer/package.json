@@ -1,6 +1,6 @@
 {
   "name": "@work-agent/viewer",
-  "version": "0.4.8",
+  "version": "0.5.0",
   "description": "Web viewer for Work Agents sessions - upload and share session transcripts",
   "private": true,
   "type": "module",

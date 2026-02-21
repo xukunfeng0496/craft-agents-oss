@@ -1,6 +1,6 @@
 {
   "name": "@work-agent/electron",
-  "version": "0.4.8",
+  "version": "0.5.0",
   "description": "Electron desktop app for Work Agents",
   "main": "dist/main.cjs",
   "private": true,

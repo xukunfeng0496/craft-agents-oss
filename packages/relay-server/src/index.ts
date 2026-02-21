@@ -73,9 +73,12 @@ const server = Bun.serve<WsData>({
         return
       }
 
+      console.log(`[relay] ${role} connected to room ${roomId}`)
+
       // Send buffered events to new viewer so they get current state
       if (role === 'viewer') {
         const room = manager.getRoom(roomId)!
+        console.log(`[relay] Sending ${room.eventBuffer.length} buffered events to viewer`)
         for (const event of room.eventBuffer) {
           ws.send(event)
         }

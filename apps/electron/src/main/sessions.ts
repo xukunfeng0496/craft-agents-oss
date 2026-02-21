@@ -2126,6 +2126,15 @@ export class SessionManager {
     return getSessionStoragePath(managed.workspace.rootPath, sessionId)
   }
 
+  /**
+   * Get the working directory for a session (where the agent executes commands)
+   */
+  getWorkingDirectory(sessionId: string): string | null {
+    const managed = this.sessions.get(sessionId)
+    if (!managed) return null
+    return managed.workingDirectory ?? null
+  }
+
   async createSession(workspaceId: string, options?: import('../shared/types').CreateSessionOptions): Promise<Session> {
     const workspace = getWorkspaceByNameOrId(workspaceId)
     if (!workspace) {
@@ -3407,9 +3416,16 @@ export class SessionManager {
   }
 
   async startRemoteControl(sessionId: string): Promise<import('../shared/types').ShareResult> {
+    sessionLog.info(`[RemoteControl] startRemoteControl called for session ${sessionId}`)
     const managed = this.sessions.get(sessionId)
-    if (!managed) return { success: false, error: 'Session not found' }
-    if (managed.remoteWs) return { success: true, url: managed.remoteUrl }
+    if (!managed) {
+      sessionLog.warn(`[RemoteControl] Session not found: ${sessionId}`)
+      return { success: false, error: 'Session not found' }
+    }
+    if (managed.remoteWs) {
+      sessionLog.info(`[RemoteControl] Already connected, returning existing URL: ${managed.remoteUrl}`)
+      return { success: true, url: managed.remoteUrl }
+    }
 
     let ws: WebSocket | undefined
     try {
@@ -3519,9 +3535,11 @@ export class SessionManager {
         remoteUrl,
       })
 
+      sessionLog.info(`[RemoteControl] Successfully started for session ${sessionId}, URL: ${remoteUrl}`)
       this.sendEvent({ type: 'remote_control_started', sessionId, remoteUrl }, managed.workspace.id)
       return { success: true, url: remoteUrl }
     } catch (error) {
+      sessionLog.error(`[RemoteControl] Failed to start for session ${sessionId}:`, error)
       ws?.close()
       return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
     }
@@ -4888,7 +4906,9 @@ To view this task's output:
     if (managed?.agent) {
       sessionLog.info(`User question response for ${requestId}`)
       const success = managed.agent.respondToQuestion(requestId, response.answers)
+      sessionLog.info(`[RemoteControl] respondToQuestion result: ${success} for requestId ${requestId}`)
       if (success) {
+        sessionLog.info(`[RemoteControl] Emitting question_answered event for ${requestId}`)
         this.sendEvent({ type: 'question_answered', sessionId, requestId }, managed.workspace.id)
       }
       return success

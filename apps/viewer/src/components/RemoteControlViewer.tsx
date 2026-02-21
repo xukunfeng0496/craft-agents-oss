@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { StoredSession } from '@craft-agent/core'
+import type { StoredSession, StoredMessage } from '@craft-agent/core'
 import type { UserQuestion } from '@craft-agent/core/types'
 import { SessionViewer, UserQuestionCard } from '@craft-agent/ui'
 import {
@@ -191,6 +191,7 @@ export function RemoteControlViewer({ roomId, relayWsUrl }: Props) {
     ws.onmessage = (event) => {
       try {
         const msg = JSON.parse(event.data as string) as { type: string; [key: string]: unknown }
+        console.log('[viewer] WS message:', msg.type, msg.type === 'session_snapshot' ? `messages: ${(msg.session as StoredSession)?.messages?.length}` : '')
         switch (msg.type) {
           case 'session_snapshot':
             setSession(msg.session as StoredSession)
@@ -249,9 +250,11 @@ export function RemoteControlViewer({ roomId, relayWsUrl }: Props) {
 
   const sendMessage = useCallback(() => {
     if ((!input.trim() && attachments.length === 0) || !wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return
+
+    const content = input.trim() || '(attached files)'
     const payload: Record<string, unknown> = {
       type: 'send_message',
-      content: input.trim() || '(attached files)',
+      content,
     }
     if (attachments.length > 0) {
       payload.attachments = attachments.map(a => ({
@@ -263,13 +266,37 @@ export function RemoteControlViewer({ roomId, relayWsUrl }: Props) {
       }))
     }
     wsRef.current.send(JSON.stringify(payload))
+
+    // Optimistically add user message to local session state
+    // This ensures immediate feedback before session_snapshot arrives
+    if (session) {
+      const optimisticMessage: StoredMessage = {
+        id: `temp-${Date.now()}`,
+        type: 'user',
+        content,
+        timestamp: Date.now(),
+        attachments: attachments.length > 0 ? attachments.map(a => ({
+          type: a.type as 'image' | 'pdf' | 'text' | 'unknown',
+          path: '',
+          name: a.file.name,
+          mimeType: a.file.type,
+          base64: a.base64,
+          size: a.file.size,
+        })) : undefined,
+      }
+      setSession(prev => prev ? {
+        ...prev,
+        messages: [...prev.messages, optimisticMessage]
+      } : prev)
+    }
+
     setInput('')
     setAttachments(prev => {
       prev.forEach(a => { if (a.preview) URL.revokeObjectURL(a.preview) })
       return []
     })
     if (textareaRef.current) textareaRef.current.style.height = 'auto'
-  }, [input, attachments])
+  }, [input, attachments, session])
 
   const handleInput = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setInput(e.target.value)

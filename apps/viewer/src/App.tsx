@@ -57,7 +57,10 @@ function getRemoteRoomIdFromUrl(): string | null {
 
 export function App() {
   const remoteRoomId = getRemoteRoomIdFromUrl()
-  const RELAY_WS_URL = import.meta.env.VITE_RELAY_WS_URL ?? 'ws://localhost:4747'
+  // Derive relay WS URL from current window host so it works over LAN via Vite proxy.
+  // VITE_RELAY_WS_URL can override for production deployments.
+  const wsProto = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+  const RELAY_WS_URL = import.meta.env.VITE_RELAY_WS_URL ?? `${wsProto}//${window.location.host}`
 
   const [session, setSession] = useState<StoredSession | null>(null)
   const [isLoading, setIsLoading] = useState(false)

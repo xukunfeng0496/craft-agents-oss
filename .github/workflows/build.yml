@@ -115,11 +115,32 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Write release notes
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          cat > .release-notes.md << EOF
+          # v${VERSION} (CVTE Build)
+
+          ## Install
+
+          | Platform | File |
+          |----------|------|
+          | macOS Apple Silicon | \`Work-Agent-arm64.dmg\` |
+          | macOS Intel | \`Work-Agent-x64.dmg\` |
+          | Windows x64 | \`Work-Agent-x64.exe\` |
+          | Linux x64 | \`Work-Agent-x64.AppImage\` |
+
+          ---
+
+          Built from [craft-agents-oss](https://github.com/xukunfeng0496/craft-agents-oss) · Apache 2.0
+          EOF
+
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ steps.version.outputs.version }}-cvte
           name: v${{ steps.version.outputs.version }} (CVTE Build)
+          body_path: .release-notes.md
           files: artifacts/**/*
           draft: false
           prerelease: false

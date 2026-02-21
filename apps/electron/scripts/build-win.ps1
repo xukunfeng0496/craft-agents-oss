@@ -165,15 +165,27 @@ Write-Host "Copying SDK..."
 New-Item -ItemType Directory -Force -Path "$ElectronDir\node_modules\@anthropic-ai" | Out-Null
 Copy-Item -Recurse -Force $SdkSource "$ElectronDir\node_modules\@anthropic-ai\"
 
-# 5. Copy interceptor
+# 5. Copy interceptor and its dependencies
 $InterceptorSource = "$RootDir\packages\shared\src\network-interceptor.ts"
 if (-not (Test-Path $InterceptorSource)) {
     Write-Host "ERROR: Interceptor not found at $InterceptorSource" -ForegroundColor Red
     exit 1
 }
-Write-Host "Copying interceptor..."
+$InterceptorCommonSource = "$RootDir\packages\shared\src\interceptor-common.ts"
+if (-not (Test-Path $InterceptorCommonSource)) {
+    Write-Host "ERROR: interceptor-common.ts not found at $InterceptorCommonSource" -ForegroundColor Red
+    exit 1
+}
+$FeatureFlagsSource = "$RootDir\packages\shared\src\feature-flags.ts"
+if (-not (Test-Path $FeatureFlagsSource)) {
+    Write-Host "ERROR: feature-flags.ts not found at $FeatureFlagsSource" -ForegroundColor Red
+    exit 1
+}
+Write-Host "Copying interceptor and dependencies..."
 New-Item -ItemType Directory -Force -Path "$ElectronDir\packages\shared\src" | Out-Null
 Copy-Item $InterceptorSource "$ElectronDir\packages\shared\src\"
+Copy-Item $InterceptorCommonSource "$ElectronDir\packages\shared\src\"
+Copy-Item $FeatureFlagsSource "$ElectronDir\packages\shared\src\"
 
 # 6. Build Electron app
 Write-Host "Building Electron app..."

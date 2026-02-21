@@ -27,6 +27,7 @@ export default defineConfig({
     include: ['react', 'react-dom'],
   },
   server: {
+    host: '0.0.0.0', // Listen on all interfaces for LAN access
     port: 5174, // Different from Electron dev server
     open: true,
     proxy: {

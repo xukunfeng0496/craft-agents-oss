@@ -553,6 +553,19 @@ export default function App() {
         }))
       }
 
+      // Remote viewer responded to permission - clear from renderer state immediately
+      if (event.type === 'permission_cleared') {
+        setPendingPermissions(prev => {
+          const next = new Map(prev)
+          const queue = next.get(sessionId) || []
+          const remaining = queue.filter(p => p.requestId !== event.requestId)
+          if (remaining.length === 0) next.delete(sessionId)
+          else next.set(sessionId, remaining)
+          return next
+        })
+        return
+      }
+
       // Check if session is currently streaming (atom is source of truth)
       const atomSession = store.get(sessionAtomFamily(sessionId))
       const isStreaming = atomSession?.isProcessing === true

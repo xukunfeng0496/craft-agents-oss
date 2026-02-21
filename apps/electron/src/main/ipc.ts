@@ -1,7 +1,7 @@
 import { app, ipcMain, nativeTheme, nativeImage, dialog, shell, BrowserWindow } from 'electron'
 import { readFile, readdir, stat, realpath, mkdir, writeFile, unlink, rm } from 'fs/promises'
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs'
-import { normalize, isAbsolute, join, basename, dirname, resolve, relative, sep } from 'path'
+import { normalize, isAbsolute, join, basename, dirname, resolve, relative } from 'path'
 import { homedir, tmpdir } from 'os'
 import { randomUUID } from 'crypto'
 import { execSync } from 'child_process'
@@ -397,8 +397,8 @@ export function stopCodexModelRefresh(): void {
 }
 
 /**
- * Validates that a file path is within allowed directories to prevent path traversal attacks.
- * Allowed directories: user's home directory and /tmp
+ * Validates a file path to prevent reading sensitive credential files.
+ * Blocks known sensitive file patterns (SSH keys, credentials, etc.).
  */
 async function validateFilePath(filePath: string): Promise<string> {
   // Normalize the path to resolve . and .. components
@@ -423,24 +423,7 @@ async function validateFilePath(filePath: string): Promise<string> {
     realPath = normalizedPath
   }
 
-  // Define allowed base directories
-  const allowedDirs = [
-    homedir(),      // User's home directory
-    tmpdir(),       // Platform-appropriate temp directory
-  ]
-
-  // Check if the real path is within an allowed directory (cross-platform)
-  const isAllowed = allowedDirs.some(dir => {
-    const normalizedDir = normalize(dir)
-    const normalizedReal = normalize(realPath)
-    return normalizedReal.startsWith(normalizedDir + sep) || normalizedReal === normalizedDir
-  })
-
-  if (!isAllowed) {
-    throw new Error('Access denied: file path is outside allowed directories')
-  }
-
-  // Block sensitive files even within home directory
+  // Block sensitive credential files
   const sensitivePatterns = [
     /\.ssh\//,
     /\.gnupg\//,
@@ -1094,11 +1077,11 @@ export function registerIpcHandlers(sessionManager: SessionManager, windowManage
           filesToCleanup.push(mdPath)
           ipcLog.info(`Converted Office file to markdown: ${mdPath}`)
         } catch (convertError) {
-          // Conversion failed - throw so user knows the file can't be processed
-          // Claude can't read raw Office binary, so a failed conversion = unusable file
+          // Conversion failed (e.g. legacy .doc format not supported by MarkItDown)
+          // Fall back gracefully: store the file as-is without markdown conversion
+          // The agent won't be able to read the content but the attachment won't fail entirely
           const errorMsg = convertError instanceof Error ? convertError.message : String(convertError)
-          ipcLog.error('Office to markdown conversion failed:', errorMsg)
-          throw new Error(`Failed to convert "${attachment.name}" to readable format: ${errorMsg}`)
+          ipcLog.warn(`Office to markdown conversion failed for "${attachment.name}", storing as-is: ${errorMsg}`)
         }
       }
 

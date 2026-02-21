@@ -451,6 +451,7 @@ export type SessionEvent =
   | { type: 'async_operation'; sessionId: string; isOngoing: boolean }
   | { type: 'working_directory_changed'; sessionId: string; workingDirectory: string }
   | { type: 'permission_request'; sessionId: string; request: PermissionRequest }
+  | { type: 'permission_cleared'; sessionId: string; requestId: string }
   | { type: 'credential_request'; sessionId: string; request: CredentialRequest }
   // Permission mode events
   | { type: 'permission_mode_changed'; sessionId: string; permissionMode: PermissionMode }

@@ -57,7 +57,10 @@ function getRemoteRoomIdFromUrl(): string | null {
 
 export function App() {
   const remoteRoomId = getRemoteRoomIdFromUrl()
-  const RELAY_WS_URL = import.meta.env.VITE_RELAY_WS_URL ?? 'ws://localhost:4747'
+  // Use current page's host so WebSocket goes through Vite proxy (/rooms → localhost:4747)
+  // This works for both localhost and LAN access (phone on same WiFi)
+  const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+  const RELAY_WS_URL = import.meta.env.VITE_RELAY_WS_URL ?? `${wsProtocol}//${window.location.host}`
 
   const [session, setSession] = useState<StoredSession | null>(null)
   const [isLoading, setIsLoading] = useState(false)
@@ -195,7 +198,11 @@ export function App() {
 
   // Early return after all hooks — safe per Rules of Hooks
   if (remoteRoomId) {
-    return <RemoteControlViewer roomId={remoteRoomId} relayWsUrl={RELAY_WS_URL} />
+    return (
+      <TooltipProvider>
+        <RemoteControlViewer roomId={remoteRoomId} relayWsUrl={RELAY_WS_URL} />
+      </TooltipProvider>
+    )
   }
 
   return (

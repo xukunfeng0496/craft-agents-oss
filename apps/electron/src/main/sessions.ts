@@ -2195,7 +2195,7 @@ export class SessionManager {
 
     // If isolation is enabled and a working directory is configured, create a
     // session-specific subdirectory and update the session's workingDirectory.
-    const isolateSessionDir = wsConfig?.defaults?.isolateSessionDirectory ?? false
+    const isolateSessionDir = wsConfig?.defaults?.isolateSessionDirectory ?? true
     if (isolateSessionDir && resolvedWorkingDir) {
       const isolatedDir = join(resolvedWorkingDir, storedSession.id)
       await mkdir(isolatedDir, { recursive: true })

@@ -135,6 +135,7 @@ export function loadConfigDefaults(): ConfigDefaults {
       thinkingLevel: 'think',
       permissionMode: 'ask',
       cyclablePermissionModes: ['ask', 'safe', 'allow-all'],
+      isolateSessionDirectory: true,
       localMcpServers: { enabled: true },
     },
   };

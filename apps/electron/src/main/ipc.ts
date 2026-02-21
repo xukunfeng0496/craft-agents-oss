@@ -2799,13 +2799,34 @@ export function registerIpcHandlers(sessionManager: SessionManager, windowManage
     })
   }
 
+  // Expand ~ in a path (session metadata stores portable paths)
+  function expandWorkingDir(p: string): string {
+    return p.startsWith('~') ? p.replace('~', homedir()) : p
+  }
+
   // Get files in session directory (recursive tree structure)
   ipcMain.handle(IPC_CHANNELS.GET_SESSION_FILES, async (_event, sessionId: string) => {
     const sessionPath = sessionManager.getSessionPath(sessionId)
     if (!sessionPath) return []
 
     try {
-      return await scanSessionDirectory(sessionPath)
+      const sessionFiles = await scanSessionDirectory(sessionPath)
+
+      // Also scan working directory (session-isolated subdirectory) if available
+      const rawWorkingDir = sessionManager.getWorkingDirectory(sessionId)
+      if (rawWorkingDir) {
+        const workingDir = expandWorkingDir(rawWorkingDir)
+        if (workingDir !== sessionPath) {
+          const { existsSync } = await import('fs')
+          if (existsSync(workingDir)) {
+            const workDirFiles = await scanSessionDirectory(workingDir)
+            // Work output first, session metadata (attachments/downloads/plans) after
+            return [...workDirFiles, ...sessionFiles]
+          }
+        }
+      }
+
+      return sessionFiles
     } catch (error) {
       ipcLog.error('Failed to get session files:', error)
       return []
@@ -2814,6 +2835,7 @@ export function registerIpcHandlers(sessionManager: SessionManager, windowManage
 
   // Session file watcher state - only one session watched at a time
   let sessionFileWatcher: import('fs').FSWatcher | null = null
+  let workDirWatcher: import('fs').FSWatcher | null = null
   let watchedSessionId: string | null = null
   let fileChangeDebounceTimer: ReturnType<typeof setTimeout> | null = null
 
@@ -2822,10 +2844,14 @@ export function registerIpcHandlers(sessionManager: SessionManager, windowManage
     const sessionPath = sessionManager.getSessionPath(sessionId)
     if (!sessionPath) return
 
-    // Close existing watcher if watching a different session
+    // Close existing watchers if watching a different session
     if (sessionFileWatcher) {
       sessionFileWatcher.close()
       sessionFileWatcher = null
+    }
+    if (workDirWatcher) {
+      workDirWatcher.close()
+      workDirWatcher = null
     }
     if (fileChangeDebounceTimer) {
       clearTimeout(fileChangeDebounceTimer)
@@ -2857,6 +2883,32 @@ export function registerIpcHandlers(sessionManager: SessionManager, windowManage
     } catch (error) {
       ipcLog.error('Failed to start session file watcher:', error)
     }
+
+    // Also watch working directory (session-isolated subdirectory) if available
+    const rawWorkingDir = sessionManager.getWorkingDirectory(sessionId)
+    if (rawWorkingDir) {
+      const workingDir = expandWorkingDir(rawWorkingDir)
+      if (workingDir !== sessionPath) {
+        const { existsSync } = await import('fs')
+        if (existsSync(workingDir)) {
+          try {
+            const { watch: watchFs } = await import('fs')
+            workDirWatcher = watchFs(workingDir, { recursive: true }, (eventType, filename) => {
+              if (filename && filename.startsWith('.')) return
+              if (fileChangeDebounceTimer) clearTimeout(fileChangeDebounceTimer)
+              fileChangeDebounceTimer = setTimeout(() => {
+                const { BrowserWindow } = require('electron')
+                for (const win of BrowserWindow.getAllWindows()) {
+                  win.webContents.send(IPC_CHANNELS.SESSION_FILES_CHANGED, watchedSessionId)
+                }
+              }, 100)
+            })
+          } catch (error) {
+            ipcLog.error('Failed to start working directory watcher:', error)
+          }
+        }
+      }
+    }
   })
 
   // Stop watching session files
@@ -2864,6 +2916,10 @@ export function registerIpcHandlers(sessionManager: SessionManager, windowManage
     if (sessionFileWatcher) {
       sessionFileWatcher.close()
       sessionFileWatcher = null
+    }
+    if (workDirWatcher) {
+      workDirWatcher.close()
+      workDirWatcher = null
     }
     if (fileChangeDebounceTimer) {
       clearTimeout(fileChangeDebounceTimer)

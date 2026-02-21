@@ -8,8 +8,8 @@
  * Imports groupMessagesByTurn (pure function) from turn-utils.
  */
 import { describe, it, expect, beforeEach } from 'bun:test'
-import { groupMessagesByTurn, type AssistantTurn } from '@craft-agent/ui/chat/turn-utils'
-import type { Message, StoredMessage, MessageRole } from '@craft-agent/core'
+import { groupMessagesByTurn, type AssistantTurn } from '@work-agent/ui/chat/turn-utils'
+import type { Message, StoredMessage, MessageRole } from '@work-agent/core'
 
 // ============================================================================
 // Mirror: messageToStored / storedToMessage (simplified for tests)

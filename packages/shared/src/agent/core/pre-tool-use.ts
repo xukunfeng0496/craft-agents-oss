@@ -195,7 +195,7 @@ export function qualifySkillName(
   const skill = input.skill as string | undefined;
   if (!skill) return { modified: false, input };
 
-  // Extract the bare slug — strip any existing qualifier (e.g. "CraftAgentWS:commit" → "commit")
+  // Extract the bare slug — strip any existing qualifier (e.g. "WorkAgentWS:commit" → "commit")
   const bareSlug = skill.includes(':') ? skill.split(':').pop()! : skill;
   if (!bareSlug) return { modified: false, input };
 

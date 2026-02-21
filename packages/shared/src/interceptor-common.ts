@@ -27,13 +27,13 @@ export const DEBUG = INTERCEPTOR_LOGGING_ENABLED &&
   (process.argv.includes('--debug') || process.env.CRAFT_DEBUG === '1');
 
 /** Config file path for reading settings in the SDK subprocess */
-export const CONFIG_FILE = join(homedir(), '.craft-agent', 'config.json');
+export const CONFIG_FILE = join(homedir(), '.workagent', 'config.json');
 
 // ============================================================================
 // LOGGING
 // ============================================================================
 
-export const LOG_DIR = join(homedir(), '.craft-agent', 'logs');
+export const LOG_DIR = join(homedir(), '.workagent', 'logs');
 export const LOG_FILE = join(LOG_DIR, 'interceptor.log');
 
 // Ensure log directory exists at module load
@@ -117,7 +117,7 @@ export interface LastApiError {
   timestamp: number;
 }
 
-const ERROR_FILE = join(homedir(), '.craft-agent', 'api-error.json');
+const ERROR_FILE = join(homedir(), '.workagent', 'api-error.json');
 const MAX_ERROR_AGE_MS = 5 * 60 * 1000; // 5 minutes
 
 function getStoredError(): LastApiError | null {

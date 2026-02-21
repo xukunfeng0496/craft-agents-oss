@@ -14,8 +14,8 @@ import {
   StyledDropdownMenuSubContent,
 } from "@/components/ui/styled-dropdown"
 import * as Icons from "lucide-react"
-import { Tooltip, TooltipTrigger, TooltipContent } from "@craft-agent/ui"
-import { CraftAgentsSymbol } from "./icons/CraftAgentsSymbol"
+import { Tooltip, TooltipTrigger, TooltipContent } from "@work-agent/ui"
+import { WorkAgentsSymbol } from "./icons/WorkAgentsSymbol"
 import { SquarePenRounded } from "./icons/SquarePenRounded"
 import { TopBarButton } from "./ui/TopBarButton"
 import {
@@ -299,7 +299,7 @@ export function AppMenu({
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <TopBarButton aria-label={labels.ariaCraftMenu}>
-            <CraftAgentsSymbol className="h-4 text-accent" />
+            <WorkAgentsSymbol className="h-4 text-accent" />
           </TopBarButton>
         </DropdownMenuTrigger>
         <StyledDropdownMenuContent align="start" minWidth="min-w-48">

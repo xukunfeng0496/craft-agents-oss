@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'bun:test'
 import type { TFunction } from 'i18next'
-import { getApiSetupLabels, getWelcomeLabels, getReauthLabels, getCredentialsLabels } from '../labels'
+import { getApiSetupLabels, getWelcomeLabels, getReauthLabels, getCredentialsLabels, getMissingToolsLabels } from '../labels'
 
 describe('onboarding i18n', () => {
   it('returns localized welcome labels', () => {
     const t: TFunction = ((key: string) => ({
-      'onboarding:welcome.title': '欢迎使用 Craft Agents',
+      'onboarding:welcome.title': '欢迎使用 Work Agents',
       'onboarding:welcome.cta': '开始',
       'onboarding:welcome.description': '欢迎文案',
       'onboarding:welcome.titleExisting': '更新设置',
@@ -15,7 +15,7 @@ describe('onboarding i18n', () => {
     } as Record<string, string>)[key] || key) as TFunction
 
     const labels = getWelcomeLabels(t)
-    expect(labels.title).toBe('欢迎使用 Craft Agents')
+    expect(labels.title).toBe('欢迎使用 Work Agents')
     expect(labels.titleExisting).toBe('更新设置')
     expect(labels.description).toBe('欢迎文案')
     expect(labels.descriptionExisting).toBe('更新说明')
@@ -28,7 +28,7 @@ describe('onboarding i18n', () => {
     const t: TFunction = ((key: string) => ({
       'onboarding:reauth.title': '会话已过期',
       'onboarding:reauth.description': '请重新登录。',
-      'onboarding:reauth.descriptionSecondary': '请重新登录以继续使用 Craft Agents。',
+      'onboarding:reauth.descriptionSecondary': '请重新登录以继续使用 Work Agents。',
       'onboarding:reauth.note': '你的会话已保留。',
       'onboarding:reauth.login': '重新登录',
       'onboarding:reauth.loggingIn': '正在登录...',
@@ -39,7 +39,7 @@ describe('onboarding i18n', () => {
     const labels = getReauthLabels(t)
     expect(labels.title).toBe('会话已过期')
     expect(labels.description).toBe('请重新登录。')
-    expect(labels.descriptionSecondary).toBe('请重新登录以继续使用 Craft Agents。')
+    expect(labels.descriptionSecondary).toBe('请重新登录以继续使用 Work Agents。')
     expect(labels.note).toBe('你的会话已保留。')
     expect(labels.login).toBe('重新登录')
     expect(labels.loggingIn).toBe('正在登录...')
@@ -93,5 +93,35 @@ describe('onboarding i18n', () => {
     expect(labels.customModelLabel).toBe('模型')
     expect(labels.optional).toBe('可选')
     expect(labels.customPreset).toBe('自定义')
+  })
+
+  it('returns localized missing tools labels', () => {
+    const t: TFunction = ((key: string) => ({
+      'onboarding:missingTools.title': '安装必要工具',
+      'onboarding:missingTools.description': '以下工具是 Agent 运行所必需的',
+      'onboarding:missingTools.continue': '继续',
+      'onboarding:missingTools.skip': '暂时跳过',
+      'onboarding:missingTools.back': '返回',
+      'onboarding:missingTools.status.found': '已安装',
+      'onboarding:missingTools.status.missing': '未找到',
+      'onboarding:missingTools.autoInstall': '自动安装',
+      'onboarding:missingTools.manualInstall': '我自己安装',
+      'onboarding:missingTools.openDownloadPage': '打开下载页面',
+      'onboarding:missingTools.recheck': '重新检测',
+      'onboarding:missingTools.rechecking': '检测中...',
+      'onboarding:missingTools.installerLaunched': '安装程序已打开',
+      'onboarding:missingTools.linux.note': '在终端运行以下命令安装：',
+      'onboarding:missingTools.tools.git.name': 'Git',
+      'onboarding:missingTools.tools.git.description': '项目版本控制工具',
+      'onboarding:missingTools.tools.python.name': 'Python',
+      'onboarding:missingTools.tools.python.description': '运行 Python 脚本和项目所需',
+    } as Record<string, string>)[key] || key) as TFunction
+
+    const labels = getMissingToolsLabels(t)
+    expect(labels.title).toBe('安装必要工具')
+    expect(labels.autoInstall).toBe('自动安装')
+    expect(labels.toolName('git')).toBe('Git')
+    expect(labels.toolName('python')).toBe('Python')
+    expect(labels.recheck).toBe('重新检测')
   })
 })

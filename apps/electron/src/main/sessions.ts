@@ -4,7 +4,7 @@ import { basename, join } from 'path'
 import { existsSync } from 'fs'
 import { rm, readFile, mkdir, writeFile, rename, open } from 'fs/promises'
 import { randomUUID } from 'crypto'
-import { CraftAgent, type AgentEvent, setPermissionMode, type PermissionMode, unregisterSessionScopedToolCallbacks, AbortReason, type AuthRequest, type AuthResult, type CredentialAuthRequest } from '@craft-agent/shared/agent'
+import { WorkAgent, type AgentEvent, setPermissionMode, type PermissionMode, unregisterSessionScopedToolCallbacks, AbortReason, type AuthRequest, type AuthResult, type CredentialAuthRequest } from '@work-agent/shared/agent'
 import {
   CodexBackend,
   CodexAgent,
@@ -15,14 +15,14 @@ import {
   connectionAuthTypeToBackendAuthType,
   createBackendFromConnection,
   type LlmAuthType,
-} from '@craft-agent/shared/agent/backend'
+} from '@work-agent/shared/agent/backend'
 import {
   generateCodexConfig,
   generateBridgeConfig,
   getCredentialCachePath,
   type CredentialCacheEntry,
-} from '@craft-agent/shared/codex'
-import { getLlmConnection, getDefaultLlmConnection } from '@craft-agent/shared/config'
+} from '@work-agent/shared/codex'
+import { getLlmConnection, getDefaultLlmConnection } from '@work-agent/shared/config'
 import { sessionLog, isDebugMode, getLogFilePath } from './logger'
 import { InitGate } from './init-gate'
 import { createSdkMcpServer } from '@anthropic-ai/claude-agent-sdk'
@@ -38,8 +38,8 @@ import {
   migrateOrphanedDefaultConnections,
   MODEL_REGISTRY,
   type Workspace,
-} from '@craft-agent/shared/config'
-import { loadWorkspaceConfig } from '@craft-agent/shared/workspaces'
+} from '@work-agent/shared/config'
+import { loadWorkspaceConfig } from '@work-agent/shared/workspaces'
 import {
   // Session persistence functions
   listSessions as listStoredSessions,
@@ -68,25 +68,25 @@ import {
   type SessionMetadata,
   type SessionStatus,
   pickSessionFields,
-} from '@craft-agent/shared/sessions'
-import { loadWorkspaceSources, loadAllSources, getSourcesBySlugs, isSourceUsable, type LoadedSource, type McpServerConfig, getSourcesNeedingAuth, getSourceCredentialManager, getSourceServerBuilder, type SourceWithCredential, isApiOAuthProvider, SERVER_BUILD_ERRORS, TokenRefreshManager, createTokenGetter } from '@craft-agent/shared/sources'
-import { ConfigWatcher, type ConfigWatcherCallbacks } from '@craft-agent/shared/config'
-import { getValidClaudeOAuthToken } from '@craft-agent/shared/auth'
-import { setPathToClaudeCodeExecutable, setInterceptorPath, setExecutable } from '@craft-agent/shared/agent'
-import { toolMetadataStore } from '@craft-agent/shared/network-interceptor'
-import { getCredentialManager } from '@craft-agent/shared/credentials'
-import { CraftMcpClient } from '@craft-agent/shared/mcp'
+} from '@work-agent/shared/sessions'
+import { loadWorkspaceSources, loadAllSources, getSourcesBySlugs, isSourceUsable, type LoadedSource, type McpServerConfig, getSourcesNeedingAuth, getSourceCredentialManager, getSourceServerBuilder, type SourceWithCredential, isApiOAuthProvider, SERVER_BUILD_ERRORS, TokenRefreshManager, createTokenGetter } from '@work-agent/shared/sources'
+import { ConfigWatcher, type ConfigWatcherCallbacks } from '@work-agent/shared/config'
+import { getValidClaudeOAuthToken } from '@work-agent/shared/auth'
+import { setPathToClaudeCodeExecutable, setInterceptorPath, setExecutable } from '@work-agent/shared/agent'
+import { toolMetadataStore } from '@work-agent/shared/network-interceptor'
+import { getCredentialManager } from '@work-agent/shared/credentials'
+import { CraftMcpClient } from '@work-agent/shared/mcp'
 import { type Session, type Message, type SessionEvent, type FileAttachment, type StoredAttachment, type SendMessageOptions, IPC_CHANNELS, generateMessageId } from '../shared/types'
-import { formatPathsToRelative, formatToolInputPaths, perf, encodeIconToDataUrl, getEmojiIcon, resetSummarizationClient, resolveToolIcon } from '@craft-agent/shared/utils'
-import { loadAllSkills, loadSkillBySlug, type LoadedSkill } from '@craft-agent/shared/skills'
-import type { ToolDisplayMeta } from '@craft-agent/core/types'
-import { getToolIconsDir, isCodexModel, getMiniModel, isAnthropicProvider, DEFAULT_MODEL, DEFAULT_CODEX_MODEL } from '@craft-agent/shared/config'
-import type { SummarizeCallback } from '@craft-agent/shared/sources'
-import { type ThinkingLevel, DEFAULT_THINKING_LEVEL } from '@craft-agent/shared/agent/thinking-levels'
-import { evaluateAutoLabels } from '@craft-agent/shared/labels/auto'
-import { listLabels } from '@craft-agent/shared/labels/storage'
-import { extractLabelId } from '@craft-agent/shared/labels'
-import { HookSystem, type HookSystemMetadataSnapshot } from '@craft-agent/shared/hooks-simple'
+import { formatPathsToRelative, formatToolInputPaths, perf, encodeIconToDataUrl, getEmojiIcon, resetSummarizationClient, resolveToolIcon } from '@work-agent/shared/utils'
+import { loadAllSkills, loadSkillBySlug, type LoadedSkill } from '@work-agent/shared/skills'
+import type { ToolDisplayMeta } from '@work-agent/core/types'
+import { getToolIconsDir, isCodexModel, getMiniModel, isAnthropicProvider, DEFAULT_MODEL, DEFAULT_CODEX_MODEL } from '@work-agent/shared/config'
+import type { SummarizeCallback } from '@work-agent/shared/sources'
+import { type ThinkingLevel, DEFAULT_THINKING_LEVEL } from '@work-agent/shared/agent/thinking-levels'
+import { evaluateAutoLabels } from '@work-agent/shared/labels/auto'
+import { listLabels } from '@work-agent/shared/labels/storage'
+import { extractLabelId } from '@work-agent/shared/labels'
+import { HookSystem, type HookSystemMetadataSnapshot } from '@work-agent/shared/hooks-simple'
 
 // Import and re-export (extracted to avoid Electron dependency in tests)
 import { sanitizeForTitle } from './title-sanitizer'
@@ -318,7 +318,7 @@ async function writeFileSecure(targetPath: string, content: string, mode: number
 async function setupCodexSessionConfig(
   sessionPath: string,
   sources: LoadedSource[],
-  mcpServerConfigs: Record<string, import('@craft-agent/shared/agent/backend').SdkMcpServerConfig>,
+  mcpServerConfigs: Record<string, import('@work-agent/shared/agent/backend').SdkMcpServerConfig>,
   sessionId?: string,
   workspaceRootPath?: string
 ): Promise<string> {
@@ -429,7 +429,7 @@ async function regenCodexConfigAndReconnect(
   agent: CodexBackend,
   sessionPath: string,
   enabledSources: LoadedSource[],
-  mcpServers: Record<string, import('@craft-agent/shared/agent/backend').SdkMcpServerConfig>,
+  mcpServers: Record<string, import('@work-agent/shared/agent/backend').SdkMcpServerConfig>,
   sessionId: string,
   workspaceRootPath: string,
   context: string
@@ -536,8 +536,8 @@ function resolveToolDisplayMeta(
         'preferences': {
           'update_user_preferences': 'Update Preferences',
         },
-        'craft-agents-docs': {
-          'SearchCraftAgents': 'Search Docs',
+        'work-agents-docs': {
+          'SearchWorkAgents': 'Search Docs',
         },
       }
 
@@ -612,7 +612,7 @@ function resolveToolDisplayMeta(
 
   // CLI tool icon resolution for Bash commands
   // Parses the command string to detect known tools (git, npm, docker, etc.)
-  // and resolves their brand icon from ~/.craft-agent/tool-icons/
+  // and resolves their brand icon from ~/.workagent/tool-icons/
   if (toolName === 'Bash' && toolInput?.command) {
     try {
       const toolIconsDir = getToolIconsDir()
@@ -659,8 +659,8 @@ function resolveToolDisplayMeta(
   return undefined
 }
 
-/** Agent type - CraftAgent for Claude, CodexBackend for Codex, CopilotAgent for Copilot */
-type AgentInstance = CraftAgent | CodexBackend | CopilotAgent
+/** Agent type - WorkAgent for Claude, CodexBackend for Codex, CopilotAgent for Copilot */
+type AgentInstance = WorkAgent | CodexBackend | CopilotAgent
 
 interface ManagedSession {
   id: string
@@ -1089,7 +1089,7 @@ export class SessionManager {
       onSkillChange: async (slug, skill) => {
         sessionLog.info(`Skill '${slug}' changed:`, skill ? 'updated' : 'deleted')
         // Broadcast updated list to UI
-        const { loadAllSkills } = await import('@craft-agent/shared/skills')
+        const { loadAllSkills } = await import('@work-agent/shared/skills')
         const skills = loadAllSkills(workspaceRootPath)
         this.broadcastSkillsChanged(skills)
       },
@@ -1230,7 +1230,7 @@ export class SessionManager {
   /**
    * Broadcast app theme changed event to all windows
    */
-  private broadcastAppThemeChanged(theme: import('@craft-agent/shared/config').ThemeOverrides | null): void {
+  private broadcastAppThemeChanged(theme: import('@work-agent/shared/config').ThemeOverrides | null): void {
     if (!this.windowManager) return
     sessionLog.info(`Broadcasting app theme changed`)
     this.windowManager.broadcastToAll(IPC_CHANNELS.THEME_APP_CHANGED, theme)
@@ -1248,7 +1248,7 @@ export class SessionManager {
   /**
    * Broadcast skills changed event to all windows
    */
-  private broadcastSkillsChanged(skills: import('@craft-agent/shared/skills').LoadedSkill[]): void {
+  private broadcastSkillsChanged(skills: import('@work-agent/shared/skills').LoadedSkill[]): void {
     if (!this.windowManager) return
     sessionLog.info(`Broadcasting skills changed (${skills.length} skills)`)
     this.windowManager.broadcastToAll(IPC_CHANNELS.SKILLS_CHANGED, skills)
@@ -1256,7 +1256,7 @@ export class SessionManager {
 
   /**
    * Broadcast default permissions changed event to all windows
-   * Triggered when ~/.craft-agent/permissions/default.json changes
+   * Triggered when ~/.workagent/permissions/default.json changes
    */
   private broadcastDefaultPermissionsChanged(): void {
     if (!this.windowManager) return
@@ -1275,7 +1275,7 @@ export class SessionManager {
     const workspaceRootPath = managed.workspace.rootPath
     sessionLog.info(`Reloading sources for session ${managed.id}`)
 
-    // Reload all sources from disk (craft-agents-docs is always available as MCP server)
+    // Reload all sources from disk (work-agents-docs is always available as MCP server)
     const allSources = loadAllSources(workspaceRootPath)
     managed.agent.setAllSources(allSources)
 
@@ -1743,7 +1743,7 @@ export class SessionManager {
         onError: (err) => sessionLog.error(`[OAuth ${request.sourceSlug}] ${err}`),
       }, {
         sessionId: managed.id,
-        deeplinkScheme: process.env.CRAFT_DEEPLINK_SCHEME || 'craftagents',
+        deeplinkScheme: process.env.CRAFT_DEEPLINK_SCHEME || 'workagents',
       })
 
       if (result.success) {
@@ -1947,7 +1947,7 @@ export class SessionManager {
       }
 
       // Update source config to mark as authenticated
-      const { markSourceAuthenticated } = await import('@craft-agent/shared/sources')
+      const { markSourceAuthenticated } = await import('@work-agent/shared/sources')
       markSourceAuthenticated(managed.workspace.rootPath, request.sourceSlug)
 
       // Mark source as unseen so fresh guide is injected on next message
@@ -2467,7 +2467,7 @@ export class SessionManager {
 
   /**
    * Get or create agent for a session (lazy loading)
-   * Creates CraftAgent for Claude or CodexBackend for Codex based on LLM connection.
+   * Creates WorkAgent for Claude or CodexBackend for Codex based on LLM connection.
    *
    * Provider resolution order:
    * 1. session.llmConnection (locked after first message)
@@ -2783,7 +2783,7 @@ export class SessionManager {
 
         // Model resolution: session > connection default (connection always has defaultModel via backfill)
         const resolvedModel = managed.model || connection?.defaultModel || DEFAULT_MODEL
-        managed.agent = new CraftAgent({
+        managed.agent = new WorkAgent({
           workspace: managed.workspace,
           model: resolvedModel,
           miniModel: connection ? (getMiniModel(connection) ?? connection.defaultModel) : undefined,
@@ -3205,7 +3205,7 @@ export class SessionManager {
     }
 
     // Validate connection exists
-    const { getLlmConnection } = await import('@craft-agent/shared/config/storage')
+    const { getLlmConnection } = await import('@work-agent/shared/config/storage')
     const connection = getLlmConnection(connectionSlug)
     if (!connection) {
       sessionLog.warn(`setSessionConnection: connection "${connectionSlug}" not found`)
@@ -3304,7 +3304,7 @@ export class SessionManager {
         return { success: false, error: 'Session file not found' }
       }
 
-      const { VIEWER_URL } = await import('@craft-agent/shared/branding')
+      const { VIEWER_URL } = await import('@work-agent/shared/branding')
       const response = await fetch(`${VIEWER_URL}/s/api`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -3368,7 +3368,7 @@ export class SessionManager {
         return { success: false, error: 'Session file not found' }
       }
 
-      const { VIEWER_URL } = await import('@craft-agent/shared/branding')
+      const { VIEWER_URL } = await import('@work-agent/shared/branding')
       const response = await fetch(`${VIEWER_URL}/s/api/${managed.sharedId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -3625,7 +3625,7 @@ export class SessionManager {
     this.sendEvent({ type: 'async_operation', sessionId, isOngoing: true }, managed.workspace.id)
 
     try {
-      const { VIEWER_URL } = await import('@craft-agent/shared/branding')
+      const { VIEWER_URL } = await import('@work-agent/shared/branding')
       const response = await fetch(
         `${VIEWER_URL}/s/api/${managed.sharedId}`,
         { method: 'DELETE' }

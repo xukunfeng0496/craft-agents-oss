@@ -155,7 +155,7 @@ export interface SessionToolContext {
   /** Unique session identifier */
   sessionId: string;
 
-  /** Absolute path to workspace folder (~/.craft-agent/workspaces/{id}) */
+  /** Absolute path to workspace folder (~/.workagent/workspaces/{id}) */
   workspacePath: string;
 
   /** Path to sources folder within workspace */

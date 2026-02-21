@@ -21,14 +21,14 @@ describe('main i18n resource path candidates', () => {
     const paths = buildLocaleCandidatePaths({
       isPackaged: true,
       cwd: '/ignored',
-      appPath: '/Applications/Craft Agents.app/Contents/Resources/app',
-      resourcesPath: '/Applications/Craft Agents.app/Contents/Resources',
+      appPath: '/Applications/Work Agents.app/Contents/Resources/app',
+      resourcesPath: '/Applications/Work Agents.app/Contents/Resources',
       locale: 'en',
       namespace: 'dialogs',
     })
 
-    expect(paths[0]).toBe('/Applications/Craft Agents.app/Contents/Resources/locales/en/dialogs.json')
-    expect(paths).toContain('/Applications/Craft Agents.app/Contents/Resources/app/packages/shared/locales/en/dialogs.json')
+    expect(paths[0]).toBe('/Applications/Work Agents.app/Contents/Resources/locales/en/dialogs.json')
+    expect(paths).toContain('/Applications/Work Agents.app/Contents/Resources/app/packages/shared/locales/en/dialogs.json')
     expect(new Set(paths).size).toBe(paths.length)
   })
 })

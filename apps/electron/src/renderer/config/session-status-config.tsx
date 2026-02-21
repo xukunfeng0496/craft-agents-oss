@@ -1,8 +1,8 @@
 import * as React from 'react'
-import type { StatusConfig } from '@craft-agent/shared/statuses'
-import { isEmoji } from '@craft-agent/shared/utils/icon-constants'
-import { resolveEntityColor, getDefaultStatusColor } from '@craft-agent/shared/colors'
-import type { EntityColor } from '@craft-agent/shared/colors'
+import type { StatusConfig } from '@work-agent/shared/statuses'
+import { isEmoji } from '@work-agent/shared/utils/icon-constants'
+import { resolveEntityColor, getDefaultStatusColor } from '@work-agent/shared/colors'
+import type { EntityColor } from '@work-agent/shared/colors'
 import { StatusIcon } from '@/components/ui/status-icon'
 import { iconCache } from '@/lib/icon-cache'
 

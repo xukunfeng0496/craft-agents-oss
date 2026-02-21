@@ -1,7 +1,7 @@
 {
-  "name": "@craft-agent/electron",
+  "name": "@work-agent/electron",
   "version": "0.4.8",
-  "description": "Electron desktop app for Craft Agents",
+  "description": "Electron desktop app for Work Agents",
   "main": "dist/main.cjs",
   "private": true,
   "author": {
@@ -35,9 +35,9 @@
     "lint:fix": "eslint src/ --fix"
   },
   "dependencies": {
-    "@craft-agent/core": "workspace:*",
-    "@craft-agent/shared": "workspace:*",
-    "@craft-agent/ui": "workspace:*",
+    "@work-agent/core": "workspace:*",
+    "@work-agent/shared": "workspace:*",
+    "@work-agent/ui": "workspace:*",
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",

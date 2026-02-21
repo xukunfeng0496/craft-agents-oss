@@ -1,6 +1,6 @@
-# Contributing to Craft Agents
+# Contributing to Work Agents
 
-Thank you for your interest in contributing to Craft Agents! This document provides guidelines and instructions for contributing.
+Thank you for your interest in contributing to Work Agents! This document provides guidelines and instructions for contributing.
 
 ## Getting Started
 
@@ -93,14 +93,14 @@ How you tested these changes
 ## Project Structure
 
 ```
-craft-agents/
+work-agents/
 ├── apps/
 │   ├── electron/    # Desktop GUI (primary interface)
 │   └── tui/         # Terminal CLI (deprecated)
 └── packages/
-    ├── core/        # @craft-agent/core - Shared types
-    ├── shared/      # @craft-agent/shared - Business logic
-    └── ui/          # @craft-agent/ui - React components
+    ├── core/        # @work-agent/core - Shared types
+    ├── shared/      # @work-agent/shared - Business logic
+    └── ui/          # @work-agent/ui - React components
 ```
 
 ## Key Areas

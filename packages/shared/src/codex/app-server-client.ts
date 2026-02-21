@@ -33,7 +33,7 @@ import type {
   AuthStatusChangeNotification,
   LoginChatGptCompleteNotification,
   SessionConfiguredNotification,
-} from '@craft-agent/codex-types';
+} from '@work-agent/codex-types';
 
 import type {
   ThreadStartParams,
@@ -75,7 +75,7 @@ import type {
   ModelListParams,
   ModelListResponse,
   Model,
-} from '@craft-agent/codex-types/v2';
+} from '@work-agent/codex-types/v2';
 
 // ============================================================
 // Types
@@ -698,7 +698,7 @@ export class AppServerClient extends EventEmitter {
   /**
    * Login with ChatGPT external tokens (chatgptAuthTokens mode).
    *
-   * This allows Craft Agent to own the OAuth flow and inject tokens into Codex.
+   * This allows Work Agent to own the OAuth flow and inject tokens into Codex.
    * The tokens are stored in memory only - Codex will request refresh via
    * the `account/chatgptAuthTokens/refresh` server request when needed.
    *
@@ -863,7 +863,7 @@ export class AppServerClient extends EventEmitter {
   private async initialize(): Promise<void> {
     const params: InitializeParams = {
       clientInfo: {
-        name: 'Craft Agent',
+        name: 'Work Agent',
         title: null,
         version: '0.3.1', // TODO: Get from package.json
       },

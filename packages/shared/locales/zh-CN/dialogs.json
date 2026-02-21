@@ -30,6 +30,6 @@
   },
   "resetDefaults": {
     "title": "重置为默认",
-    "detail": "要将 Craft Agent 重置为默认设置，请退出应用并运行：\n\nbun run fresh-start\n\n这将删除所有配置、凭证、工作区和会话。"
+    "detail": "要将 Work Agent 重置为默认设置，请退出应用并运行：\n\nbun run fresh-start\n\n这将删除所有配置、凭证、工作区和会话。"
   }
 }

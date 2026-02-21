@@ -18,7 +18,7 @@ import type {
   ApiSetupMethod,
 } from '@/components/onboarding'
 import type { ApiKeySubmitData } from '@/components/apisetup'
-import type { AuthType, SetupNeeds, GitBashStatus, LlmConnectionSetup } from '../../shared/types'
+import type { AuthType, SetupNeeds, GitBashStatus, LlmConnectionSetup, MissingTool, ToolInstallProgress } from '../../shared/types'
 import { getRendererI18n } from '../i18n'
 
 function onboardingT(key: string, fallback: string): string {
@@ -89,6 +89,10 @@ interface UseOnboardingReturn {
   handleUseGitBashPath: (path: string) => void
   handleRecheckGitBash: () => void
   handleClearError: () => void
+
+  // Missing tools
+  handleInstallTool: (toolId: 'git' | 'python') => void
+  handleRecheckTool: (toolId: 'git' | 'python') => void
 
   // Completion
   handleFinish: () => void
@@ -193,6 +197,10 @@ export function useOnboarding({
     gitBashStatus: undefined,
     isRecheckingGitBash: false,
     isCheckingGitBash: true, // Start as true until check completes
+    missingTools: undefined,
+    isCheckingTools: true,
+    toolInstallProgress: undefined,
+    linuxDistro: undefined,
   })
 
   // Check Git Bash on Windows when starting from welcome
@@ -208,6 +216,28 @@ export function useOnboarding({
       }
     }
     checkGitBash()
+  }, [])
+
+  // Detect missing tools (git, python) at onboarding start
+  useEffect(() => {
+    const detectTools = async () => {
+      try {
+        const tools = await window.electronAPI.detectMissingTools()
+        setState(s => ({ ...s, missingTools: tools, isCheckingTools: false }))
+      } catch (error) {
+        console.error('[Onboarding] Failed to detect missing tools:', error)
+        setState(s => ({ ...s, missingTools: [], isCheckingTools: false }))
+      }
+    }
+    detectTools()
+  }, [])
+
+  // Subscribe to tool install progress events from main process
+  useEffect(() => {
+    const cleanup = window.electronAPI.onToolInstallProgress((progress) => {
+      setState(s => ({ ...s, toolInstallProgress: progress }))
+    })
+    return cleanup
   }, [])
 
   // Save configuration using the new unified LLM connection API
@@ -253,8 +283,21 @@ export function useOnboarding({
   // Continue to next step
   const handleContinue = useCallback(async () => {
     switch (state.step) {
-      case 'welcome':
-        // On Windows, check if Git Bash is needed
+      case 'welcome': {
+        // Check if any tools are missing (git or python)
+        const missingToolsList = (state.missingTools ?? []).filter(t => !t.found)
+        if (missingToolsList.length > 0) {
+          setState(s => ({ ...s, step: 'missing-tools' }))
+        } else if (state.gitBashStatus?.platform === 'win32' && !state.gitBashStatus?.found) {
+          setState(s => ({ ...s, step: 'git-bash' }))
+        } else {
+          setState(s => ({ ...s, step: 'api-setup' }))
+        }
+        break
+      }
+
+      case 'missing-tools':
+        // After the missing-tools step, check if git-bash is still needed on Windows
         if (state.gitBashStatus?.platform === 'win32' && !state.gitBashStatus?.found) {
           setState(s => ({ ...s, step: 'git-bash' }))
         } else {
@@ -287,13 +330,19 @@ export function useOnboarding({
       return
     }
     switch (state.step) {
-      case 'git-bash':
+      case 'missing-tools':
         setState(s => ({ ...s, step: 'welcome' }))
         break
+      case 'git-bash': {
+        const hadMissingTools = (state.missingTools ?? []).some(t => !t.found)
+        setState(s => ({ ...s, step: hadMissingTools ? 'missing-tools' : 'welcome' }))
+        break
+      }
       case 'api-setup':
-        // If on Windows and Git Bash was needed, go back to git-bash step
         if (state.gitBashStatus?.platform === 'win32' && state.gitBashStatus?.found === false) {
           setState(s => ({ ...s, step: 'git-bash' }))
+        } else if ((state.missingTools ?? []).some(t => !t.found)) {
+          setState(s => ({ ...s, step: 'missing-tools' }))
         } else {
           setState(s => ({ ...s, step: 'welcome' }))
         }
@@ -606,6 +655,34 @@ export function useOnboarding({
     setState(s => ({ ...s, errorMessage: undefined }))
   }, [])
 
+  // Install a tool via auto-download
+  const handleInstallTool = useCallback(async (toolId: 'git' | 'python') => {
+    // installTool IPC handler streams progress via onToolInstallProgress events
+    // and resolves when installer is launched
+    const result = await window.electronAPI.installTool(toolId)
+    if (!result.launched) {
+      // Surface error via progress event
+      setState(s => ({
+        ...s,
+        toolInstallProgress: {
+          toolId,
+          status: 'error',
+          error: result.error ?? 'Installation failed',
+        },
+      }))
+    }
+  }, [])
+
+  const handleRecheckTool = useCallback(async (toolId: 'git' | 'python') => {
+    const found = await window.electronAPI.recheckTool(toolId)
+    setState(s => ({
+      ...s,
+      missingTools: (s.missingTools ?? []).map(t =>
+        t.id === toolId ? { ...t, found } : t
+      ),
+    }))
+  }, [])
+
   // Finish onboarding
   const handleFinish = useCallback(() => {
     onComplete()
@@ -652,6 +729,9 @@ export function useOnboarding({
     handleUseGitBashPath,
     handleRecheckGitBash,
     handleClearError,
+    // Missing tools
+    handleInstallTool,
+    handleRecheckTool,
     handleFinish,
     handleCancel,
     reset,

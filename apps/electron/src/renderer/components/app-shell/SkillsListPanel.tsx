@@ -12,7 +12,7 @@ import { SkillAvatar } from '@/components/ui/skill-avatar'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Empty, EmptyHeader, EmptyMedia, EmptyTitle, EmptyDescription, EmptyContent } from '@/components/ui/empty'
 import { useTranslation } from 'react-i18next'
-import { getDocUrl } from '@craft-agent/shared/docs/doc-links'
+import { getDocUrl } from '@work-agent/shared/docs/doc-links'
 import { Separator } from '@/components/ui/separator'
 import {
   DropdownMenu,
@@ -198,7 +198,7 @@ function SkillItem({ skill, isSelected, isFirst, workspaceId, onClick, onDelete 
                     skillSlug={skill.slug}
                     skillName={skill.metadata.name}
                     onOpenInNewWindow={() => {
-                      window.electronAPI.openUrl(`craftagents://skills/skill/${skill.slug}?window=focused`)
+                      window.electronAPI.openUrl(`workagents://skills/skill/${skill.slug}?window=focused`)
                     }}
                     onShowInFinder={() => {
                       if (workspaceId) {
@@ -221,7 +221,7 @@ function SkillItem({ skill, isSelected, isFirst, workspaceId, onClick, onDelete 
               skillSlug={skill.slug}
               skillName={skill.metadata.name}
               onOpenInNewWindow={() => {
-                window.electronAPI.openUrl(`craftagents://skills/skill/${skill.slug}?window=focused`)
+                window.electronAPI.openUrl(`workagents://skills/skill/${skill.slug}?window=focused`)
               }}
               onShowInFinder={() => {
                 if (workspaceId) {

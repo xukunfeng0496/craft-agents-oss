@@ -13,7 +13,7 @@ import type { AppShellContextType } from '@/context/AppShellContext'
 import { OnboardingWizard, ReauthScreen } from '@/components/onboarding'
 import { ResetConfirmationDialog } from '@/components/ResetConfirmationDialog'
 import { SplashScreen } from '@/components/SplashScreen'
-import { TooltipProvider } from '@craft-agent/ui'
+import { TooltipProvider } from '@work-agent/ui'
 import { FocusProvider } from '@/context/FocusContext'
 import { ModalProvider } from '@/context/ModalContext'
 import { useWindowCloseHandler } from '@/hooks/useWindowCloseHandler'
@@ -24,7 +24,7 @@ import { useUpdateChecker } from '@/hooks/useUpdateChecker'
 import { NavigationProvider } from '@/contexts/NavigationContext'
 import { navigate, routes } from './lib/navigate'
 import { stripMarkdown } from './utils/text'
-import { extractWorkspaceSlugFromPath } from '@craft-agent/shared/utils/workspace-slug'
+import { extractWorkspaceSlugFromPath } from '@work-agent/shared/utils/workspace-slug'
 import { initRendererPerf } from './lib/perf'
 import {
   initializeSessionsAtom,
@@ -51,7 +51,7 @@ import {
   CodePreviewOverlay,
   DocumentFormattedMarkdownOverlay,
   JSONPreviewOverlay,
-} from '@craft-agent/ui'
+} from '@work-agent/ui'
 import { useLinkInterceptor, type FilePreviewState } from '@/hooks/useLinkInterceptor'
 import { ActionRegistryProvider } from '@/actions'
 
@@ -1358,7 +1358,7 @@ export default function App() {
     openNewChat,
   ])
 
-  // Platform actions for @craft-agent/ui components (overlays, etc.)
+  // Platform actions for @work-agent/ui components (overlays, etc.)
   // Memoized to prevent re-renders when these callbacks don't change
   // NOTE: Must be defined before early returns to maintain consistent hook order
   const platformActions = useMemo(() => ({
@@ -1428,6 +1428,8 @@ export default function App() {
           onUseGitBashPath={onboarding.handleUseGitBashPath}
           onRecheckGitBash={onboarding.handleRecheckGitBash}
           onClearError={onboarding.handleClearError}
+          onInstallTool={onboarding.handleInstallTool}
+          onRecheckTool={onboarding.handleRecheckTool}
         />
       </ModalProvider>
     )

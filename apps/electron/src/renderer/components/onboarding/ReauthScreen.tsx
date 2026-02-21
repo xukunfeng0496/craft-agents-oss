@@ -1,7 +1,7 @@
 import { useState } from "react"
 import { AlertCircle, RefreshCw } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Spinner } from "@craft-agent/ui"
+import { Spinner } from "@work-agent/ui"
 import { StepFormLayout } from "./primitives"
 import { useTranslation } from "react-i18next"
 import { getReauthLabels } from "./labels"

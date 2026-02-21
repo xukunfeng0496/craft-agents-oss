@@ -95,7 +95,7 @@ export function parseTemplateHeader(content: string): TemplateMeta | null {
 /**
  * Load a specific template from a source's templates directory.
  *
- * @param sourcePath - Absolute path to the source directory (e.g., ~/.craft-agent/workspaces/ws/sources/linear)
+ * @param sourcePath - Absolute path to the source directory (e.g., ~/.workagent/workspaces/ws/sources/linear)
  * @param templateId - The template identifier (e.g., "issue-detail")
  * @returns The loaded template, or null if not found
  */

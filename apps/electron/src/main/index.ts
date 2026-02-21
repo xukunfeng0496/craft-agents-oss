@@ -70,19 +70,19 @@ import { registerIpcHandlers, startCodexModelRefresh, stopCodexModelRefresh } fr
 import { createApplicationMenu } from './menu'
 import { WindowManager } from './window-manager'
 import { loadWindowState, saveWindowState } from './window-state'
-import { getWorkspaces, loadStoredConfig, addWorkspace, saveConfig, getAppLanguage } from '@craft-agent/shared/config'
-import { getDefaultWorkspacesDir } from '@craft-agent/shared/workspaces'
-import { initializeDocs } from '@craft-agent/shared/docs'
-import { initializeReleaseNotes } from '@craft-agent/shared/release-notes'
-import { ensureDefaultPermissions } from '@craft-agent/shared/agent/permissions-config'
-import { ensureToolIcons, ensurePresetThemes } from '@craft-agent/shared/config'
-import { setBundledAssetsRoot } from '@craft-agent/shared/utils'
-import { setVendorRoot } from '@craft-agent/shared/codex'
-import { setPowerShellValidatorRoot } from '@craft-agent/shared/agent'
+import { getWorkspaces, loadStoredConfig, addWorkspace, saveConfig, getAppLanguage } from '@work-agent/shared/config'
+import { getDefaultWorkspacesDir } from '@work-agent/shared/workspaces'
+import { initializeDocs } from '@work-agent/shared/docs'
+import { initializeReleaseNotes } from '@work-agent/shared/release-notes'
+import { ensureDefaultPermissions } from '@work-agent/shared/agent/permissions-config'
+import { ensureToolIcons, ensurePresetThemes } from '@work-agent/shared/config'
+import { setBundledAssetsRoot } from '@work-agent/shared/utils'
+import { setVendorRoot } from '@work-agent/shared/codex'
+import { setPowerShellValidatorRoot } from '@work-agent/shared/agent'
 import { handleDeepLink } from './deep-link'
 import { registerThumbnailScheme, registerThumbnailHandler } from './thumbnail-protocol'
 import log, { isDebugMode, mainLog, getLogFilePath } from './logger'
-import { setPerfEnabled, enableDebug } from '@craft-agent/shared/utils'
+import { setPerfEnabled, enableDebug } from '@work-agent/shared/utils'
 import { initNotificationService, clearBadgeCount, initBadgeIcon, initInstanceBadge } from './notifications'
 import { checkForUpdatesOnLaunch, setWindowManager as setAutoUpdateWindowManager, isUpdating } from './auto-update'
 import { validateGitBashPath } from './git-bash'
@@ -97,9 +97,9 @@ if (isDebugMode) {
   setPerfEnabled(true)
 }
 
-// Custom URL scheme for deeplinks (e.g., craftagents://auth-complete)
-// Supports multi-instance dev: CRAFT_DEEPLINK_SCHEME env var (craftagents1, craftagents2, etc.)
-const DEEPLINK_SCHEME = process.env.CRAFT_DEEPLINK_SCHEME || 'craftagents'
+// Custom URL scheme for deeplinks (e.g., workagents://auth-complete)
+// Supports multi-instance dev: CRAFT_DEEPLINK_SCHEME env var (workagents1, workagents2, etc.)
+const DEEPLINK_SCHEME = process.env.CRAFT_DEEPLINK_SCHEME || 'workagents'
 
 let windowManager: WindowManager | null = null
 let sessionManager: SessionManager | null = null
@@ -108,10 +108,10 @@ let sessionManager: SessionManager | null = null
 let pendingDeepLink: string | null = null
 
 // Set app name early (before app.whenReady) to ensure correct macOS menu bar title
-// Supports multi-instance dev: CRAFT_APP_NAME env var (e.g., "Craft Agents [1]")
-app.setName(process.env.CRAFT_APP_NAME || 'Craft Agents')
+// Supports multi-instance dev: CRAFT_APP_NAME env var (e.g., "Work Agents [1]")
+app.setName(process.env.CRAFT_APP_NAME || 'Work Agents')
 
-// Register as default protocol client for craftagents:// URLs
+// Register as default protocol client for workagents:// URLs
 // This must be done before app.whenReady() on some platforms
 if (process.defaultApp) {
   // Development mode: need to pass the app path
@@ -243,10 +243,10 @@ app.whenReady().then(async () => {
   // Ensure default permissions file exists (seed once using current app language)
   ensureDefaultPermissions(getAppLanguage() ?? app.getLocale())
 
-  // Seed tool icons to ~/.craft-agent/tool-icons/ (copies bundled SVGs on first run)
+  // Seed tool icons to ~/.workagent/tool-icons/ (copies bundled SVGs on first run)
   ensureToolIcons()
 
-  // Seed preset themes to ~/.craft-agent/themes/ (copies bundled theme JSONs on first run)
+  // Seed preset themes to ~/.workagent/themes/ (copies bundled theme JSONs on first run)
   ensurePresetThemes()
 
   // Register thumbnail:// protocol handler (scheme was registered earlier, before app.whenReady)
@@ -298,7 +298,7 @@ app.whenReady().then(async () => {
 
     // Restore persisted Git Bash path on Windows (must happen before any SDK subprocess spawn)
     if (process.platform === 'win32') {
-      const { getGitBashPath, clearGitBashPath } = await import('@craft-agent/shared/config')
+      const { getGitBashPath, clearGitBashPath } = await import('@work-agent/shared/config')
       const gitBashPath = getGitBashPath()
       if (gitBashPath) {
         const validation = await validateGitBashPath(gitBashPath)
@@ -327,7 +327,7 @@ app.whenReady().then(async () => {
     // Run credential health check at startup to detect issues early
     // (corruption, machine migration, missing credentials for default connection)
     try {
-      const { getCredentialManager } = await import('@craft-agent/shared/credentials')
+      const { getCredentialManager } = await import('@work-agent/shared/credentials')
       const credentialManager = getCredentialManager()
       const health = await credentialManager.checkHealth()
       if (!health.healthy) {
@@ -346,7 +346,7 @@ app.whenReady().then(async () => {
     // Runs after init so config and auth state are available.
     // Derives values from the default LLM connection instead of legacy config fields.
     try {
-      const { getLlmConnection, getDefaultLlmConnection } = await import('@craft-agent/shared/config')
+      const { getLlmConnection, getDefaultLlmConnection } = await import('@work-agent/shared/config')
       const workspaces = getWorkspaces()
       const defaultConnSlug = getDefaultLlmConnection()
       const defaultConn = defaultConnSlug ? getLlmConnection(defaultConnSlug) : null

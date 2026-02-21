@@ -30,6 +30,6 @@
   },
   "resetDefaults": {
     "title": "Reset to Defaults",
-    "detail": "To reset Craft Agent to defaults, quit the app and run:\n\nbun run fresh-start\n\nThis will delete all configuration, credentials, workspaces, and sessions."
+    "detail": "To reset Work Agent to defaults, quit the app and run:\n\nbun run fresh-start\n\nThis will delete all configuration, credentials, workspaces, and sessions."
   }
 }

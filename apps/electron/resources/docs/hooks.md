@@ -1,10 +1,10 @@
 # Hooks Configuration Guide
 
-This guide explains how to configure hooks in Craft Agent to automate workflows based on events.
+This guide explains how to configure hooks in Work Agent to automate workflows based on events.
 
 ## What Are Hooks?
 
-Hooks allow you to trigger actions automatically when specific events occur in Craft Agent. You can:
+Hooks allow you to trigger actions automatically when specific events occur in Work Agent. You can:
 - Run shell commands when labels are added/removed
 - Execute prompts on a schedule using cron expressions
 - Automate workflows based on permission mode changes, flags, or session status changes
@@ -14,7 +14,7 @@ Hooks allow you to trigger actions automatically when specific events occur in C
 Hooks are configured in `hooks.json` at the root of your workspace:
 
 ```
-~/.craft-agent/workspaces/{workspaceId}/hooks.json
+~/.workagent/workspaces/{workspaceId}/hooks.json
 ```
 
 ## Basic Structure
@@ -37,7 +37,7 @@ Hooks are configured in `hooks.json` at the root of your workspace:
 
 ## Supported Events
 
-### App Events (triggered by Craft Agent)
+### App Events (triggered by Work Agent)
 
 | Event | Trigger | Match Value |
 |-------|---------|-------------|
@@ -93,7 +93,7 @@ Execute a shell command when the event fires.
 
 ### Prompt Hooks
 
-Send a prompt to Craft Agent (creates a new session for scheduled prompts).
+Send a prompt to Work Agent (creates a new session for scheduled prompts).
 
 ```json
 {
@@ -252,7 +252,7 @@ This creates a session with the "Scheduled" and "morning-briefing" labels applie
         "matcher": "^urgent$",
         "permissionMode": "allow-all",
         "hooks": [
-          { "type": "command", "command": "osascript -e 'display notification \"Urgent session flagged\" with title \"Craft Agent\"'" }
+          { "type": "command", "command": "osascript -e 'display notification \"Urgent session flagged\" with title \"Work Agent\"'" }
         ]
       }
     ]
@@ -288,7 +288,7 @@ Hooks are validated when:
 
 **Using config_validate:**
 
-Ask Craft Agent to validate your hooks configuration:
+Ask Work Agent to validate your hooks configuration:
 
 ```
 Validate my hooks configuration

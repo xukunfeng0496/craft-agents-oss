@@ -8,7 +8,7 @@
  * Mirrors sessions.ts logic inline (no Electron imports needed).
  */
 import { describe, it, expect, beforeEach } from 'bun:test'
-import type { Message, StoredMessage, MessageRole } from '@craft-agent/core'
+import type { Message, StoredMessage, MessageRole } from '@work-agent/core'
 
 // ============================================================================
 // Mirror: messageToStored / storedToMessage from sessions.ts

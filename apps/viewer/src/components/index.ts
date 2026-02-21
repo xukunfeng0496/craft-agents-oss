@@ -1,5 +1,5 @@
 /**
- * Component exports for @craft-agent/viewer
+ * Component exports for @work-agent/viewer
  */
 
 export { SessionUpload } from './SessionUpload'

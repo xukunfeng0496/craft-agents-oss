@@ -1,5 +1,5 @@
 {
-  "name": "@craft-agent/bridge-mcp-server",
+  "name": "@work-agent/bridge-mcp-server",
   "version": "0.4.8",
   "license": "Apache-2.0",
   "description": "MCP server that bridges API sources to Codex via stdio transport",

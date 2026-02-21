@@ -1,6 +1,6 @@
 {
   "welcome": {
-    "title": "欢迎使用 Craft Agents",
+    "title": "欢迎使用 Work Agents",
     "titleExisting": "更新设置",
     "description": "为智能体提供应有的体验。连接任何服务，整理会话，完成你要做的重要工作！",
     "descriptionExisting": "更新 API 连接或调整你的设置。",
@@ -84,7 +84,7 @@
   },
   "gitBash": {
     "title": "需要 Git Bash",
-    "description": "Craft Agent 需要 Git Bash 在 Windows 上运行命令，但系统中未找到。",
+    "description": "Work Agent 需要 Git Bash 在 Windows 上运行命令，但系统中未找到。",
     "install": {
       "title": "安装 Git for Windows",
       "description": "获取 Git Bash 的最简单方式。免费且包含所需的一切。",
@@ -102,10 +102,58 @@
     },
     "back": "返回"
   },
+  "missingTools": {
+    "title": "安装必要工具",
+    "description": "以下工具是 Agent 运行所必需的，但在您的系统上未检测到。",
+    "continue": "继续",
+    "skip": "暂时跳过",
+    "back": "返回",
+    "tools": {
+      "git": {
+        "name": "Git",
+        "description": "项目版本控制工具"
+      },
+      "python": {
+        "name": "Python",
+        "description": "运行 Python 脚本和项目所需"
+      }
+    },
+    "status": {
+      "found": "已安装",
+      "missing": "未找到"
+    },
+    "autoInstall": "自动安装",
+    "manualInstall": "我自己安装",
+    "openDownloadPage": "打开下载页面",
+    "recheck": "重新检测",
+    "rechecking": "检测中...",
+    "installing": "安装中...",
+    "downloadProgress": "下载中... {{percent}}%  {{downloadedMB}}/{{totalMB}} MB",
+    "launching": "正在打开安装程序...",
+    "installerLaunched": "安装程序已打开，完成安装后请点击"重新检测"。",
+    "installError": "安装失败：{{error}}",
+    "linux": {
+      "note": "在终端运行以下命令安装：",
+      "commands": {
+        "git": {
+          "apt": "sudo apt install git",
+          "yum": "sudo yum install git",
+          "pacman": "sudo pacman -S git",
+          "default": "使用包管理器安装 git"
+        },
+        "python": {
+          "apt": "sudo apt install python3",
+          "yum": "sudo yum install python3",
+          "pacman": "sudo pacman -S python3",
+          "default": "使用包管理器安装 python3"
+        }
+      }
+    }
+  },
   "reauth": {
     "title": "会话已过期",
     "description": "你的 Craft 会话已过期或不可用。",
-    "descriptionSecondary": "请重新登录以继续使用 Craft Agents。",
+    "descriptionSecondary": "请重新登录以继续使用 Work Agents。",
     "note": "你的会话与设置已保留。",
     "login": "使用 Craft 登录",
     "loggingIn": "正在登录...",

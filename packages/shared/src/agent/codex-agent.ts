@@ -14,11 +14,11 @@
  * for UI events and server requests for approval prompts.
  */
 
-import type { AgentEvent } from '@craft-agent/core/types';
+import type { AgentEvent } from '@work-agent/core/types';
 import type { FileAttachment } from '../utils/files.ts';
 import { extractWorkspaceSlug } from '../utils/workspace.ts';
 import type { ThinkingLevel } from './thinking-levels.ts';
-import type { AuthRequest } from '@craft-agent/session-tools-core';
+import type { AuthRequest } from '@work-agent/session-tools-core';
 import { type PermissionMode, shouldAllowToolInMode } from './mode-manager.ts';
 import type { LoadedSource } from '../sources/types.ts';
 
@@ -78,7 +78,7 @@ import { getSessionPlansPath } from '../sessions/storage.ts';
 import { join, resolve } from 'node:path';
 import { readFileSync, existsSync } from 'node:fs';
 
-// System prompt for Craft Agent context
+// System prompt for Work Agent context
 import { getSystemPrompt } from '../prompts/system.ts';
 
 // PreToolUse utilities
@@ -94,7 +94,7 @@ import {
 import type {
   RequestId,
   ReasoningEffort,
-} from '@craft-agent/codex-types';
+} from '@work-agent/codex-types';
 import type {
   AskForApproval,
   SandboxMode,
@@ -102,7 +102,7 @@ import type {
   CommandExecutionApprovalDecision,
   FileChangeApprovalDecision,
   ThreadTokenUsageUpdatedNotification,
-} from '@craft-agent/codex-types/v2';
+} from '@work-agent/codex-types/v2';
 
 // ============================================================
 // Constants
@@ -1227,7 +1227,7 @@ export class CodexAgent extends BaseAgent {
   private static readonly BUILT_IN_MCP_SERVERS = new Set([
     'preferences',
     'session',
-    'craft-agents-docs',
+    'work-agents-docs',
     'api-bridge',
   ]);
 
@@ -1767,7 +1767,7 @@ export class CodexAgent extends BaseAgent {
             approvalPolicy: null,
             sandbox: null,
             config: null,
-            // Inject Craft Agent system prompt on resume (mini or full)
+            // Inject Work Agent system prompt on resume (mini or full)
             baseInstructions: miniConfig.enabled
               ? this.getMiniSystemPrompt()
               : getSystemPrompt(
@@ -1804,7 +1804,7 @@ export class CodexAgent extends BaseAgent {
             cwd: this.workingDirectory,
             approvalPolicy: this.getApprovalPolicy(permissionMode),
             sandbox: this.getSandboxMode(permissionMode),
-            // Inject Craft Agent system prompt (mini or full)
+            // Inject Work Agent system prompt (mini or full)
             baseInstructions: miniConfig.enabled
               ? this.getMiniSystemPrompt()
               : getSystemPrompt(
@@ -1827,7 +1827,7 @@ export class CodexAgent extends BaseAgent {
           cwd: this.workingDirectory,
           approvalPolicy: this.getApprovalPolicy(permissionMode),
           sandbox: this.getSandboxMode(permissionMode),
-          // Inject Craft Agent system prompt (mini or full)
+          // Inject Work Agent system prompt (mini or full)
           baseInstructions: miniConfig.enabled
             ? this.getMiniSystemPrompt()
             : getSystemPrompt(
@@ -2328,7 +2328,7 @@ export class CodexAgent extends BaseAgent {
           approvalPolicy: null,
           sandbox: null,
           config: null,
-          // Re-inject Craft Agent system prompt after reconnect
+          // Re-inject Work Agent system prompt after reconnect
           baseInstructions: miniConfig.enabled
             ? this.getMiniSystemPrompt()
             : getSystemPrompt(

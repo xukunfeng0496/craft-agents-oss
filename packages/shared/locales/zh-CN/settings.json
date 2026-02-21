@@ -64,7 +64,7 @@
     },
     "toolIcons": {
       "title": "工具图标",
-      "description": "聊天活动中显示在 CLI 命令旁的图标，存储于 ~/.craft-agent/tool-icons/。",
+      "description": "聊天活动中显示在 CLI 命令旁的图标，存储于 ~/.workagent/tool-icons/。",
       "editFileLabel": "编辑文件",
       "searchPlaceholder": "搜索工具...",
       "emptyState": "未找到工具图标映射",
@@ -187,10 +187,10 @@
     "pageTitle": "偏好设置",
     "basicInfo": {
       "title": "基础信息",
-      "description": "帮助 Craft Agent 个性化你的回答。",
+      "description": "帮助 Work Agent 个性化你的回答。",
       "name": {
         "label": "姓名",
-        "description": "Craft Agent 应如何称呼你。",
+        "description": "Work Agent 应如何称呼你。",
         "placeholder": "你的名字"
       },
       "timezone": {
@@ -200,7 +200,7 @@
       },
       "language": {
         "label": "语言",
-        "description": "Craft Agent 回复的首选语言。",
+        "description": "Work Agent 回复的首选语言。",
         "placeholder": "例如 中文"
       }
     },
@@ -220,8 +220,8 @@
     },
     "notes": {
       "title": "备注",
-      "description": "帮助 Craft Agent 理解你的偏好的自由文本。",
-      "placeholder": "任何你希望 Craft Agent 了解的额外信息..."
+      "description": "帮助 Work Agent 理解你的偏好的自由文本。",
+      "placeholder": "任何你希望 Work Agent 了解的额外信息..."
     },
     "actions": {
       "editFile": "编辑文件"
@@ -385,7 +385,7 @@
       "placeholder": "我的工作区",
       "locationLabel": "位置",
       "defaultLocationTitle": "默认位置",
-      "defaultLocationSubtitle": "位于 .craft-agent 文件夹下",
+      "defaultLocationSubtitle": "位于 .workagent 文件夹下",
       "customLocationTitle": "选择位置",
       "customLocationSubtitle": "选择一个位置来存放新工作区。",
       "browse": "浏览",

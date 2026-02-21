@@ -2,9 +2,9 @@
 
 set -e
 
-GITHUB_REPO="xukunfeng0496/craft-agents-oss"
+GITHUB_REPO="xukunfeng0496/work-agents-oss"
 GITHUB_API_URL="https://api.github.com/repos/${GITHUB_REPO}/releases/latest"
-DOWNLOAD_DIR="$HOME/.craft-agent/downloads"
+DOWNLOAD_DIR="$HOME/.workagent/downloads"
 
 # Colors for output
 RED='\033[0;31m'
@@ -166,7 +166,7 @@ esac
 # Set platform-specific variables
 if [ "$OS_TYPE" = "darwin" ]; then
     platform="darwin-${arch}"
-    APP_NAME="Craft Agents.app"
+    APP_NAME="Work Agents.app"
     INSTALL_DIR="/Applications"
     ext="zip"
     yml_file="latest-mac.yml"
@@ -176,7 +176,7 @@ else
         error "Linux currently only supports x64 architecture. Your architecture: $arch"
     fi
     platform="linux-${arch}"
-    APP_NAME="Craft-Agent-x64.AppImage"
+    APP_NAME="Work-Agent-x64.AppImage"
     INSTALL_DIR="$HOME/.local/bin"
     ext="AppImage"
     yml_file="latest-linux.yml"
@@ -238,7 +238,7 @@ fi
 
 # Use default filename if not found
 if [ -z "$filename" ]; then
-    filename="Craft-Agent-${arch}.${ext}"
+    filename="Work-Agent-${arch}.${ext}"
 fi
 
 info "Expected sha512: ${checksum:0:20}..."
@@ -278,23 +278,23 @@ if [ "$OS_TYPE" = "darwin" ]; then
     zip_path="$installer_path"
 
     # Quit the app if it's running (use bundle ID for reliability)
-    APP_BUNDLE_ID="com.lukilabs.craft-agent"
-    if pgrep -x "Craft Agents" >/dev/null 2>&1; then
-        info "Quitting Craft Agents..."
+    APP_BUNDLE_ID="com.workagent.app"
+    if pgrep -x "Work Agents" >/dev/null 2>&1; then
+        info "Quitting Work Agents..."
         osascript -e "tell application id \"$APP_BUNDLE_ID\" to quit" 2>/dev/null || true
         # Wait for app to quit (max 5 seconds) - POSIX compatible loop
         i=0
         while [ $i -lt 10 ]; do
-            if ! pgrep -x "Craft Agents" >/dev/null 2>&1; then
+            if ! pgrep -x "Work Agents" >/dev/null 2>&1; then
                 break
             fi
             sleep 0.5
             i=$((i + 1))
         done
         # Force kill if still running
-        if pgrep -x "Craft Agents" >/dev/null 2>&1; then
+        if pgrep -x "Work Agents" >/dev/null 2>&1; then
             warn "App didn't quit gracefully. Force quitting (unsaved data may be lost)..."
-            pkill -9 -x "Craft Agents" 2>/dev/null || true
+            pkill -9 -x "Work Agents" 2>/dev/null || true
             # Wait longer for macOS to release file handles
             sleep 3
         fi
@@ -341,10 +341,10 @@ if [ "$OS_TYPE" = "darwin" ]; then
     echo ""
     success "Installation complete!"
     echo ""
-    printf "%b\n" "  Craft Agents has been installed to ${BOLD}$INSTALL_DIR/$APP_NAME${NC}"
+    printf "%b\n" "  Work Agents has been installed to ${BOLD}$INSTALL_DIR/$APP_NAME${NC}"
     echo ""
     printf "%b\n" "  You can launch it from ${BOLD}Applications${NC} or by running:"
-    printf "%b\n" "    ${BOLD}open -a 'Craft Agents'${NC}"
+    printf "%b\n" "    ${BOLD}open -a 'Work Agents'${NC}"
     echo ""
 
 else
@@ -352,14 +352,14 @@ else
     appimage_path="$installer_path"
 
     # New paths
-    APP_DIR="$HOME/.craft-agent/app"
-    WRAPPER_PATH="$INSTALL_DIR/craft-agents"
-    APPIMAGE_INSTALL_PATH="$APP_DIR/Craft-Agent-x64.AppImage"
+    APP_DIR="$HOME/.workagent/app"
+    WRAPPER_PATH="$INSTALL_DIR/work-agents"
+    APPIMAGE_INSTALL_PATH="$APP_DIR/Work-Agent-x64.AppImage"
 
     # Kill the app if it's running
-    if pgrep -f "Craft-Agent.*AppImage" >/dev/null 2>&1; then
-        info "Stopping Craft Agents..."
-        pkill -f "Craft-Agent.*AppImage" 2>/dev/null || true
+    if pgrep -f "Work-Agent.*AppImage" >/dev/null 2>&1; then
+        info "Stopping Work Agents..."
+        pkill -f "Work-Agent.*AppImage" 2>/dev/null || true
         sleep 2
     fi
 
@@ -379,16 +379,16 @@ else
     info "Creating launcher at $WRAPPER_PATH..."
     cat > "$WRAPPER_PATH" << 'WRAPPER_EOF'
 #!/bin/bash
-# Craft Agent launcher - handles Linux-specific AppImage issues
+# Work Agent launcher - handles Linux-specific AppImage issues
 
-APPIMAGE_PATH="$HOME/.craft-agent/app/Craft-Agent-x64.AppImage"
-ELECTRON_CACHE="$HOME/.config/@craft-agent"
-ELECTRON_CACHE_ALT="$HOME/.cache/@craft-agent"
+APPIMAGE_PATH="$HOME/.workagent/app/Work-Agent-x64.AppImage"
+ELECTRON_CACHE="$HOME/.config/@work-agent"
+ELECTRON_CACHE_ALT="$HOME/.cache/@work-agent"
 
 # Verify AppImage exists
 if [ ! -f "$APPIMAGE_PATH" ]; then
-    echo "Error: Craft Agent not found at $APPIMAGE_PATH"
-    echo "Reinstall: curl -fsSL https://raw.githubusercontent.com/xukunfeng0496/craft-agents-oss/cvte/main/scripts/install-app.sh | bash"
+    echo "Error: Work Agent not found at $APPIMAGE_PATH"
+    echo "Reinstall: curl -fsSL https://raw.githubusercontent.com/xukunfeng0496/work-agents-oss/cvte/main/scripts/install-app.sh | bash"
     exit 1
 fi
 
@@ -415,7 +415,7 @@ WRAPPER_EOF
     chmod +x "$WRAPPER_PATH"
 
     # Migrate old installation
-    OLD_APPIMAGE="$INSTALL_DIR/Craft-Agent-x64.AppImage"
+    OLD_APPIMAGE="$INSTALL_DIR/Work-Agent-x64.AppImage"
     [ -f "$OLD_APPIMAGE" ] && rm -f "$OLD_APPIMAGE"
 
     echo ""
@@ -426,7 +426,7 @@ WRAPPER_EOF
     printf "%b\n" "  AppImage: ${BOLD}$APPIMAGE_INSTALL_PATH${NC}"
     printf "%b\n" "  Launcher: ${BOLD}$WRAPPER_PATH${NC}"
     echo ""
-    printf "%b\n" "  Run with: ${BOLD}craft-agents${NC}"
+    printf "%b\n" "  Run with: ${BOLD}work-agents${NC}"
     echo ""
     printf "%b\n" "  Add to PATH if needed:"
     printf "%b\n" "    ${BOLD}echo 'export PATH=\"\$HOME/.local/bin:\$PATH\"' >> ~/.bashrc${NC}"

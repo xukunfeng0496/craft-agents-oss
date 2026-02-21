@@ -11,7 +11,7 @@
 import { Circle } from 'lucide-react'
 import { EntityIcon } from '@/components/ui/entity-icon'
 import { useEntityIcon } from '@/lib/icon-cache'
-import type { IconSize } from '@craft-agent/shared/icons'
+import type { IconSize } from '@work-agent/shared/icons'
 
 interface StatusIconProps {
   /** Status identifier (used to discover icon file) */

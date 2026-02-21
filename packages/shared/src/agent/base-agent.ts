@@ -16,7 +16,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-import type { AgentEvent } from '@craft-agent/core/types';
+import type { AgentEvent } from '@work-agent/core/types';
 import type { FileAttachment } from '../utils/files.ts';
 import type { ThinkingLevel } from './thinking-levels.ts';
 import { DEFAULT_THINKING_LEVEL } from './thinking-levels.ts';
@@ -86,7 +86,7 @@ export interface MiniAgentConfig {
 export const MINI_AGENT_TOOLS = ['Read', 'Edit', 'Write', 'Glob', 'Grep', 'Bash'] as const;
 
 /** MCP servers for mini agents - minimal set */
-export const MINI_AGENT_MCP_KEYS = ['session', 'craft-agents-docs'] as const;
+export const MINI_AGENT_MCP_KEYS = ['session', 'work-agents-docs'] as const;
 
 // ============================================================
 // BaseAgent Abstract Class
@@ -152,7 +152,7 @@ export abstract class BaseAgent implements AgentBackend {
   onDebug: ((message: string) => void) | null = null;
   onSourceActivationRequest: SourceActivationCallback | null = null;
   onUsageUpdate: ((update: UsageUpdate) => void) | null = null;
-  onQuestionRequest: ((request: { requestId: string; questions: import('@craft-agent/core/types').UserQuestion[]; sessionId?: string }) => void) | null = null;
+  onQuestionRequest: ((request: { requestId: string; questions: import('@work-agent/core/types').UserQuestion[]; sessionId?: string }) => void) | null = null;
 
   // ============================================================
   // Constructor

@@ -87,7 +87,7 @@ interface StoredCredential {
 function getCredentialCachePath(workspaceId: string, sourceSlug: string): string {
   return join(
     homedir(),
-    '.craft-agent',
+    '.workagent',
     'workspaces',
     workspaceId,
     'sources',
@@ -315,7 +315,7 @@ async function executeApiTool(
     return {
       content: [{
         type: 'text',
-        text: `Authentication required for ${config.name}. Please authenticate the source in Craft Agent settings.`,
+        text: `Authentication required for ${config.name}. Please authenticate the source in Work Agent settings.`,
       }],
       isError: true,
     };
@@ -553,7 +553,7 @@ async function main() {
   // Create MCP server
   const server = new Server(
     {
-      name: 'craft-agent-api-bridge',
+      name: 'work-agent-api-bridge',
       version: '0.3.1',
     },
     {

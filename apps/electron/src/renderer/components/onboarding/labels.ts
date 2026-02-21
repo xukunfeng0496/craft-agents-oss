@@ -35,6 +35,27 @@ export function getApiSetupLabels(t: TFunction) {
   }
 }
 
+export function getMissingToolsLabels(t: TFunction) {
+  return {
+    title: t('onboarding:missingTools.title'),
+    description: t('onboarding:missingTools.description'),
+    continue: t('onboarding:missingTools.continue'),
+    skip: t('onboarding:missingTools.skip'),
+    back: t('onboarding:missingTools.back'),
+    found: t('onboarding:missingTools.status.found'),
+    missing: t('onboarding:missingTools.status.missing'),
+    autoInstall: t('onboarding:missingTools.autoInstall'),
+    manualInstall: t('onboarding:missingTools.manualInstall'),
+    openDownloadPage: t('onboarding:missingTools.openDownloadPage'),
+    recheck: t('onboarding:missingTools.recheck'),
+    rechecking: t('onboarding:missingTools.rechecking'),
+    installerLaunched: t('onboarding:missingTools.installerLaunched'),
+    linuxNote: t('onboarding:missingTools.linux.note'),
+    toolName: (id: 'git' | 'python') => t(`onboarding:missingTools.tools.${id}.name`),
+    toolDescription: (id: 'git' | 'python') => t(`onboarding:missingTools.tools.${id}.description`),
+  }
+}
+
 export function getCredentialsLabels(t: TFunction) {
   return {
     apiKeyInvalid: t('onboarding:credentials.apiKey.errors.invalid'),

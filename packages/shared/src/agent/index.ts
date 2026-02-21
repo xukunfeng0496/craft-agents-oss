@@ -1,4 +1,4 @@
-// Export ClaudeAgent (renamed from CraftAgent) and backward-compatible aliases
+// Export ClaudeAgent (renamed from WorkAgent) and backward-compatible aliases
 export * from './claude-agent.ts';
 
 // Export CodexAgent for direct use
@@ -93,7 +93,7 @@ export {
   loadSourcePermissionsConfig,
   getWorkspacePermissionsPath,
   getSourcePermissionsPath,
-  // App-level default permissions (at ~/.craft-agent/permissions/)
+  // App-level default permissions (at ~/.workagent/permissions/)
   getAppPermissionsDir,
   ensureDefaultPermissions,
   loadDefaultPermissions,

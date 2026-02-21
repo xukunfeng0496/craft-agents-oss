@@ -64,7 +64,7 @@
     },
     "toolIcons": {
       "title": "Tool Icons",
-      "description": "Icons shown next to CLI commands in chat activity. Stored in ~/.craft-agent/tool-icons/.",
+      "description": "Icons shown next to CLI commands in chat activity. Stored in ~/.workagent/tool-icons/.",
       "editFileLabel": "Edit File",
       "searchPlaceholder": "Search tools...",
       "emptyState": "No tool icon mappings found",
@@ -187,10 +187,10 @@
     "pageTitle": "Preferences",
     "basicInfo": {
       "title": "Basic Info",
-      "description": "Help Craft Agent personalize responses to you.",
+      "description": "Help Work Agent personalize responses to you.",
       "name": {
         "label": "Name",
-        "description": "How Craft Agent should address you.",
+        "description": "How Work Agent should address you.",
         "placeholder": "Your name"
       },
       "timezone": {
@@ -200,7 +200,7 @@
       },
       "language": {
         "label": "Language",
-        "description": "Preferred language for Craft Agent's responses.",
+        "description": "Preferred language for Work Agent's responses.",
         "placeholder": "e.g., English"
       }
     },
@@ -220,8 +220,8 @@
     },
     "notes": {
       "title": "Notes",
-      "description": "Free-form context that helps Craft Agent understand your preferences.",
-      "placeholder": "Any additional context you'd like Craft Agent to know..."
+      "description": "Free-form context that helps Work Agent understand your preferences.",
+      "placeholder": "Any additional context you'd like Work Agent to know..."
     },
     "actions": {
       "editFile": "Edit File"
@@ -386,7 +386,7 @@
       "placeholder": "My Workspace",
       "locationLabel": "Location",
       "defaultLocationTitle": "Default location",
-      "defaultLocationSubtitle": "under .craft-agent folder",
+      "defaultLocationSubtitle": "under .workagent folder",
       "customLocationTitle": "Choose a location",
       "customLocationSubtitle": "Pick a place to put your new workspace.",
       "browse": "Browse",

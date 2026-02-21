@@ -2,7 +2,7 @@ import { useState } from "react"
 import { cn } from "@/lib/utils"
 import { Check, CreditCard, Key, Cpu } from "lucide-react"
 import { StepFormLayout, BackButton, ContinueButton } from "./primitives"
-import type { LlmAuthType, LlmProviderType } from "@craft-agent/shared/config/llm-connections"
+import type { LlmAuthType, LlmProviderType } from "@work-agent/shared/config/llm-connections"
 import type { TFunction } from "i18next"
 import { useTranslation } from "react-i18next"
 import { getApiSetupLabels } from './labels'

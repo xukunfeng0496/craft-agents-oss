@@ -1,4 +1,4 @@
-import { CraftAgentsSymbol } from "@/components/icons/CraftAgentsSymbol"
+import { WorkAgentsSymbol } from "@/components/icons/WorkAgentsSymbol"
 import { StepFormLayout, ContinueButton } from "./primitives"
 import { useTranslation } from "react-i18next"
 import { getWelcomeLabels } from "./labels"
@@ -15,7 +15,7 @@ interface WelcomeStepProps {
  * WelcomeStep - Initial welcome screen for onboarding
  *
  * Shows different messaging for new vs existing users:
- * - New users: Welcome to Craft Agents
+ * - New users: Welcome to Work Agents
  * - Existing users: Update your API connection settings
  */
 export function WelcomeStep({
@@ -29,7 +29,7 @@ export function WelcomeStep({
     <StepFormLayout
       iconElement={
         <div className="flex size-16 items-center justify-center">
-          <CraftAgentsSymbol className="size-10 text-accent" />
+          <WorkAgentsSymbol className="size-10 text-accent" />
         </div>
       }
       title={isExistingUser ? labels.titleExisting : labels.title}

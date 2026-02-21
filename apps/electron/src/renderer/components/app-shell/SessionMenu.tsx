@@ -45,8 +45,8 @@ import { toast } from 'sonner'
 import { useMenuComponents } from '@/components/ui/menu-context'
 import { getStateColor, getStateIcon, type SessionStatusId } from '@/config/session-status-config'
 import type { SessionStatus } from '@/config/session-status-config'
-import type { LabelConfig } from '@craft-agent/shared/labels'
-import { extractLabelId } from '@craft-agent/shared/labels'
+import type { LabelConfig } from '@work-agent/shared/labels'
+import { extractLabelId } from '@work-agent/shared/labels'
 import { LabelMenuItems, StatusMenuItems } from './SessionMenuParts'
 
 export interface SessionMenuProps {

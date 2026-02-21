@@ -5,7 +5,7 @@
  * instance of these tools with session-specific callbacks and state.
  *
  * This file is a thin adapter that wraps the shared handlers from
- * @craft-agent/session-tools-core for use with the Claude SDK.
+ * @work-agent/session-tools-core for use with the Claude SDK.
  *
  * Tools included:
  * - SubmitPlan: Submit a plan file for user review/display
@@ -56,7 +56,7 @@ import {
   // Types
   type ToolResult,
   type AuthRequest,
-} from '@craft-agent/session-tools-core';
+} from '@work-agent/session-tools-core';
 import { createLLMTool, type LLMQueryRequest, type LLMQueryResult } from './llm-tool.ts';
 
 // Re-export types for backward compatibility
@@ -73,7 +73,7 @@ export type {
   GoogleService,
   SlackService,
   MicrosoftService,
-} from '@craft-agent/session-tools-core';
+} from '@work-agent/session-tools-core';
 
 // ============================================================
 // Session-Scoped Tool Callbacks
@@ -105,7 +105,7 @@ export interface SessionScopedToolCallbacks {
    * Called when the agent asks the user a question via AskUserQuestion tool.
    * The UI should display the question and collect the user's response.
    */
-  onQuestionRequest?: (request: { requestId: string; questions: import('@craft-agent/core/types').UserQuestion[]; sessionId?: string }) => void;
+  onQuestionRequest?: (request: { requestId: string; questions: import('@work-agent/core/types').UserQuestion[]; sessionId?: string }) => void;
 }
 
 // Registry of callbacks keyed by sessionId
@@ -341,18 +341,18 @@ The plan will be displayed to the user in a special formatted view.
 - The conversation will resume when the user responds (accept, modify, or reject the plan)
 - Do NOT include any text or tool calls after SubmitPlan - they will not be executed`,
 
-  config_validate: `Validate Craft Agent configuration files.
+  config_validate: `Validate Work Agent configuration files.
 
 Use this after editing configuration files to check for errors before they take effect.
 Returns structured validation results with errors, warnings, and suggestions.
 
 **Targets:**
-- \`config\`: Validates ~/.craft-agent/config.json (workspaces, model, settings)
-- \`sources\`: Validates all sources in ~/.craft-agent/workspaces/{workspace}/sources/*/config.json
-- \`statuses\`: Validates ~/.craft-agent/workspaces/{workspace}/statuses/config.json
-- \`preferences\`: Validates ~/.craft-agent/preferences.json
+- \`config\`: Validates ~/.workagent/config.json (workspaces, model, settings)
+- \`sources\`: Validates all sources in ~/.workagent/workspaces/{workspace}/sources/*/config.json
+- \`statuses\`: Validates ~/.workagent/workspaces/{workspace}/statuses/config.json
+- \`preferences\`: Validates ~/.workagent/preferences.json
 - \`permissions\`: Validates permissions.json files
-- \`tool-icons\`: Validates ~/.craft-agent/tool-icons/tool-icons.json
+- \`tool-icons\`: Validates ~/.workagent/tool-icons/tool-icons.json
 - \`all\`: Validates all configuration files
 
 **Reference:** ${DOC_REFS.sources}`,
@@ -870,7 +870,7 @@ export function getSessionScopedTools(
       // Notify the UI to show the question
       callbacks.onQuestionRequest({
         requestId,
-        questions: args.questions as import('@craft-agent/core/types').UserQuestion[],
+        questions: args.questions as import('@work-agent/core/types').UserQuestion[],
         sessionId,
       });
 

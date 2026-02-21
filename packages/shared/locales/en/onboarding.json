@@ -1,6 +1,6 @@
 {
   "welcome": {
-    "title": "Welcome to Craft Agents",
+    "title": "Welcome to Work Agents",
     "titleExisting": "Update Settings",
     "description": "Agents with the UX they deserve. Connect anything. Organize your sessions. Everything you need to do the work of your life!",
     "descriptionExisting": "Update your API connection or change your setup.",
@@ -84,7 +84,7 @@
   },
   "gitBash": {
     "title": "Git Bash Required",
-    "description": "Craft Agent needs Git Bash to run shell commands on Windows. It was not found on your system.",
+    "description": "Work Agent needs Git Bash to run shell commands on Windows. It was not found on your system.",
     "install": {
       "title": "Install Git for Windows",
       "description": "The easiest way to get Git Bash. It's free and includes everything you need.",
@@ -102,10 +102,58 @@
     },
     "back": "Back"
   },
+  "missingTools": {
+    "title": "Set Up Required Tools",
+    "description": "Some tools needed by the agent are missing on your system.",
+    "continue": "Continue",
+    "skip": "Skip for now",
+    "back": "Back",
+    "tools": {
+      "git": {
+        "name": "Git",
+        "description": "Version control for your projects"
+      },
+      "python": {
+        "name": "Python",
+        "description": "Required for running Python scripts and projects"
+      }
+    },
+    "status": {
+      "found": "Installed",
+      "missing": "Not found"
+    },
+    "autoInstall": "Auto Install",
+    "manualInstall": "I'll install it myself",
+    "openDownloadPage": "Open download page",
+    "recheck": "Re-check",
+    "rechecking": "Checking...",
+    "installing": "Installing...",
+    "downloadProgress": "Downloading... {{percent}}%  {{downloadedMB}}/{{totalMB}} MB",
+    "launching": "Opening installer...",
+    "installerLaunched": "Installer opened. Complete the installation, then click Re-check.",
+    "installError": "Install failed: {{error}}",
+    "linux": {
+      "note": "Run this command in your terminal to install:",
+      "commands": {
+        "git": {
+          "apt": "sudo apt install git",
+          "yum": "sudo yum install git",
+          "pacman": "sudo pacman -S git",
+          "default": "Install git using your package manager"
+        },
+        "python": {
+          "apt": "sudo apt install python3",
+          "yum": "sudo yum install python3",
+          "pacman": "sudo pacman -S python",
+          "default": "Install python3 using your package manager"
+        }
+      }
+    }
+  },
   "reauth": {
     "title": "Session Expired",
     "description": "Your Craft session has expired or is no longer valid.",
-    "descriptionSecondary": "Please log in again to continue using Craft Agents.",
+    "descriptionSecondary": "Please log in again to continue using Work Agents.",
     "note": "Your conversations and settings are preserved.",
     "login": "Log In with Craft",
     "loggingIn": "Logging in...",

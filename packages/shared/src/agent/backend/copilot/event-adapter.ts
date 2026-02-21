@@ -1,13 +1,13 @@
 /**
  * Copilot SDK Event Adapter
  *
- * Maps Copilot SDK session events to Craft Agent's AgentEvent format.
+ * Maps Copilot SDK session events to Work Agent's AgentEvent format.
  * This enables the CopilotAgent to emit events compatible with the existing UI.
  *
  * The Copilot SDK uses SessionEvent types with discriminated unions on the `type` field.
  */
 
-import type { AgentEvent, TypedError } from '@craft-agent/core/types';
+import type { AgentEvent, TypedError } from '@work-agent/core/types';
 import type { SessionEvent } from '@github/copilot-sdk';
 import { BaseEventAdapter } from '../base-event-adapter.ts';
 import { COPILOT_TOOL_NAME_MAP } from '../../copilot-agent.ts';

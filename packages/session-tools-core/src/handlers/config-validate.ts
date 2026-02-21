@@ -1,7 +1,7 @@
 /**
  * Config Validate Handler
  *
- * Validates Craft Agent configuration files.
+ * Validates Work Agent configuration files.
  * Uses full validators if available (Claude), otherwise basic validation (Codex).
  */
 
@@ -33,7 +33,7 @@ export async function handleConfigValidate(
   args: ConfigValidateArgs
 ): Promise<ToolResult> {
   const { target, sourceSlug } = args;
-  const craftAgentRoot = join(homedir(), '.craft-agent');
+  const workAgentRoot = join(homedir(), '.workagent');
 
   // If full validators available (Claude), use them
   if (ctx.validators) {
@@ -83,7 +83,7 @@ export async function handleConfigValidate(
   switch (target) {
     case 'config': {
       const result = validateJsonFileHasFields(
-        join(craftAgentRoot, 'config.json'),
+        join(workAgentRoot, 'config.json'),
         ['workspaces']
       );
       return successResponse(formatValidationResult(result));
@@ -136,7 +136,7 @@ export async function handleConfigValidate(
 
     case 'preferences': {
       const result = validateJsonFileHasFields(
-        join(craftAgentRoot, 'preferences.json'),
+        join(workAgentRoot, 'preferences.json'),
         []
       );
       return successResponse(formatValidationResult(result));
@@ -163,7 +163,7 @@ export async function handleConfigValidate(
 
     case 'tool-icons': {
       const result = validateJsonFileHasFields(
-        join(craftAgentRoot, 'tool-icons', 'tool-icons.json'),
+        join(workAgentRoot, 'tool-icons', 'tool-icons.json'),
         ['version', 'tools']
       );
       return successResponse(formatValidationResult(result));
@@ -171,11 +171,11 @@ export async function handleConfigValidate(
 
     case 'all': {
       const configResult = validateJsonFileHasFields(
-        join(craftAgentRoot, 'config.json'),
+        join(workAgentRoot, 'config.json'),
         ['workspaces']
       );
       const prefsResult = validateJsonFileHasFields(
-        join(craftAgentRoot, 'preferences.json'),
+        join(workAgentRoot, 'preferences.json'),
         []
       );
       const merged = mergeResults(configResult, prefsResult);

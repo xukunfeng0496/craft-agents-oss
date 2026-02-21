@@ -1,5 +1,5 @@
 /**
- * Markdown component exports for @craft-agent/ui
+ * Markdown component exports for @work-agent/ui
  */
 
 export { Markdown, MemoizedMarkdown, type MarkdownProps, type RenderMode } from './Markdown'

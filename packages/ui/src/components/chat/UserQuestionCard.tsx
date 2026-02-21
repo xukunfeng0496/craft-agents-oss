@@ -1,6 +1,6 @@
 import * as React from 'react'
 import { MessageCircleQuestion, Check, ChevronDown, ChevronUp } from 'lucide-react'
-import type { UserQuestion } from '@craft-agent/core/types'
+import type { UserQuestion } from '@work-agent/core/types'
 import { cn } from '../../lib/utils'
 
 export interface UserQuestionCardProps {

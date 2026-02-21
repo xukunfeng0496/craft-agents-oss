@@ -20,12 +20,12 @@ import { platform } from 'os'
 import * as path from 'path'
 import * as fs from 'fs'
 import { mainLog } from './logger'
-import { getAppVersion } from '@craft-agent/shared/version'
+import { getAppVersion } from '@work-agent/shared/version'
 import {
   getDismissedUpdateVersion,
   clearDismissedUpdateVersion,
-} from '@craft-agent/shared/config'
-import { readJsonFileSync } from '@craft-agent/shared/utils/files'
+} from '@work-agent/shared/config'
+import { readJsonFileSync } from '@work-agent/shared/utils/files'
 import type { UpdateInfo } from '../shared/types'
 import type { WindowManager } from './window-manager'
 

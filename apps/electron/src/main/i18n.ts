@@ -1,6 +1,6 @@
 import { app } from 'electron'
 import { readFile } from 'fs/promises'
-import { loadStoredConfig } from '@craft-agent/shared/config'
+import { loadStoredConfig } from '@work-agent/shared/config'
 import { buildLocaleCandidatePaths } from './i18n-resource-paths'
 
 export type MainTranslationParams = Record<string, string | number>

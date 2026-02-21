@@ -1,6 +1,6 @@
 import * as React from 'react'
 import { Search, X } from 'lucide-react'
-import { Spinner } from '@craft-agent/ui'
+import { Spinner } from '@work-agent/ui'
 import { useTranslation } from 'react-i18next'
 import { getSessionSearchHeaderLabels } from './session-search-header-labels'
 

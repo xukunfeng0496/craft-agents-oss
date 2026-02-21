@@ -33404,7 +33404,7 @@ Checks slug format, SKILL.md existence, YAML frontmatter, and required fields.`,
       description: `Validate Mermaid diagram syntax before outputting.
 
 Use this when creating complex diagrams or debugging syntax issues.
-Uses @craft-agent/mermaid parser for accurate validation.`,
+Uses @work-agent/mermaid parser for accurate validation.`,
       inputSchema: {
         type: "object",
         properties: {

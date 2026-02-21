@@ -1,12 +1,12 @@
-# Craft Agents Windows Installer
-# Usage: irm https://github.com/xukunfeng0496/craft-agents-oss/raw/cvte/main/scripts/install-app.ps1 | iex
+# Work Agents Windows Installer
+# Usage: irm https://github.com/xukunfeng0496/work-agents-oss/raw/cvte/main/scripts/install-app.ps1 | iex
 
 $ErrorActionPreference = "Stop"
 
-$GITHUB_REPO = "xukunfeng0496/craft-agents-oss"
+$GITHUB_REPO = "xukunfeng0496/work-agents-oss"
 $GITHUB_API_URL = "https://api.github.com/repos/$GITHUB_REPO/releases/latest"
-$DOWNLOAD_DIR = "$env:TEMP\craft-agent-install"
-$APP_NAME = "Craft Agents"
+$DOWNLOAD_DIR = "$env:TEMP\workagent-install"
+$APP_NAME = "Work Agents"
 
 # Colors for output
 function Write-Info { Write-Host "> $args" -ForegroundColor Blue }
@@ -69,7 +69,7 @@ if (-not $yamlContent) {
 # Parse YAML to extract sha512, url (filename), and size for our architecture
 # YAML format:
 #   files:
-#     - url: Craft-Agent-x64.exe
+#     - url: Work-Agent-x64.exe
 #       sha512: <base64>
 #       size: 123456789
 #       arch: x64
@@ -119,7 +119,7 @@ if (-not $checksum -or $checksum.Length -lt 80) {
 
 # Use default filename if not found
 if (-not $filename) {
-    $filename = "Craft-Agent-$arch.exe"
+    $filename = "Work-Agent-$arch.exe"
 }
 
 $installerUrl = "$RELEASE_URL/$filename"
@@ -203,9 +203,9 @@ if ($actualHash -ne $checksum) {
 Write-Success "Checksum verified!"
 
 # Close the app if it's running
-$process = Get-Process -Name "Craft Agents" -ErrorAction SilentlyContinue
+$process = Get-Process -Name "Work Agents" -ErrorAction SilentlyContinue
 if ($process) {
-    Write-Info "Closing Craft Agents..."
+    Write-Info "Closing Work Agents..."
     $process | Stop-Process -Force
     Start-Sleep -Seconds 2
 }
@@ -238,11 +238,11 @@ Write-Info "Cleaning up..."
 Remove-Item -Path $installerPath -Force -ErrorAction SilentlyContinue
 
 # Add command line shortcut
-Write-Info "Adding 'craft-agents' command to PATH..."
+Write-Info "Adding 'work-agents' command to PATH..."
 
-$binDir = "$env:LOCALAPPDATA\Craft Agents\bin"
-$cmdFile = "$binDir\craft-agents.cmd"
-$exePath = "$env:LOCALAPPDATA\Programs\Craft Agents\Craft Agents.exe"
+$binDir = "$env:LOCALAPPDATA\Work Agents\bin"
+$cmdFile = "$binDir\work-agents.cmd"
+$exePath = "$env:LOCALAPPDATA\Programs\Work Agents\Work Agents.exe"
 
 # Create bin directory
 New-Item -ItemType Directory -Force -Path $binDir | Out-Null
@@ -256,9 +256,9 @@ $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
 if ($userPath -notlike "*$binDir*") {
     $newPath = "$userPath;$binDir"
     [Environment]::SetEnvironmentVariable("Path", $newPath, "User")
-    Write-Success "Added to PATH (restart terminal to use 'craft-agents' command)"
+    Write-Success "Added to PATH (restart terminal to use 'work-agents' command)"
 } else {
-    Write-Success "Command 'craft-agents' is ready"
+    Write-Success "Command 'work-agents' is ready"
 }
 
 Write-Host ""
@@ -266,9 +266,9 @@ Write-Host "--------------------------------------------------------------------
 Write-Host ""
 Write-Success "Installation complete!"
 Write-Host ""
-Write-Host "  Craft Agents has been installed."
+Write-Host "  Work Agents has been installed."
 Write-Host ""
 Write-Host "  Launch from:"
 Write-Host "    - Start Menu or desktop shortcut"
-Write-Host "    - Command line: craft-agents (restart terminal first)"
+Write-Host "    - Command line: work-agents (restart terminal first)"
 Write-Host ""

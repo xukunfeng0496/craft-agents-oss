@@ -62,7 +62,7 @@ function SettingsItemRow({ item, isSelected, isFirst, onSelect, labels }: Settin
 
   // Open settings page in a new window via deep link
   const handleOpenInNewWindow = () => {
-    window.electronAPI.openUrl(`craftagents://settings/${item.id}?window=focused`)
+    window.electronAPI.openUrl(`workagents://settings/${item.id}?window=focused`)
   }
 
   return (

@@ -1,4 +1,4 @@
-import { PERMISSION_MODE_CONFIG, PERMISSION_MODE_ORDER, type PermissionMode } from '@craft-agent/shared/agent/modes'
+import { PERMISSION_MODE_CONFIG, PERMISSION_MODE_ORDER, type PermissionMode } from '@work-agent/shared/agent/modes'
 
 type TranslationFn = (key: string) => string
 

@@ -3,7 +3,7 @@
  * Session MCP Server
  *
  * This MCP server provides session-scoped tools to Codex via stdio transport.
- * It uses the shared handlers from @craft-agent/session-tools-core to ensure
+ * It uses the shared handlers from @work-agent/session-tools-core to ensure
  * feature parity with Claude's session-scoped tools.
  *
  * Callback Communication:
@@ -17,7 +17,7 @@
  *
  * Arguments:
  *   --session-id: Unique session identifier
- *   --workspace-root: Path to workspace folder (~/.craft-agent/workspaces/{id})
+ *   --workspace-root: Path to workspace folder (~/.workagent/workspaces/{id})
  *   --plans-folder: Path to session's plans folder
  */
 
@@ -52,7 +52,7 @@ import {
   // Helpers
   loadSourceConfig as loadSourceConfigFromHelpers,
   errorResponse,
-} from '@craft-agent/session-tools-core';
+} from '@work-agent/session-tools-core';
 
 // ============================================================
 // Types
@@ -246,10 +246,10 @@ The plan will be displayed to the user in a special formatted view.
     },
     {
       name: 'config_validate',
-      description: `Validate Craft Agent configuration files.
+      description: `Validate Work Agent configuration files.
 
 **Targets:**
-- config: Validates ~/.craft-agent/config.json
+- config: Validates ~/.workagent/config.json
 - sources: Validates source config.json files
 - statuses: Validates statuses config
 - preferences: Validates preferences.json
@@ -293,7 +293,7 @@ Checks slug format, SKILL.md existence, YAML frontmatter, and required fields.`,
       description: `Validate Mermaid diagram syntax before outputting.
 
 Use this when creating complex diagrams or debugging syntax issues.
-Uses @craft-agent/mermaid parser for accurate validation.`,
+Uses @work-agent/mermaid parser for accurate validation.`,
       inputSchema: {
         type: 'object' as const,
         properties: {

@@ -20,7 +20,7 @@ import { useSessionSelection } from '@/hooks/useSession'
 import { sessionMetaMapAtom, type SessionMeta } from '@/atoms/sessions'
 import { useAppShellContext } from '@/context/AppShellContext'
 import { getStateColor, getStateIcon, type SessionStatusId } from '@/config/session-status-config'
-import { extractLabelId } from '@craft-agent/shared/labels'
+import { extractLabelId } from '@work-agent/shared/labels'
 import { LabelMenuItems, StatusMenuItems } from './SessionMenuParts'
 
 export function BatchSessionMenu() {

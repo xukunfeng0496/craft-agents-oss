@@ -1,5 +1,5 @@
 /**
- * Centralized branding assets for Craft Agent
+ * Centralized branding assets for Work Agent
  * Used by OAuth callback pages
  */
 

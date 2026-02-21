@@ -1,16 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { StoredSession, StoredMessage } from '@craft-agent/core'
-import type { UserQuestion } from '@craft-agent/core/types'
-import { SessionViewer, UserQuestionCard } from '@craft-agent/ui'
+import type { StoredSession, StoredMessage } from '@work-agent/core'
+import type { UserQuestion } from '@work-agent/core/types'
+import { SessionViewer, UserQuestionCard } from '@work-agent/ui'
 import {
   PERMISSION_MODE_CONFIG,
   PERMISSION_MODE_ORDER,
   type PermissionMode,
-} from '@craft-agent/shared/agent/mode-types'
+} from '@work-agent/shared/agent/mode-types'
 import {
   THINKING_LEVELS,
   type ThinkingLevel,
-} from '@craft-agent/shared/agent/thinking-levels'
+} from '@work-agent/shared/agent/thinking-levels'
 
 const PROCESSING_MESSAGES = [
   'Thinking...', 'Working on it...', 'Let me see...', 'One moment...',

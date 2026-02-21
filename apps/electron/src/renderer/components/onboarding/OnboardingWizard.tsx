@@ -4,10 +4,13 @@ import { APISetupStep, type ApiSetupMethod } from "./APISetupStep"
 import { CredentialsStep, type CredentialStatus } from "./CredentialsStep"
 import { CompletionStep } from "./CompletionStep"
 import { GitBashWarning, type GitBashStatus } from "./GitBashWarning"
+import { MissingToolsStep } from './MissingToolsStep'
 import type { ApiKeySubmitData } from "../apisetup"
+import type { ToolInstallProgress } from '../../../shared/types'
 
 export type OnboardingStep =
   | 'welcome'
+  | 'missing-tools'
   | 'git-bash'
   | 'api-setup'
   | 'credentials'
@@ -26,6 +29,10 @@ export interface OnboardingState {
   gitBashStatus?: GitBashStatus
   isRecheckingGitBash?: boolean
   isCheckingGitBash?: boolean
+  missingTools?: import('../../../shared/types').MissingTool[]
+  isCheckingTools?: boolean
+  toolInstallProgress?: ToolInstallProgress
+  linuxDistro?: 'apt' | 'yum' | 'pacman' | 'default'
 }
 
 interface OnboardingWizardProps {
@@ -54,13 +61,17 @@ interface OnboardingWizardProps {
   onRecheckGitBash?: () => void
   onClearError?: () => void
 
+  // Missing tools (cross-platform)
+  onInstallTool?: (toolId: 'git' | 'python') => void
+  onRecheckTool?: (toolId: 'git' | 'python') => void
+
   className?: string
 }
 
 /**
  * OnboardingWizard - Full-screen onboarding flow container
  *
- * Manages the step-by-step flow for setting up Craft Agent:
+ * Manages the step-by-step flow for setting up Work Agent:
  * 1. Welcome
  * 2. API Setup (choose: API Key / Claude OAuth)
  * 3. Credentials (API Key or Claude OAuth)
@@ -85,6 +96,9 @@ export function OnboardingWizard({
   onUseGitBashPath,
   onRecheckGitBash,
   onClearError,
+  // Missing tools
+  onInstallTool,
+  onRecheckTool,
   className
 }: OnboardingWizardProps) {
   const renderStep = () => {
@@ -95,6 +109,20 @@ export function OnboardingWizard({
             isExistingUser={state.isExistingUser}
             onContinue={onContinue}
             isLoading={state.isCheckingGitBash}
+          />
+        )
+
+      case 'missing-tools':
+        return (
+          <MissingToolsStep
+            tools={state.missingTools ?? []}
+            platform={(state.gitBashStatus?.platform ?? 'darwin') as 'win32' | 'darwin' | 'linux'}
+            linuxDistro={state.linuxDistro}
+            onInstall={onInstallTool!}
+            onRecheck={onRecheckTool!}
+            onContinue={onContinue}
+            onBack={onBack}
+            installProgress={state.toolInstallProgress}
           />
         )
 

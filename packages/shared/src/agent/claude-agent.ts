@@ -89,10 +89,10 @@ export {
   PERMISSION_MODE_ORDER,
   PERMISSION_MODE_CONFIG,
 } from './mode-manager.ts';
-// Documentation is served via local files at ~/.craft-agent/docs/
+// Documentation is served via local files at ~/.workagent/docs/
 
 // Import and re-export AgentEvent from core (single source of truth)
-import type { AgentEvent } from '@craft-agent/core/types';
+import type { AgentEvent } from '@work-agent/core/types';
 export type { AgentEvent };
 
 // Stateless tool matching — pure functions for SDK message → AgentEvent conversion
@@ -652,9 +652,9 @@ export class ClaudeAgent extends BaseAgent {
         preferences: getPreferencesServer(false),
         // Session-scoped tools (SubmitPlan, source_test, etc.)
         session: getSessionScopedTools(sessionId, this.workspaceRootPath),
-        // Craft Agents documentation - always available for searching setup guides
+        // Work Agents documentation - always available for searching setup guides
         // This is a public Mintlify MCP server, no auth needed
-        'craft-agents-docs': {
+        'work-agents-docs': {
           type: 'http',
           url: 'https://agents.craft.do/docs/mcp',
         },
@@ -770,7 +770,7 @@ export class ClaudeAgent extends BaseAgent {
           // Build user-defined hooks from hooks.json using the workspace-level HookSystem
           const userHooks: Partial<Record<string, SdkHookCallbackMatcher[]>> = this.hookSystem?.buildSdkHooks() ?? {};
           if (Object.keys(userHooks).length > 0) {
-            debug('[CraftAgent] User SDK hooks loaded:', Object.keys(userHooks).join(', '));
+            debug('[WorkAgent] User SDK hooks loaded:', Object.keys(userHooks).join(', '));
           }
 
           // Internal hooks for permission handling and logging
@@ -876,8 +876,8 @@ export class ClaudeAgent extends BaseAgent {
                   // Built-in MCP servers that are always available (not user sources)
                   // - preferences: user preferences storage
                   // - session: session-scoped tools (SubmitPlan, source_test, etc.)
-                  // - craft-agents-docs: always-available documentation search
-                  const builtInMcpServers = new Set(['preferences', 'session', 'craft-agents-docs']);
+                  // - work-agents-docs: always-available documentation search
+                  const builtInMcpServers = new Set(['preferences', 'session', 'work-agents-docs']);
 
                   // Check if this is a source server (not built-in)
                   if (!builtInMcpServers.has(serverName)) {
@@ -2505,11 +2505,11 @@ export class ClaudeAgent extends BaseAgent {
 // ============================================================
 // Backward Compatibility Exports
 // ============================================================
-// These aliases allow gradual migration from CraftAgent to ClaudeAgent.
+// These aliases allow gradual migration from WorkAgent to ClaudeAgent.
 // Once all consumers are updated, these can be removed.
 
 /** @deprecated Use ClaudeAgent instead */
-export { ClaudeAgent as CraftAgent };
+export { ClaudeAgent as WorkAgent };
 
 /** @deprecated Use ClaudeAgentConfig instead */
-export type { ClaudeAgentConfig as CraftAgentConfig };
+export type { ClaudeAgentConfig as WorkAgentConfig };

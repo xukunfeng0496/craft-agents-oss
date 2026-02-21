@@ -58,7 +58,7 @@ export interface CommandHookDefinition {
   timeout?: number;
 }
 
-/** A prompt hook - sends a prompt to Craft Agent (App events only) */
+/** A prompt hook - sends a prompt to Work Agent (App events only) */
 export interface PromptHookDefinition {
   type: 'prompt';
   prompt: string;
@@ -143,7 +143,7 @@ export interface HookResult {
   event: string;
   matched: number;
   results: HookExecutionResult[];
-  /** Prompts that should be executed by Craft Agent (with metadata) */
+  /** Prompts that should be executed by Work Agent (with metadata) */
   pendingPrompts: PendingPrompt[];
 }
 

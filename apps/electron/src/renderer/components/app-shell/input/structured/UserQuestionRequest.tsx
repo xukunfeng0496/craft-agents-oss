@@ -1,5 +1,5 @@
 import { useCallback } from 'react'
-import { UserQuestionCard } from '@craft-agent/ui'
+import { UserQuestionCard } from '@work-agent/ui'
 import type { UserQuestionRequest as UserQuestionRequestType } from '../../../../../shared/types'
 import type { UserQuestionStructuredResponse } from './types'
 import type { StructuredResponse } from './types'

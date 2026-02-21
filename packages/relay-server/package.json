@@ -1,5 +1,5 @@
 {
-  "name": "@craft-agent/relay-server",
+  "name": "@work-agent/relay-server",
   "version": "0.1.0",
   "private": true,
   "type": "module",

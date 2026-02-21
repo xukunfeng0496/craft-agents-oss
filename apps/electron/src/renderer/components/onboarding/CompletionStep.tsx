@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button"
-import { Spinner } from "@craft-agent/ui"
-import { CraftAgentsSymbol } from "@/components/icons/CraftAgentsSymbol"
+import { Spinner } from "@work-agent/ui"
+import { WorkAgentsSymbol } from "@/components/icons/WorkAgentsSymbol"
 import { StepFormLayout } from "./primitives"
 import { useTranslation } from "react-i18next"
 
@@ -33,7 +33,7 @@ export function CompletionStep({
         </div>
       ) : (
         <div className="flex size-16 items-center justify-center">
-          <CraftAgentsSymbol className="size-10 text-accent" />
+          <WorkAgentsSymbol className="size-10 text-accent" />
         </div>
       )}
       title={isSaving ? t('onboarding:completion.titleSaving') : t('onboarding:completion.titleComplete')}

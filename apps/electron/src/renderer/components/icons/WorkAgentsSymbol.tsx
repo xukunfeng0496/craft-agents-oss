@@ -3,22 +3,22 @@ interface WorkAgentsSymbolProps {
 }
 
 /**
- * Work Agents "E" symbol - the small pixel art icon
+ * Work Agents "W" symbol - the small pixel art icon
  * Uses accent color from theme (currentColor from className)
  */
 export function WorkAgentsSymbol({ className }: WorkAgentsSymbolProps) {
   return (
     <svg
-      viewBox="452 368 115 129"
+      viewBox="0 0 24 24"
       className={className}
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
     >
-      <path
-        d="M474.78218,393.8 L474.78218,368 L566.666667,368 L566.666667,393.8 L474.78218,393.8 Z M521.101,419.6 L521.102306,445.4 L452,445.4 L452,393.8 L566.666667,393.8 L566.666667,419.6 L521.101,419.6 Z M474.78218,497 L474.775667,471.2 L452,471.2 L452,445.4 L566.666667,445.4 L566.666667,497 L474.78218,497 Z"
-        fill="currentColor"
-        fillRule="nonzero"
-      />
+      <rect x="2.5" y="3"  width="4" height="18" rx="1" fill="currentColor"/>
+      <rect x="7.5" y="8"  width="4" height="13" rx="1" fill="currentColor"/>
+      <rect x="12.5" y="8" width="4" height="13" rx="1" fill="currentColor"/>
+      <rect x="17.5" y="3" width="4" height="18" rx="1" fill="currentColor"/>
+      <rect x="2.5" y="17" width="19" height="4"  rx="1" fill="currentColor"/>
     </svg>
   )
 }

@@ -11,7 +11,7 @@ type LocaleResources = Record<string, unknown>
 const namespaceCache = new Map<string, LocaleResources>()
 
 function resolveLocale(input?: string | null): 'en' | 'zh-CN' {
-  if (!input) return 'en'
+  if (!input) return 'zh-CN'
   const normalized = input.replace('_', '-').trim().toLowerCase()
   if (normalized.startsWith('zh')) return 'zh-CN'
   return 'en'

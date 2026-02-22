@@ -18,17 +18,22 @@ const RELEASE_NOTES_DIR = join(CONFIG_DIR, 'release-notes');
 
 let releaseNotesInitialized = false;
 
-function getAssetsDir(): string {
-  return getBundledAssetsDir('release-notes')
+function getAssetsDir(locale?: string): string {
+  const base = getBundledAssetsDir('release-notes')
     ?? join(process.cwd(), 'resources', 'release-notes');
+  if (locale && locale !== 'en') {
+    const localeDir = join(base, locale);
+    if (existsSync(localeDir)) return localeDir;
+  }
+  return base;
 }
 
 /**
  * Load bundled release notes from asset files.
  * Returns { filename → content } map.
  */
-function loadBundledReleaseNotes(): Record<string, string> {
-  const assetsDir = getAssetsDir();
+function loadBundledReleaseNotes(locale?: string): Record<string, string> {
+  const assetsDir = getAssetsDir(locale);
   const notes: Record<string, string> = {};
 
   let files: string[];
@@ -51,13 +56,14 @@ function loadBundledReleaseNotes(): Record<string, string> {
   return notes;
 }
 
-let _bundledNotes: Record<string, string> | null = null;
+const _bundledNotesCache: Record<string, Record<string, string>> = {};
 
-function getBundledReleaseNotes(): Record<string, string> {
-  if (_bundledNotes === null) {
-    _bundledNotes = loadBundledReleaseNotes();
+function getBundledReleaseNotes(locale?: string): Record<string, string> {
+  const key = locale ?? 'default';
+  if (!_bundledNotesCache[key]) {
+    _bundledNotesCache[key] = loadBundledReleaseNotes(locale);
   }
-  return _bundledNotes;
+  return _bundledNotesCache[key]!;
 }
 
 /**
@@ -110,9 +116,11 @@ export interface ReleaseNote {
 
 /**
  * Get release notes sorted newest-first, limited to the most recent 10.
+ * If locale is specified, looks for locale-specific files in a subdirectory (e.g. resources/release-notes/zh-CN/).
+ * Falls back to the default (English) directory if the locale subdirectory doesn't exist.
  */
-export function getReleaseNotesList(): ReleaseNote[] {
-  const notes = getBundledReleaseNotes();
+export function getReleaseNotesList(locale?: string): ReleaseNote[] {
+  const notes = getBundledReleaseNotes(locale);
   return Object.entries(notes)
     .map(([filename, content]) => ({
       version: parseVersion(filename),
@@ -133,8 +141,9 @@ export function getLatestReleaseVersion(): string | undefined {
 /**
  * Get all release notes combined into a single markdown string.
  * Each version is separated by a horizontal rule.
+ * Pass a locale (e.g. 'zh-CN') to load locale-specific notes if available.
  */
-export function getCombinedReleaseNotes(): string {
-  const list = getReleaseNotesList();
+export function getCombinedReleaseNotes(locale?: string): string {
+  const list = getReleaseNotesList(locale);
   return list.map(n => n.content).join('\n\n---\n\n');
 }

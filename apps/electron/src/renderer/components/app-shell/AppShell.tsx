@@ -460,7 +460,7 @@ function AppShellContent({
   menuNewChatTrigger,
   isFocusedMode = false,
 }: AppShellProps) {
-  const { t } = useTranslation(['common'])
+  const { t, i18n } = useTranslation(['common'])
   const i18nLabels = getAppShellLabels(t)
 
   // Destructure commonly used values from context
@@ -1589,7 +1589,7 @@ function AppShellContent({
 
   // Handler for What's New overlay
   const handleWhatsNewClick = useCallback(async () => {
-    const content = await window.electronAPI.getReleaseNotes()
+    const content = await window.electronAPI.getReleaseNotes(i18n.language)
     setReleaseNotesContent(content)
     setShowWhatsNew(true)
     setHasUnseenReleaseNotes(false)
@@ -2281,7 +2281,7 @@ function AppShellContent({
                     // --- What's New ---
                     {
                       id: "nav:whats-new",
-                      title: "What's New",
+                      title: i18nLabels.whatsNew,
                       icon: hasUnseenReleaseNotes ? (
                         <span className="relative">
                           <Cake className="h-3.5 w-3.5" />

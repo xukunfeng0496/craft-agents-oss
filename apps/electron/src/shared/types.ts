@@ -1020,7 +1020,7 @@ export interface ElectronAPI {
   onUpdateDownloadProgress(callback: (progress: number) => void): () => void
 
   // Release notes
-  getReleaseNotes(): Promise<string>
+  getReleaseNotes(locale?: string): Promise<string>
   getLatestReleaseVersion(): Promise<string | undefined>
 
   // Shell operations

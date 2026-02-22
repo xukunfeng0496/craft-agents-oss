@@ -1161,9 +1161,9 @@ export function registerIpcHandlers(sessionManager: SessionManager, windowManage
   })
 
   // Release notes
-  ipcMain.handle(IPC_CHANNELS.GET_RELEASE_NOTES, () => {
+  ipcMain.handle(IPC_CHANNELS.GET_RELEASE_NOTES, (_event, locale?: string) => {
     const { getCombinedReleaseNotes } = require('@work-agent/shared/release-notes') as typeof import('@work-agent/shared/release-notes')
-    return getCombinedReleaseNotes()
+    return getCombinedReleaseNotes(locale)
   })
 
   ipcMain.handle(IPC_CHANNELS.GET_LATEST_RELEASE_VERSION, () => {

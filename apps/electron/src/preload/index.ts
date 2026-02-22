@@ -118,7 +118,7 @@ const api: ElectronAPI = {
   },
 
   // Release notes
-  getReleaseNotes: () => ipcRenderer.invoke(IPC_CHANNELS.GET_RELEASE_NOTES) as Promise<string>,
+  getReleaseNotes: (locale?: string) => ipcRenderer.invoke(IPC_CHANNELS.GET_RELEASE_NOTES, locale) as Promise<string>,
   getLatestReleaseVersion: () => ipcRenderer.invoke(IPC_CHANNELS.GET_LATEST_RELEASE_VERSION) as Promise<string | undefined>,
 
   // Shell operations

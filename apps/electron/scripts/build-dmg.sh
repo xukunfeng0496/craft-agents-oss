@@ -152,23 +152,9 @@ bun run electron:build
 echo "Packaging app with electron-builder..."
 cd "$ELECTRON_DIR"
 
-# Set up environment for electron-builder
-# CSC_LINK / CSC_KEY_PASSWORD: base64-encoded .p12 certificate (set via GitHub Secrets in CI)
-# APPLE_ID / APPLE_APP_SPECIFIC_PASSWORD / APPLE_TEAM_ID: notarization credentials
-if [ -n "$CSC_LINK" ] && [ -n "$CSC_KEY_PASSWORD" ]; then
-    echo "Code signing enabled (CSC_LINK is set)"
-    export CSC_IDENTITY_AUTO_DISCOVERY=false  # use CSC_LINK, not Keychain
-else
-    echo "Warning: CSC_LINK not set, building without code signing (ad-hoc)"
-    export CSC_IDENTITY_AUTO_DISCOVERY=false
-    export CSC_IDENTITY="-"
-fi
-
-if [ -n "$APPLE_ID" ] && [ -n "$APPLE_TEAM_ID" ] && [ -n "$APPLE_APP_SPECIFIC_PASSWORD" ]; then
-    echo "Notarization enabled (APPLE_ID=$APPLE_ID, TEAM_ID=$APPLE_TEAM_ID)"
-else
-    echo "Warning: Notarization credentials not set, skipping notarization"
-fi
+# Code signing and notarization disabled — build without signing
+export CSC_IDENTITY_AUTO_DISCOVERY=false
+export CSC_IDENTITY="-"
 
 # Run electron-builder
 npx electron-builder --mac --${ARCH} --publish never

@@ -219,16 +219,33 @@ export function handleInfo(
 
   // If this is a compaction complete, update the existing compacting message and clear currentStatus
   if (event.statusType === 'compaction_complete') {
-    const updatedMessages = session.messages.map(m =>
-      m.role === 'status' && m.statusType === 'compacting'
-        ? { ...m, role: 'info' as const, content: event.message, statusType: 'compaction_complete' as const, infoLevel: event.level }
-        : m
-    )
+    let foundCompacting = false
+    const updatedMessages = session.messages.map(m => {
+      if (m.role === 'status' && m.statusType === 'compacting') {
+        foundCompacting = true
+        return { ...m, role: 'info' as const, content: event.message, statusType: 'compaction_complete' as const, infoLevel: event.level }
+      }
+      return m
+    })
+
+    // If no prior 'compacting' status message exists (SDK skipped it or timing issue),
+    // add the completion message directly so it's never silently dropped.
+    const finalMessages = foundCompacting
+      ? updatedMessages
+      : [...updatedMessages, {
+          id: generateMessageId(),
+          role: 'info' as const,
+          content: event.message,
+          timestamp: event.timestamp ?? Date.now(),
+          statusType: 'compaction_complete' as const,
+          infoLevel: event.level,
+        }]
+
     return {
       state: {
         session: {
           ...session,
-          messages: updatedMessages,
+          messages: finalMessages,
           currentStatus: undefined,  // Clear status from ProcessingIndicator
         },
         streaming,

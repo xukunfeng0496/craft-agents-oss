@@ -117,10 +117,6 @@ const api: ElectronAPI = {
     return () => ipcRenderer.removeListener(IPC_CHANNELS.UPDATE_DOWNLOAD_PROGRESS, handler)
   },
 
-  // Release notes
-  getReleaseNotes: (locale?: string) => ipcRenderer.invoke(IPC_CHANNELS.GET_RELEASE_NOTES, locale) as Promise<string>,
-  getLatestReleaseVersion: () => ipcRenderer.invoke(IPC_CHANNELS.GET_LATEST_RELEASE_VERSION) as Promise<string | undefined>,
-
   // Shell operations
   openUrl: (url: string) => ipcRenderer.invoke(IPC_CHANNELS.OPEN_URL, url),
   openFile: (path: string) => ipcRenderer.invoke(IPC_CHANNELS.OPEN_FILE, path),

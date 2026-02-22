@@ -53,9 +53,6 @@ export const KEYS = {
 
   // Appearance
   showConnectionIcons: 'show-connection-icons',
-
-  // What's New
-  whatsNewLastSeenVersion: 'whats-new-last-seen-version',
 } as const
 
 export type StorageKey = typeof KEYS[keyof typeof KEYS]

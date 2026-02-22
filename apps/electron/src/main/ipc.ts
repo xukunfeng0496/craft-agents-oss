@@ -1160,17 +1160,6 @@ export function registerIpcHandlers(sessionManager: SessionManager, windowManage
     return !app.isPackaged
   })
 
-  // Release notes
-  ipcMain.handle(IPC_CHANNELS.GET_RELEASE_NOTES, (_event, locale?: string) => {
-    const { getCombinedReleaseNotes } = require('@work-agent/shared/release-notes') as typeof import('@work-agent/shared/release-notes')
-    return getCombinedReleaseNotes(locale)
-  })
-
-  ipcMain.handle(IPC_CHANNELS.GET_LATEST_RELEASE_VERSION, () => {
-    const { getLatestReleaseVersion } = require('@work-agent/shared/release-notes') as typeof import('@work-agent/shared/release-notes')
-    return getLatestReleaseVersion()
-  })
-
   // Get git branch for a directory (returns null if not a git repo or git unavailable)
   ipcMain.handle(IPC_CHANNELS.GET_GIT_BRANCH, (_event, dirPath: string) => {
     try {

@@ -894,10 +894,6 @@ export const IPC_CHANNELS = {
   WINDOW_FOCUS_STATE: 'window:focusState',  // Broadcast: boolean (isFocused)
   WINDOW_GET_FOCUS_STATE: 'window:getFocusState',
 
-  // Release notes
-  GET_RELEASE_NOTES: 'releaseNotes:get',
-  GET_LATEST_RELEASE_VERSION: 'releaseNotes:getLatestVersion',
-
   // Git operations
   GET_GIT_BRANCH: 'git:getBranch',
 
@@ -1018,10 +1014,6 @@ export interface ElectronAPI {
   getDismissedUpdateVersion(): Promise<string | null>
   onUpdateAvailable(callback: (info: UpdateInfo) => void): () => void
   onUpdateDownloadProgress(callback: (progress: number) => void): () => void
-
-  // Release notes
-  getReleaseNotes(locale?: string): Promise<string>
-  getLatestReleaseVersion(): Promise<string | undefined>
 
   // Shell operations
   openUrl(url: string): Promise<void>

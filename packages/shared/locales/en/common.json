@@ -135,8 +135,7 @@
     "helpDocs": "Help & Documentation",
     "allDocumentation": "All Documentation",
     "permissions": "Permissions",
-    "views": "Views",
-    "whatsNew": "What's New"
+    "views": "Views"
   },
   "filters": {
     "filterChats": "Filter Chats",

@@ -73,7 +73,6 @@ import { loadWindowState, saveWindowState } from './window-state'
 import { getWorkspaces, loadStoredConfig, addWorkspace, saveConfig, getAppLanguage } from '@work-agent/shared/config'
 import { getDefaultWorkspacesDir } from '@work-agent/shared/workspaces'
 import { initializeDocs } from '@work-agent/shared/docs'
-import { initializeReleaseNotes } from '@work-agent/shared/release-notes'
 import { ensureDefaultPermissions } from '@work-agent/shared/agent/permissions-config'
 import { ensureToolIcons, ensurePresetThemes } from '@work-agent/shared/config'
 import { setBundledAssetsRoot } from '@work-agent/shared/utils'
@@ -236,9 +235,6 @@ app.whenReady().then(async () => {
 
   // Initialize bundled docs
   initializeDocs()
-
-  // Initialize bundled release notes
-  initializeReleaseNotes()
 
   // Ensure default permissions file exists (seed once using current app language)
   ensureDefaultPermissions(getAppLanguage() ?? app.getLocale())

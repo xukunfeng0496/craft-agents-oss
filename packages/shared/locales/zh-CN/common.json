@@ -135,8 +135,7 @@
     "helpDocs": "帮助与文档",
     "allDocumentation": "全部文档",
     "permissions": "权限",
-    "views": "视图",
-    "whatsNew": "最新动态"
+    "views": "视图"
   },
   "filters": {
     "filterChats": "筛选对话",

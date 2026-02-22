@@ -432,7 +432,7 @@ export function AppMenu({
               <Icons.ChevronLeft className="h-[22px] w-[22px] text-foreground/70" strokeWidth={1.5} />
             </TopBarButton>
           </TooltipTrigger>
-          <TooltipContent side="bottom">Back {goBackHotkey}</TooltipContent>
+          <TooltipContent side="bottom">{labels.ariaGoBack} {goBackHotkey}</TooltipContent>
         </Tooltip>
 
         {/* Forward Navigation */}
@@ -446,7 +446,7 @@ export function AppMenu({
               <Icons.ChevronRight className="h-[22px] w-[22px] text-foreground/70" strokeWidth={1.5} />
             </TopBarButton>
           </TooltipTrigger>
-          <TooltipContent side="bottom">Forward {goForwardHotkey}</TooltipContent>
+          <TooltipContent side="bottom">{labels.ariaGoForward} {goForwardHotkey}</TooltipContent>
         </Tooltip>
       </div>
     </div>

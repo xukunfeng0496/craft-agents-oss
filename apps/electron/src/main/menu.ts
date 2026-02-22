@@ -114,15 +114,18 @@ export async function rebuildMenu(): Promise<void> {
 
     // Edit menu (from shared schema)
     {
-      label: EDIT_MENU.label,
-      submenu: EDIT_MENU.items.map(toElectronMenuItem),
+      label: labels.edit,
+      submenu: EDIT_MENU.items.map(item => toElectronMenuItem(item)),
     },
 
     // View menu (from shared schema + dev-only items)
     {
-      label: VIEW_MENU.label,
+      label: labels.view,
       submenu: [
-        ...VIEW_MENU.items.map(toElectronMenuItem),
+        ...VIEW_MENU.items.map(item => toElectronMenuItem(item, {
+          toggleFocusMode: labels.toggleFocusMode,
+          toggleSidebar: labels.toggleSidebar,
+        })),
         // Dev tools only in development
         ...(!app.isPackaged ? [
           { type: 'separator' as const },
@@ -136,9 +139,9 @@ export async function rebuildMenu(): Promise<void> {
 
     // Window menu (from shared schema + macOS-specific items)
     {
-      label: WINDOW_MENU.label,
+      label: labels.window,
       submenu: [
-        ...WINDOW_MENU.items.map(toElectronMenuItem),
+        ...WINDOW_MENU.items.map(item => toElectronMenuItem(item)),
         ...(isMac ? [
           { type: 'separator' as const },
           { role: 'front' as const }
@@ -213,8 +216,9 @@ function sendToRenderer(channel: string): void {
 
 /**
  * Converts a MenuItem from the shared schema to Electron MenuItemConstructorOptions.
+ * actionLabelMap allows overriding hardcoded schema labels with i18n translations.
  */
-function toElectronMenuItem(item: MenuItem): Electron.MenuItemConstructorOptions {
+function toElectronMenuItem(item: MenuItem, actionLabelMap: Record<string, string> = {}): Electron.MenuItemConstructorOptions {
   if (item.type === 'separator') {
     return { type: 'separator' }
   }
@@ -226,7 +230,7 @@ function toElectronMenuItem(item: MenuItem): Electron.MenuItemConstructorOptions
 
   if (item.type === 'action') {
     return {
-      label: item.label,
+      label: actionLabelMap[item.id] ?? item.label,
       accelerator: item.shortcut,
       click: () => sendToRenderer(item.ipcChannel),
     }

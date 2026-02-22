@@ -70,7 +70,7 @@
     "addGeneric": {
       "title": "Add Source",
       "placeholder": "What would you like to connect?",
-      "example": "Connect to my Craft space"
+      "example": "Connect to my Notion workspace"
     },
     "status": {
       "needsAuth": "Auth Required",
@@ -377,7 +377,7 @@
   },
   "appMenu": {
     "aria": {
-      "craftMenu": "Craft menu",
+      "craftMenu": "Work Agent menu",
       "goBack": "Go back",
       "goForward": "Go forward"
     },

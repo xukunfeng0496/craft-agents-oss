@@ -70,7 +70,7 @@
     "addGeneric": {
       "title": "添加来源",
       "placeholder": "你想连接什么？",
-      "example": "连接我的 Craft 空间"
+      "example": "连接我的 Notion 工作区"
     },
     "status": {
       "needsAuth": "需要认证",
@@ -377,7 +377,7 @@
   },
   "appMenu": {
     "aria": {
-      "craftMenu": "Craft 菜单",
+      "craftMenu": "Work Agent 菜单",
       "goBack": "返回",
       "goForward": "前进"
     },

@@ -152,10 +152,10 @@
   },
   "reauth": {
     "title": "会话已过期",
-    "description": "你的 Craft 会话已过期或不可用。",
+    "description": "你的 Work Agent 会话已过期或不可用。",
     "descriptionSecondary": "请重新登录以继续使用 Work Agents。",
     "note": "你的会话与设置已保留。",
-    "login": "使用 Craft 登录",
+    "login": "登录",
     "loggingIn": "正在登录...",
     "reset": "重置应用并重新开始...",
     "error": "登录失败"

@@ -152,10 +152,10 @@
   },
   "reauth": {
     "title": "Session Expired",
-    "description": "Your Craft session has expired or is no longer valid.",
+    "description": "Your Work Agent session has expired or is no longer valid.",
     "descriptionSecondary": "Please log in again to continue using Work Agents.",
     "note": "Your conversations and settings are preserved.",
-    "login": "Log In with Craft",
+    "login": "Log In",
     "loggingIn": "Logging in...",
     "reset": "Reset app and start fresh...",
     "error": "Login failed"

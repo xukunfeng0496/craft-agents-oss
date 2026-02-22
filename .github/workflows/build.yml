@@ -119,16 +119,16 @@ jobs:
         run: |
           VERSION="${{ steps.version.outputs.version }}"
           cat > .release-notes.md << EOF
-          # v${VERSION} (CVTE Build)
+          ## 安装
 
-          ## Install
-
-          | Platform | File |
-          |----------|------|
+          | 平台 | 文件 |
+          |------|------|
           | macOS Apple Silicon | \`Work-Agent-osx-arm64.dmg\` |
           | macOS Intel | \`Work-Agent-osx-x64.dmg\` |
           | Windows x64 | \`Work-Agent-windows-x64.exe\` |
           | Linux x64 | \`Work-Agent-linux-x64.AppImage\` |
+
+          > **macOS 提示**：此版本暂未进行 Apple 公证，安装时需在「系统设置 → 隐私与安全性」中手动允许，或右键点击 DMG 选择「打开」。
 
           ---
 

@@ -21,10 +21,6 @@ files:
   - resources/session-mcp-server/**/*
   # Note: Bundled assets (docs, themes, permissions, tool-icons) are in resources/
   # and copied to dist/resources/ by build:copy. They're included via dist/**/* above.
-  # Include network interceptor for API error capture and MCP schema injection
-  - packages/shared/src/network-interceptor.ts
-  - packages/shared/src/interceptor-common.ts
-  - packages/shared/src/feature-flags.ts
   # Include bundled Bun runtime (platform-specific, set by build script)
   - vendor/bun/**/*
   # Include bundled Codex binary (platform-specific, downloaded by build script)
@@ -67,13 +63,19 @@ mac:
   hardenedRuntime: false
   gatekeeperAssess: false
   extraResources:
-    - from: node_modules/@anthropic-ai/claude-agent-sdk
+    - from: ../../node_modules/@anthropic-ai/claude-agent-sdk
       to: app/node_modules/@anthropic-ai/claude-agent-sdk
       filter:
         - "**/*"
         - "!vendor/ripgrep/arm64-linux/**"
         - "!vendor/ripgrep/x64-linux/**"
         - "!vendor/ripgrep/x64-win32/**"
+    - from: ../../packages/shared/src
+      to: app/packages/shared/src
+      filter:
+        - "network-interceptor.ts"
+        - "interceptor-common.ts"
+        - "feature-flags.ts"
   # Exclude binaries for other platforms
   files:
     - "!**/vendor/codex/linux-*/**"
@@ -128,7 +130,7 @@ win:
     - "!vendor/copilot/**/*"
   # Copy executables as extraResources to avoid EBUSY file locking (see comment above)
   extraResources:
-    - from: node_modules/@anthropic-ai/claude-agent-sdk
+    - from: ../../node_modules/@anthropic-ai/claude-agent-sdk
       to: app/node_modules/@anthropic-ai/claude-agent-sdk
       filter:
         - "**/*"
@@ -136,6 +138,12 @@ win:
         - "!vendor/ripgrep/x64-darwin/**"
         - "!vendor/ripgrep/arm64-linux/**"
         - "!vendor/ripgrep/x64-linux/**"
+    - from: ../../packages/shared/src
+      to: app/packages/shared/src
+      filter:
+        - "network-interceptor.ts"
+        - "interceptor-common.ts"
+        - "feature-flags.ts"
     - from: vendor/bun/bun.exe
       to: vendor/bun/bun.exe
     - from: vendor/codex/win32-x64
@@ -160,13 +168,19 @@ linux:
         - x64
   artifactName: "Work-Agent-linux-${arch}.${ext}"
   extraResources:
-    - from: node_modules/@anthropic-ai/claude-agent-sdk
+    - from: ../../node_modules/@anthropic-ai/claude-agent-sdk
       to: app/node_modules/@anthropic-ai/claude-agent-sdk
       filter:
         - "**/*"
         - "!vendor/ripgrep/arm64-darwin/**"
         - "!vendor/ripgrep/x64-darwin/**"
         - "!vendor/ripgrep/x64-win32/**"
+    - from: ../../packages/shared/src
+      to: app/packages/shared/src
+      filter:
+        - "network-interceptor.ts"
+        - "interceptor-common.ts"
+        - "feature-flags.ts"
   # Exclude binaries for other platforms
   files:
     - "!**/vendor/codex/darwin-*/**"

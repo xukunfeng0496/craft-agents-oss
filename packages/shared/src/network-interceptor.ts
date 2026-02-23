@@ -644,6 +644,66 @@ function appendBetaHeader(headers: HeadersInitType | undefined, beta: string): R
   return headerObj;
 }
 
+/**
+ * Check if the configured base URL is a custom (non-Anthropic) endpoint.
+ */
+function isCustomEndpoint(): boolean {
+  const baseUrl = getConfiguredBaseUrl();
+  return !baseUrl.includes('anthropic.com');
+}
+
+/**
+ * Strip conflicting auth headers for custom API endpoints.
+ *
+ * The Claude Code SDK may set both `x-api-key` (from ANTHROPIC_API_KEY) and
+ * `authorization` (from OAuth keychain) headers. Custom endpoints (like
+ * OpenRouter, self-hosted proxies, etc.) reject requests with dual auth.
+ *
+ * When both headers are present and the target is a non-Anthropic endpoint,
+ * remove the `authorization` header so only `x-api-key` is sent.
+ */
+function stripConflictingAuthHeaders(headers: HeadersInitType | undefined): HeadersInitType | undefined {
+  if (!headers || !isCustomEndpoint()) return headers;
+
+  // Normalize to a plain object for inspection
+  let headerObj: Record<string, string> = {};
+  if (headers instanceof Headers) {
+    headers.forEach((value, key) => { headerObj[key.toLowerCase()] = value; });
+  } else if (Array.isArray(headers)) {
+    for (const [key, value] of headers) {
+      headerObj[(key as string).toLowerCase()] = value as string;
+    }
+  } else {
+    for (const [key, value] of Object.entries(headers)) {
+      headerObj[key.toLowerCase()] = value;
+    }
+  }
+
+  // Only strip when BOTH auth methods are present — if only one is set, leave it alone
+  if (headerObj['x-api-key'] && headerObj['authorization']) {
+    debugLog('[Auth Fix] Stripping conflicting authorization header for custom endpoint (keeping x-api-key)');
+
+    // Rebuild without the authorization header, preserving original casing
+    if (headers instanceof Headers) {
+      const newHeaders = new Headers(headers);
+      newHeaders.delete('authorization');
+      return newHeaders;
+    } else if (Array.isArray(headers)) {
+      return headers.filter(([key]) => (key as string).toLowerCase() !== 'authorization');
+    } else {
+      const result: Record<string, string> = {};
+      for (const [key, value] of Object.entries(headers)) {
+        if (key.toLowerCase() !== 'authorization') {
+          result[key] = value;
+        }
+      }
+      return result;
+    }
+  }
+
+  return headers;
+}
+
 async function interceptedFetch(
   input: string | URL | Request,
   init?: RequestInit
@@ -657,6 +717,10 @@ async function interceptedFetch(
 
   const startTime = Date.now();
 
+  // Strip conflicting auth headers for custom endpoints BEFORE logging and sending
+  if (isApiMessagesUrl(url) && init) {
+    init = { ...init, headers: stripConflictingAuthHeaders(init.headers as HeadersInitType | undefined) };
+  }
 
   // Log all requests as cURL commands
   if (DEBUG) {

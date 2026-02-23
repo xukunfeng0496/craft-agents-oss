@@ -85,12 +85,13 @@ if [ "$UPLOAD" = true ]; then
     echo "Will upload to S3 after build"
 fi
 
-# 1. Clean previous build artifacts
+# 1. Clean previous build artifacts (preserve release/ to avoid deleting other-arch DMGs)
 echo "Cleaning previous builds..."
 rm -rf "$ELECTRON_DIR/vendor"
 rm -rf "$ELECTRON_DIR/node_modules/@anthropic-ai"
 rm -rf "$ELECTRON_DIR/packages"
-rm -rf "$ELECTRON_DIR/release"
+# Note: do NOT rm -rf release here — when building arm64 then x64 in sequence,
+# deleting release/ would remove the arm64 DMG before x64 finishes.
 
 # 2. Install dependencies
 echo "Installing dependencies..."

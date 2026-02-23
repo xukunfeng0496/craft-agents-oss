@@ -26,6 +26,22 @@ module.exports = async function afterPack(context) {
   }
 
   const appPath = context.appOutDir;
+
+  // Remove wrong-arch ripgrep binaries from the SDK.
+  // electron-builder includes both arm64-darwin and x64-darwin ripgrep variants
+  // because the extraResources filter only excludes linux/win32 dirs.
+  // For arm64 builds: remove x64-darwin; for x64 builds: remove arm64-darwin.
+  const arch = context.arch === 3 ? 'arm64' : 'x64'; // 3 = Arch.arm64
+  const ripgrepBase = path.join(
+    appPath, 'Work Agents.app', 'Contents', 'Resources',
+    'app', 'node_modules', '@anthropic-ai', 'claude-agent-sdk', 'vendor', 'ripgrep'
+  );
+  const wrongArch = arch === 'arm64' ? 'x64-darwin' : 'arm64-darwin';
+  const wrongArchDir = path.join(ripgrepBase, wrongArch);
+  if (fs.existsSync(wrongArchDir)) {
+    fs.rmSync(wrongArchDir, { recursive: true, force: true });
+    console.log(`Removed wrong-arch ripgrep: ${wrongArch}`);
+  }
   const resourcesDir = path.join(appPath, 'Work Agents.app', 'Contents', 'Resources');
   const precompiledAssets = path.join(context.packager.projectDir, 'resources', 'Assets.car');
 

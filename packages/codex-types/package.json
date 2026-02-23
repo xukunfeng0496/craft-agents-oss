@@ -1,6 +1,6 @@
 {
   "name": "@work-agent/codex-types",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "description": "Generated TypeScript types for Codex app-server protocol",
   "type": "module",
   "main": "./src/index.ts",

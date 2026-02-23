@@ -132,6 +132,20 @@ jobs:
 
           ---
 
+          ## v0.5.2 更新内容
+
+          ### 性能优化
+          - **macOS 省电**：窗口隐藏时降低 GPU 渲染频率，减少后台能耗
+          - **Apple Silicon 优化**：修复 arm64 安装包中混入 x64 二进制的问题，完全消除 Rosetta 转译开销
+
+          ### 修复
+          - **认证稳定性**：修复 SDK Keychain OAuth 凭证冲突导致的请求头错误，解决部分用户登录态异常的问题
+          - **界面文字**：修复菜单栏中未翻译的硬编码字符串
+          - **对话压缩提示**：确保压缩完成消息始终正确显示
+          - **构建**：修复多架构打包时文件被错误覆盖的问题
+
+          ---
+
           Built from [craft-agents-oss](https://github.com/xukunfeng0496/craft-agents-oss) · Apache 2.0
           EOF
 

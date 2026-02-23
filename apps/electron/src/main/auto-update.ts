@@ -36,20 +36,24 @@ const IS_WINDOWS = PLATFORM === 'win32'
 
 // Get the update cache directory path (for file watcher fallback on macOS)
 // electron-updater uses these paths:
-// - Windows: %LOCALAPPDATA%/{appName}-updater/pending
-// - macOS: ~/Library/Caches/{appName}-updater/pending
-// - Linux: ~/.cache/{appName}-updater/pending
+// - Windows: %LOCALAPPDATA%/{sanitizedAppName}-updater/pending
+// - macOS: ~/Library/Caches/{sanitizedAppName}-updater/pending
+// - Linux: ~/.cache/{sanitizedAppName}-updater/pending
+// NOTE: electron-updater uses the sanitized package name (with '/' removed), NOT app.getName()
+// For "@work-agent/electron" → "@work-agentelectron-updater"
 function getUpdateCacheDir(): string {
-  const appName = app.getName()
+  // electron-updater sanitizes the app name by removing '/' characters
+  // We need to use the package name, not the product name (app.getName() returns productName)
+  const sanitizedAppName = '@work-agentelectron'
   if (IS_MAC) {
-    return path.join(app.getPath('home'), 'Library', 'Caches', `${appName}-updater`, 'pending')
+    return path.join(app.getPath('home'), 'Library', 'Caches', `${sanitizedAppName}-updater`, 'pending')
   } else if (IS_WINDOWS) {
     // Windows uses LOCALAPPDATA, not APPDATA (roaming)
     const localAppData = process.env.LOCALAPPDATA || path.join(app.getPath('home'), 'AppData', 'Local')
-    return path.join(localAppData, `${appName}-updater`, 'pending')
+    return path.join(localAppData, `${sanitizedAppName}-updater`, 'pending')
   } else {
     // Linux
-    return path.join(app.getPath('home'), '.cache', `${appName}-updater`, 'pending')
+    return path.join(app.getPath('home'), '.cache', `${sanitizedAppName}-updater`, 'pending')
   }
 }
 

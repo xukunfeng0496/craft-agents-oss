@@ -64,8 +64,9 @@ export function useBackgroundTasks({ sessionId }: UseBackgroundTasksOptions): Us
       // Use KillShell IPC for shells
       try {
         await window.electronAPI.killShell(sessionId, taskId)
-      } catch {
+      } catch (e) {
         // Shell may already be gone - that's OK, still remove from UI
+        console.debug('[background-tasks] killShell failed (shell may already be terminated):', e instanceof Error ? e.message : e)
       }
     } else {
       // For agents, we don't have a direct kill mechanism yet

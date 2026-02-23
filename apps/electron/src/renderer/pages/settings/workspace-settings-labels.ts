@@ -48,5 +48,8 @@ export function getWorkspaceLabels(t: (key: string) => string) {
     localMcpDescription: t('settings:workspace.advanced.localMcp.description'),
     isolateSessionDirLabel: t('settings:workspace.advanced.isolateSessionDirectory.label'),
     isolateSessionDirDescription: t('settings:workspace.advanced.isolateSessionDirectory.description'),
+    defaultSourcesTitle: t('settings:workspace.defaultSources.title'),
+    defaultSourcesDescription: t('settings:workspace.defaultSources.description'),
+    noSourcesConfigured: t('settings:workspace.defaultSources.noSourcesConfigured'),
   }
 }

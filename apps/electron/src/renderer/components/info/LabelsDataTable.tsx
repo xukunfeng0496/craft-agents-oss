@@ -153,7 +153,7 @@ export function LabelsDataTable({
         'text-muted-foreground/50 hover:text-foreground',
         'focus:outline-none focus-visible:ring-1 focus-visible:ring-ring focus-visible:opacity-100'
       )}
-      title="View Fullscreen"
+      title={t('common:tables.labels.fullscreen')}
     >
       <Maximize2 className="w-3.5 h-3.5" />
     </button>
@@ -169,9 +169,9 @@ export function LabelsDataTable({
       <Info_DataTable
         columns={columns}
         data={data}
-        searchable={searchable ? { placeholder: 'Search labels...' } : false}
+        searchable={searchable ? { placeholder: t('common:tables.labels.searchPlaceholder') } : false}
         maxHeight={maxHeight}
-        emptyContent="No labels configured"
+        emptyContent={t('common:tables.labels.empty')}
         floatingAction={fullscreenButton}
         className={cn(fullscreen && 'group', className)}
         getSubRows={getSubRows}
@@ -183,14 +183,14 @@ export function LabelsDataTable({
           isOpen={isFullscreen}
           onClose={() => setIsFullscreen(false)}
           title={fullscreenTitle}
-          subtitle={`${totalCount} ${totalCount === 1 ? 'label' : 'labels'}`}
+          subtitle={totalCount === 1 ? t('common:tables.labels.subtitle.label', { count: totalCount }) : t('common:tables.labels.subtitle.labels', { count: totalCount })}
           theme={isDark ? 'dark' : 'light'}
         >
           <Info_DataTable
             columns={columns}
             data={data}
-            searchable={searchable ? { placeholder: 'Search labels...' } : false}
-            emptyContent="No labels configured"
+            searchable={searchable ? { placeholder: t('common:tables.labels.searchPlaceholder') } : false}
+            emptyContent={t('common:tables.labels.empty')}
             getSubRows={getSubRows}
           />
         </DataTableOverlay>

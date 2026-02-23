@@ -547,6 +547,21 @@
       "selectConversation": "选择一个对话开始使用"
     }
   },
+  "toast": {
+    "sourceDeleted": "已删除来源",
+    "sourceDeleteFailed": "删除来源失败",
+    "skillDeleted": "已删除技能：{{name}}",
+    "skillDeleteFailed": "删除技能失败",
+    "sessionFlagged": "已标记对话",
+    "sessionFlaggedDescription": "已添加到标记项目",
+    "flagRemoved": "已取消标记",
+    "flagRemovedDescription": "已从标记项目中移除",
+    "sessionArchived": "已归档对话",
+    "sessionArchivedDescription": "已移至归档",
+    "sessionRestored": "已恢复对话",
+    "sessionRestoredDescription": "已从归档移出",
+    "sessionDeleted": "已删除对话"
+  },
   "permissionRequest": {
     "title": "需要权限",
     "actions": {

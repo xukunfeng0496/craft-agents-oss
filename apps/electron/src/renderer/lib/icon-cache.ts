@@ -20,6 +20,7 @@
  */
 
 import { useState, useEffect, useMemo } from 'react'
+import DOMPurify from 'dompurify'
 import { isEmoji } from '@work-agent/shared/utils/icon-constants'
 import type { ResolvedEntityIcon } from '@work-agent/shared/icons'
 
@@ -703,15 +704,20 @@ async function loadIconFile(
 
 /**
  * Sanitize SVG content for safe inline rendering via dangerouslySetInnerHTML.
- * Removes script tags, event handlers, and JavaScript URLs.
+ * Uses DOMPurify for robust sanitization against XSS vectors.
  * Also strips width/height attributes so SVG fills its container.
  */
 function sanitizeSvgForInline(svg: string): string {
-  return svg
-    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
-    .replace(/on\w+="[^"]*"/gi, '')
-    .replace(/on\w+='[^']*'/gi, '')
-    .replace(/javascript:/gi, '')
+  // DOMPurify with SVG profile: allows SVG elements/attributes,
+  // removes scripts, event handlers, and dangerous content
+  const sanitized = DOMPurify.sanitize(svg, {
+    USE_PROFILES: { svg: true, svgFilters: true },
+    ADD_TAGS: ['use'],
+    ADD_ATTR: ['xlink:href'],
+  })
+
+  // Strip width/height attributes so SVG fills its container
+  return sanitized
     .replace(/\s+width="[^"]*"/gi, '')
     .replace(/\s+height="[^"]*"/gi, '')
 }

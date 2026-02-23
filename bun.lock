@@ -24,6 +24,7 @@
         "class-variance-authority": "^0.7.1",
         "clsx": "^2.1.1",
         "date-fns": "^4.1.0",
+        "dompurify": "^3.3.1",
         "gray-matter": "^4.0.3",
         "jotai": "^2.16.0",
         "js-yaml": "^4.1.1",
@@ -50,6 +51,7 @@
         "@sentry/vite-plugin": "^4.8.0",
         "@tailwindcss/vite": "^4.1.18",
         "@types/bun": "latest",
+        "@types/dompurify": "^3.2.0",
         "@types/js-yaml": "^4.0.9",
         "@types/linkify-it": "^5.0.0",
         "@types/node": "^25.0.8",
@@ -81,7 +83,7 @@
     },
     "apps/electron": {
       "name": "@work-agent/electron",
-      "version": "0.4.8",
+      "version": "0.5.1",
       "dependencies": {
         "@dnd-kit/core": "^6.3.1",
         "@dnd-kit/sortable": "^10.0.0",
@@ -121,7 +123,7 @@
     },
     "apps/viewer": {
       "name": "@work-agent/viewer",
-      "version": "0.4.8",
+      "version": "0.5.1",
       "dependencies": {
         "@work-agent/core": "workspace:*",
         "@work-agent/shared": "workspace:*",
@@ -149,7 +151,7 @@
     },
     "packages/bridge-mcp-server": {
       "name": "@work-agent/bridge-mcp-server",
-      "version": "0.4.8",
+      "version": "0.5.1",
       "bin": {
         "bridge-mcp-server": "./dist/index.js",
       },
@@ -162,11 +164,11 @@
     },
     "packages/codex-types": {
       "name": "@work-agent/codex-types",
-      "version": "0.4.8",
+      "version": "0.5.1",
     },
     "packages/core": {
       "name": "@work-agent/core",
-      "version": "0.4.8",
+      "version": "0.5.1",
       "devDependencies": {
         "@types/uuid": "^11.0.0",
       },
@@ -178,7 +180,7 @@
     },
     "packages/mermaid": {
       "name": "@work-agent/mermaid",
-      "version": "0.4.8",
+      "version": "0.5.1",
       "dependencies": {
         "elkjs": "^0.11.0",
       },
@@ -195,7 +197,7 @@
     },
     "packages/session-mcp-server": {
       "name": "@work-agent/session-mcp-server",
-      "version": "0.4.8",
+      "version": "0.5.1",
       "bin": {
         "session-mcp-server": "./dist/index.js",
       },
@@ -210,7 +212,7 @@
     },
     "packages/session-tools-core": {
       "name": "@work-agent/session-tools-core",
-      "version": "0.4.8",
+      "version": "0.5.1",
       "dependencies": {
         "@work-agent/mermaid": "workspace:*",
         "gray-matter": "^4.0.3",
@@ -222,7 +224,7 @@
     },
     "packages/shared": {
       "name": "@work-agent/shared",
-      "version": "0.4.8",
+      "version": "0.5.1",
       "dependencies": {
         "@isaacs/ttlcache": "^2.1.4",
         "@leeoniya/ufuzzy": "^1.0.19",
@@ -248,7 +250,7 @@
     },
     "packages/ui": {
       "name": "@work-agent/ui",
-      "version": "0.4.8",
+      "version": "0.5.1",
       "dependencies": {
         "@types/mdast": "^4.0.0",
         "@uiw/react-json-view": "^2.0.0-alpha.40",
@@ -1118,6 +1120,8 @@
 
     "@types/debug": ["@types/debug@4.1.12", "", { "dependencies": { "@types/ms": "*" } }, "sha512-vIChWdVG3LG1SMxEvI/AK+FWJthlrqlTu7fbrlywTkkaONwk/UAGaULXRlf8vkzFBLVm0zkMdCquhL5aOjhXPQ=="],
 
+    "@types/dompurify": ["@types/dompurify@3.2.0", "https://registry.npmmirror.com/@types/dompurify/-/dompurify-3.2.0.tgz", { "dependencies": { "dompurify": "*" } }, "sha512-Fgg31wv9QbLDA0SpTOXO3MaxySc4DKGLi8sna4/Utjo4r3ZRPdCt4UQee8BWr+Q5z21yifghREPJGYaEOEIACg=="],
+
     "@types/estree": ["@types/estree@1.0.8", "", {}, "sha512-dWHzHa2WqEXI/O1E9OjrocMTKJl2mSrEolh1Iomrv6U+JuNwaHXsXx9bLu5gG7BUWFIN0skIQJQ/L1rIex4X6w=="],
 
     "@types/estree-jsx": ["@types/estree-jsx@1.0.5", "", { "dependencies": { "@types/estree": "*" } }, "sha512-52CcUVNFyfb1A2ALocQw/Dd1BQFNmSdkuC3BkZ6iqhdMfQz7JWOFRuJFloOzjk+6WijU56m9oKXFAXc7o3Towg=="],
@@ -1165,6 +1169,8 @@
     "@types/shell-quote": ["@types/shell-quote@1.7.5", "", {}, "sha512-+UE8GAGRPbJVQDdxi16dgadcBfQ+KG2vgZhV1+3A1XmHbmwcdwhCUwIdy+d3pAGrbvgRoVSjeI9vOWyq376Yzw=="],
 
     "@types/tedious": ["@types/tedious@4.0.14", "", { "dependencies": { "@types/node": "*" } }, "sha512-KHPsfX/FoVbUGbyYvk1q9MMQHLPeRZhRJZdO45Q4YjvFkv4hMNghCWTvy7rdKessBsmtz4euWCWAB6/tVpI1Iw=="],
+
+    "@types/trusted-types": ["@types/trusted-types@2.0.7", "https://registry.npmmirror.com/@types/trusted-types/-/trusted-types-2.0.7.tgz", {}, "sha512-ScaPdn1dQczgbl0QFTeTOmVHFULt394XJgOQNoyVhZ6r2vLnMLJfBPd53SB52T/3G36VI1/g2MZaX0cwDuXsfw=="],
 
     "@types/unist": ["@types/unist@3.0.3", "", {}, "sha512-ko/gIFJRv177XgZsZcBwnqJN5x/Gien8qNOn0D5bQU/zAzVf9Zt3BlcUiLqhV9y4ARk0GbT3tnUiPNgnTXzc/Q=="],
 
@@ -1541,6 +1547,8 @@
     "domelementtype": ["domelementtype@2.3.0", "", {}, "sha512-OLETBj6w0OsagBwdXnPdN0cnMfF9opN69co+7ZrbfPGrdpPVNBUj02spi6B1N7wChLQiPn4CSH/zJvXw56gmHw=="],
 
     "domhandler": ["domhandler@5.0.3", "", { "dependencies": { "domelementtype": "^2.3.0" } }, "sha512-cgwlv/1iFQiFnU96XXgROh8xTeetsnJiDsTc7TYCLFd9+/WNkIqPTxiM/8pSd8VIrhXGTf1Ny1q1hquVqDJB5w=="],
+
+    "dompurify": ["dompurify@3.3.1", "https://registry.npmmirror.com/dompurify/-/dompurify-3.3.1.tgz", { "optionalDependencies": { "@types/trusted-types": "^2.0.7" } }, "sha512-qkdCKzLNtrgPFP1Vo+98FRzJnBRGe4ffyCea9IwHB1fyxPOeNTHpLKYGd4Uk9xvNoH0ZoOjwZxNptyMwqrId1Q=="],
 
     "domutils": ["domutils@3.2.2", "", { "dependencies": { "dom-serializer": "^2.0.0", "domelementtype": "^2.3.0", "domhandler": "^5.0.3" } }, "sha512-6kZKyUajlDuqlHKVX1w7gyslj9MPIXzIFiz/rGu35uC1wMi+kMhQwGhl4lt9unC9Vb9INnY9Z3/ZA3+FhASLaw=="],
 

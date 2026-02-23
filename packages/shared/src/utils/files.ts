@@ -40,7 +40,7 @@ export function atomicWriteFileSync(filePath: string, data: string): void {
     renameSync(tmpPath, filePath);
   } catch (error) {
     // Clean up temp file if rename failed
-    try { unlinkSync(tmpPath); } catch {}
+    try { unlinkSync(tmpPath); } catch { /* temp file cleanup - best effort */ }
     throw error;
   }
 }
@@ -496,7 +496,7 @@ if (fileURLs && !fileURLs.isNil()) {
       timeout: 5000,
     }).trim();
 
-    try { unlinkSync(scriptFile); } catch {}
+    try { unlinkSync(scriptFile); } catch { /* temp file cleanup - best effort */ }
 
     if (result !== 'no_files' && result.startsWith('{')) {
       const parsed = JSON.parse(result);
@@ -509,8 +509,9 @@ if (fileURLs && !fileURLs.isNil()) {
         }
       }
     }
-  } catch {
-    // File URL reading failed
+  } catch (e) {
+    // File URL reading failed - non-critical, fall through to image check
+    console.debug('[clipboard] macOS file URL reading failed:', e instanceof Error ? e.message : e);
   }
 
   // If we got files, return them
@@ -561,12 +562,13 @@ function readClipboardWindows(): FileAttachment[] {
             attachments.push(attachment);
           }
         }
-      } catch {
-        // JSON parse failed
+      } catch (e) {
+        console.debug('[clipboard] Windows clipboard JSON parse failed:', e instanceof Error ? e.message : e);
       }
     }
-  } catch {
-    // File reading failed
+  } catch (e) {
+    // Windows file clipboard reading failed - non-critical, fall through to image check
+    console.debug('[clipboard] Windows file reading failed:', e instanceof Error ? e.message : e);
   }
 
   // If we got files, return them
@@ -610,8 +612,8 @@ function readClipboardImageDataWindows(): FileAttachment | null {
     if (result === 'success' && existsSync(tempFile)) {
       return readImageFile(tempFile);
     }
-  } catch {
-    // PowerShell clipboard image extraction failed
+  } catch (e) {
+    console.debug('[clipboard] PowerShell clipboard image extraction failed:', e instanceof Error ? e.message : e);
   }
 
   return null;
@@ -643,7 +645,7 @@ function readClipboardLinux(): FileAttachment[] {
           timeout: 5000,
         }).trim();
       } catch {
-        // xsel also not available
+        // Neither xclip nor xsel available - no clipboard access on this system
       }
     }
 
@@ -661,8 +663,9 @@ function readClipboardLinux(): FileAttachment[] {
         }
       }
     }
-  } catch {
-    // File reading failed
+  } catch (e) {
+    // Linux file URI clipboard reading failed - non-critical, fall through to image check
+    console.debug('[clipboard] Linux file reading failed:', e instanceof Error ? e.message : e);
   }
 
   // If we got files, return them
@@ -699,10 +702,10 @@ function readClipboardImageDataLinux(): FileAttachment | null {
         return readImageFile(tempFile);
       }
       // Empty file, cleanup
-      try { unlinkSync(tempFile); } catch {}
+      try { unlinkSync(tempFile); } catch { /* temp file cleanup - best effort */ }
     }
   } catch {
-    // xclip image extraction failed
+    // xclip image extraction failed - expected when no image in clipboard
   }
 
   // Try wl-paste for Wayland
@@ -719,10 +722,10 @@ function readClipboardImageDataLinux(): FileAttachment | null {
         return readImageFile(tempFile);
       }
       // Empty file, cleanup
-      try { unlinkSync(tempFile); } catch {}
+      try { unlinkSync(tempFile); } catch { /* temp file cleanup - best effort */ }
     }
   } catch {
-    // wl-paste failed
+    // wl-paste failed - expected when Wayland not in use or no image in clipboard
   }
 
   return null;
@@ -742,7 +745,7 @@ function readClipboardImageDataMacOS(): FileAttachment | null {
       if (result) return result;
     }
   } catch {
-    // pngpaste not available or failed
+    // pngpaste not available or no image in clipboard - fall through to JXA method
   }
 
   // Method 2: Use osascript with JXA (JavaScript for Automation)
@@ -784,8 +787,8 @@ if (imgData && !imgData.isNil()) {
       const imageResult = readImageFile(tempFile);
       if (imageResult) return imageResult;
     }
-  } catch {
-    // JXA method failed
+  } catch (e) {
+    console.debug('[clipboard] macOS JXA clipboard image extraction failed:', e instanceof Error ? e.message : e);
   }
 
   return null;
@@ -815,7 +818,8 @@ function readImageFile(tempFile: string): FileAttachment | null {
       base64,
       size: stats.size,
     };
-  } catch {
+  } catch (e) {
+    console.debug('[clipboard] Failed to read image file:', tempFile, e instanceof Error ? e.message : e);
     return null;
   }
 }

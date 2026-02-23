@@ -2663,7 +2663,7 @@ export class SessionManager {
       } else if (provider === 'copilot') {
         // Copilot backend - uses @github/copilot-sdk
 
-        const rawCopilotModel = managed.model || connection?.defaultModel!
+        const rawCopilotModel = managed.model || connection?.defaultModel
         const copilotModel = rawCopilotModel || 'gpt-5'
 
         // Load sources for MCP config
@@ -3100,7 +3100,11 @@ export class SessionManager {
           await setupCopilotBridgeConfig(copilotConfigDir, allEnabledSources)
         }
 
-        managed.agent!.setSourceServers(mcpServers, apiServers, intendedSlugs)
+        if (!managed.agent) {
+          sessionLog.warn(`Cannot set source servers: agent not available for session ${managed.id}`)
+          return false
+        }
+        managed.agent.setSourceServers(mcpServers, apiServers, intendedSlugs)
 
         sessionLog.info(`Auto-enabled source ${sourceSlug} for session ${managed.id}`)
 
@@ -4076,8 +4080,10 @@ export class SessionManager {
         // Fallback chain: session model > workspace default > connection default
         const wsConfig = loadWorkspaceConfig(managed.workspace.rootPath)
         const sessionConn = resolveSessionConnection(managed.llmConnection, wsConfig?.defaults?.defaultLlmConnection)
-        const effectiveModel = model ?? wsConfig?.defaults?.model ?? sessionConn?.defaultModel!
-        managed.agent.setModel(effectiveModel)
+        const effectiveModel = model ?? wsConfig?.defaults?.model ?? sessionConn?.defaultModel
+        if (effectiveModel) {
+          managed.agent.setModel(effectiveModel)
+        }
       }
       // Notify renderer of the model change
       this.sendEvent({ type: 'session_model_changed', sessionId, model }, managed.workspace.id)
@@ -4223,10 +4229,11 @@ export class SessionManager {
     let userMessage: Message
     if (existingMessageId) {
       // Find existing message (already added when queued)
-      userMessage = managed.messages.find(m => m.id === existingMessageId)!
-      if (!userMessage) {
+      const found = managed.messages.find(m => m.id === existingMessageId)
+      if (!found) {
         throw new Error(`Existing message ${existingMessageId} not found`)
       }
+      userMessage = found
     } else {
       // Create new message
       userMessage = {
@@ -4772,7 +4779,8 @@ export class SessionManager {
     const managed = this.sessions.get(sessionId)
     if (!managed || managed.messageQueue.length === 0) return
 
-    const next = managed.messageQueue.shift()!
+    const next = managed.messageQueue.shift()
+    if (!next) return
     sessionLog.info(`Processing queued message for session ${sessionId}`)
 
     // Update UI: queued → processing

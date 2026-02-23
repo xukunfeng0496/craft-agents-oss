@@ -204,23 +204,33 @@ async function fetchAndStoreCopilotModels(slug: string, accessToken: string): Pr
   const COPILOT_TIMEOUT_MS = 30_000
 
   let models: Array<{ id: string; name: string; supportedReasoningEfforts?: string[] }>
+  let startTimeoutId: ReturnType<typeof setTimeout> | undefined
+  let listTimeoutId: ReturnType<typeof setTimeout> | undefined
   try {
     debugLog('Starting Copilot client...')
     await Promise.race([
       client.start(),
-      new Promise((_, reject) => setTimeout(() => reject(new Error(
-        'Copilot client failed to start within 30 seconds. Check your network connection and GitHub Copilot subscription.',
-      )), COPILOT_TIMEOUT_MS)),
+      new Promise((_, reject) => {
+        startTimeoutId = setTimeout(() => reject(new Error(
+          'Copilot client failed to start within 30 seconds. Check your network connection and GitHub Copilot subscription.',
+        )), COPILOT_TIMEOUT_MS)
+      }),
     ])
+    clearTimeout(startTimeoutId)
     debugLog('Copilot client started, fetching models...')
     models = await Promise.race([
       client.listModels(),
-      new Promise<never>((_, reject) => setTimeout(() => reject(new Error(
-        'Copilot model listing timed out after 30 seconds. Your GitHub token may be invalid or your Copilot plan may not support this feature.',
-      )), COPILOT_TIMEOUT_MS)),
+      new Promise<never>((_, reject) => {
+        listTimeoutId = setTimeout(() => reject(new Error(
+          'Copilot model listing timed out after 30 seconds. Your GitHub token may be invalid or your Copilot plan may not support this feature.',
+        )), COPILOT_TIMEOUT_MS)
+      }),
     ])
+    clearTimeout(listTimeoutId)
     debugLog(`listModels returned ${models?.length ?? 0} models: ${models?.map(m => m.id).join(', ')}`)
   } catch (error) {
+    clearTimeout(startTimeoutId)
+    clearTimeout(listTimeoutId)
     const msg = error instanceof Error ? error.message : String(error)
     const stack = error instanceof Error ? error.stack : undefined
     debugLog(`Copilot listModels FAILED: ${msg}`)
@@ -228,7 +238,9 @@ async function fetchAndStoreCopilotModels(slug: string, accessToken: string): Pr
     await writeDebugFile()
     restoreEnv()
     // Ensure cleanup
-    try { await client.stop() } catch { /* ignore cleanup errors */ }
+    try { await client.stop() } catch (e) {
+      ipcLog.debug('Copilot client.stop() cleanup failed:', e instanceof Error ? e.message : e)
+    }
     throw error
   }
   await client.stop()

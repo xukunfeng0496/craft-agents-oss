@@ -54,12 +54,13 @@ interface PermissionsDataTableProps {
  * - Click to copy pattern to clipboard with toast notification
  */
 function PatternBadge({ pattern }: { pattern: string }) {
+  const { t } = useTranslation(['common'])
   const handleClick = async () => {
     try {
       await navigator.clipboard.writeText(pattern)
-      toast.success('Pattern copied to clipboard')
+      toast.success(t('common:tables.permissions.patternCopied'))
     } catch {
-      toast.error('Failed to copy pattern')
+      toast.error(t('common:tables.permissions.patternCopyFailed'))
     }
   }
 
@@ -202,7 +203,7 @@ export function PermissionsDataTable({
         'text-muted-foreground/50 hover:text-foreground',
         'focus:outline-none focus-visible:ring-1 focus-visible:ring-ring focus-visible:opacity-100'
       )}
-      title="View Fullscreen"
+      title={t('common:tables.permissions.fullscreen')}
     >
       <Maximize2 className="w-3.5 h-3.5" />
     </button>
@@ -213,9 +214,9 @@ export function PermissionsDataTable({
       <Info_DataTable
         columns={columns}
         data={data}
-        searchable={searchable ? { placeholder: 'Search patterns...' } : false}
+        searchable={searchable ? { placeholder: t('common:tables.permissions.searchPlaceholder') } : false}
         maxHeight={maxHeight}
-        emptyContent="No permissions configured"
+        emptyContent={t('common:tables.permissions.empty')}
         floatingAction={fullscreenButton}
         className={cn(fullscreen && 'group', className)}
       />
@@ -226,14 +227,14 @@ export function PermissionsDataTable({
           isOpen={isFullscreen}
           onClose={() => setIsFullscreen(false)}
           title={fullscreenTitle}
-          subtitle={`${data.length} ${data.length === 1 ? 'rule' : 'rules'}`}
+          subtitle={data.length === 1 ? t('common:tables.permissions.subtitle.rule', { count: data.length }) : t('common:tables.permissions.subtitle.rules', { count: data.length })}
           theme={isDark ? 'dark' : 'light'}
         >
           <Info_DataTable
             columns={columns}
             data={data}
-            searchable={searchable ? { placeholder: 'Search patterns...' } : false}
-            emptyContent="No permissions configured"
+            searchable={searchable ? { placeholder: t('common:tables.permissions.searchPlaceholder') } : false}
+            emptyContent={t('common:tables.permissions.empty')}
           />
         </DataTableOverlay>
       )}

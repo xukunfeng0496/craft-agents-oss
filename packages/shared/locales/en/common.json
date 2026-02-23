@@ -547,6 +547,21 @@
       "selectConversation": "Select a conversation to get started"
     }
   },
+  "toast": {
+    "sourceDeleted": "Deleted source",
+    "sourceDeleteFailed": "Failed to delete source",
+    "skillDeleted": "Deleted skill: {{name}}",
+    "skillDeleteFailed": "Failed to delete skill",
+    "sessionFlagged": "Session flagged",
+    "sessionFlaggedDescription": "Added to your flagged items",
+    "flagRemoved": "Flag removed",
+    "flagRemovedDescription": "Removed from flagged items",
+    "sessionArchived": "Session archived",
+    "sessionArchivedDescription": "Moved to archive",
+    "sessionRestored": "Session restored",
+    "sessionRestoredDescription": "Moved from archive",
+    "sessionDeleted": "Session deleted"
+  },
   "permissionRequest": {
     "title": "Permission Required",
     "actions": {

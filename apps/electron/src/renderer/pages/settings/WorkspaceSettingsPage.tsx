@@ -486,8 +486,8 @@ export default function WorkspaceSettingsPage() {
 
             {/* Default Sources */}
             <SettingsSection
-              title="Default Sources"
-              description="Sources auto-enabled for new sessions"
+              title={labels.defaultSourcesTitle}
+              description={labels.defaultSourcesDescription}
             >
               {availableSources.length > 0 ? (
                 <SettingsCard>
@@ -507,7 +507,7 @@ export default function WorkspaceSettingsPage() {
                   ))}
                 </SettingsCard>
               ) : (
-                <p className="text-sm text-muted-foreground">No sources configured in this workspace.</p>
+                <p className="text-sm text-muted-foreground">{labels.noSourcesConfigured}</p>
               )}
             </SettingsSection>
 

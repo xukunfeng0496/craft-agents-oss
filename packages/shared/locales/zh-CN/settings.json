@@ -504,6 +504,11 @@
       "description": "选择 Shift+Tab 可循环切换的模式",
       "error": "至少需要 2 种模式"
     },
+    "defaultSources": {
+      "title": "默认来源",
+      "description": "新会话自动启用的来源",
+      "noSourcesConfigured": "此工作区暂无来源配置。"
+    },
     "advanced": {
       "title": "高级",
       "workingDirectory": {

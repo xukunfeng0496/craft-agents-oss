@@ -505,6 +505,11 @@
       "description": "Select which modes to cycle through with Shift+Tab",
       "error": "At least 2 modes required"
     },
+    "defaultSources": {
+      "title": "Default Sources",
+      "description": "Sources auto-enabled for new sessions",
+      "noSourcesConfigured": "No sources configured in this workspace."
+    },
     "advanced": {
       "title": "Advanced",
       "workingDirectory": {

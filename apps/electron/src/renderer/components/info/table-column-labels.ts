@@ -14,3 +14,13 @@ export function getLabelsTableColumnTitles(headers: {
 }) {
   return headers
 }
+
+export function getAutoRulesTableColumnTitles(headers: {
+  label: string
+  pattern: string
+  flags: string
+  template: string
+  description: string
+}) {
+  return headers
+}

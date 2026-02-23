@@ -1712,24 +1712,24 @@ function AppShellContent({
     if (!activeWorkspace) return
     try {
       await window.electronAPI.deleteSource(activeWorkspace.id, sourceSlug)
-      toast.success(`Deleted source`)
+      toast.success(t('common:toast.sourceDeleted'))
     } catch (error) {
       console.error('[Chat] Failed to delete source:', error)
-      toast.error('Failed to delete source')
+      toast.error(t('common:toast.sourceDeleteFailed'))
     }
-  }, [activeWorkspace])
+  }, [activeWorkspace, t])
 
   // Delete Skill
   const handleDeleteSkill = useCallback(async (skillSlug: string) => {
     if (!activeWorkspace) return
     try {
       await window.electronAPI.deleteSkill(activeWorkspace.id, skillSlug)
-      toast.success(`Deleted skill: ${skillSlug}`)
+      toast.success(t('common:toast.skillDeleted', { name: skillSlug }))
     } catch (error) {
       console.error('[Chat] Failed to delete skill:', error)
-      toast.error('Failed to delete skill')
+      toast.error(t('common:toast.skillDeleteFailed'))
     }
-  }, [activeWorkspace])
+  }, [activeWorkspace, t])
 
   // Respond to menu bar "New Chat" trigger
   const menuTriggerRef = useRef(menuNewChatTrigger)

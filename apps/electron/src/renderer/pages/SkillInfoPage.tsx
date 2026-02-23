@@ -11,6 +11,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { Check, X, Minus } from 'lucide-react'
 import { EditPopover, EditButton, getEditConfig } from '@/components/ui/EditPopover'
 import { toast } from 'sonner'
+import { useTranslation } from 'react-i18next'
 import { SkillMenu } from '@/components/app-shell/SkillMenu'
 import { SkillAvatar } from '@/components/ui/skill-avatar'
 import { routes, navigate } from '@/lib/navigate'
@@ -28,6 +29,7 @@ interface SkillInfoPageProps {
 }
 
 export default function SkillInfoPage({ skillSlug, workspaceId }: SkillInfoPageProps) {
+  const { t } = useTranslation(['common'])
   const [skill, setSkill] = useState<LoadedSkill | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -92,14 +94,14 @@ export default function SkillInfoPage({ skillSlug, workspaceId }: SkillInfoPageP
 
     try {
       await window.electronAPI.deleteSkill(workspaceId, skillSlug)
-      toast.success(`Deleted skill: ${skill.metadata.name}`)
+      toast.success(t('common:skillInfo.deletedToast', { name: skill.metadata.name }))
       navigate(routes.view.skills())
     } catch (err) {
-      toast.error('Failed to delete skill', {
-        description: err instanceof Error ? err.message : 'Unknown error',
+      toast.error(t('common:skillInfo.deleteFailed'), {
+        description: err instanceof Error ? err.message : t('common:unknownError'),
       })
     }
-  }, [skill, workspaceId, skillSlug])
+  }, [skill, workspaceId, skillSlug, t])
 
   // Handle opening in new window
   const handleOpenInNewWindow = useCallback(() => {
@@ -155,7 +157,7 @@ export default function SkillInfoPage({ skillSlug, workspaceId }: SkillInfoPageP
 
           {/* Metadata */}
           <Info_Section
-            title="Metadata"
+            title={t('common:skillInfo.metadataTitle')}
             actions={
               // EditPopover for AI-assisted metadata editing (name, description in frontmatter)
               <EditPopover
@@ -169,12 +171,12 @@ export default function SkillInfoPage({ skillSlug, workspaceId }: SkillInfoPageP
             }
           >
             <Info_Table>
-              <Info_Table.Row label="Slug" value={skill.slug} />
-              <Info_Table.Row label="Name">{skill.metadata.name}</Info_Table.Row>
-              <Info_Table.Row label="Description">
+              <Info_Table.Row label={t('common:skillInfo.slugLabel')} value={skill.slug} />
+              <Info_Table.Row label={t('common:skillInfo.nameLabel')}>{skill.metadata.name}</Info_Table.Row>
+              <Info_Table.Row label={t('common:skillInfo.descriptionLabel')}>
                 {skill.metadata.description}
               </Info_Table.Row>
-              <Info_Table.Row label="Location">
+              <Info_Table.Row label={t('common:skillInfo.locationLabel')}>
                 <button
                   onClick={handleLocationClick}
                   className="hover:underline cursor-pointer text-left"
@@ -187,33 +189,33 @@ export default function SkillInfoPage({ skillSlug, workspaceId }: SkillInfoPageP
 
           {/* Permission Modes */}
           {skill.metadata.alwaysAllow && skill.metadata.alwaysAllow.length > 0 && (
-            <Info_Section title="Permission Modes">
+            <Info_Section title={t('common:skillInfo.permissionModesTitle')}>
               <div className="space-y-2 px-4 py-3">
                 <p className="text-xs text-muted-foreground mb-3">
-                  How "Always Allowed Tools" interacts with permission modes:
+                  {t('common:skillInfo.permissionModesDescription')}
                 </p>
                 <div className="rounded-[8px] border border-border/50 overflow-hidden">
                   <table className="w-full text-sm">
                     <tbody>
                       <tr className="border-b border-border/30">
-                        <td className="px-3 py-2 font-medium text-muted-foreground w-[140px]">Explore</td>
+                        <td className="px-3 py-2 font-medium text-muted-foreground w-[140px]">{t('common:skillInfo.permissionModeExplore')}</td>
                         <td className="px-3 py-2 flex items-center gap-2">
                           <X className="h-3.5 w-3.5 text-destructive shrink-0" />
-                          <span className="text-foreground/80">Blocked — write tools blocked regardless</span>
+                          <span className="text-foreground/80">{t('common:skillInfo.permissionBlocked')}</span>
                         </td>
                       </tr>
                       <tr className="border-b border-border/30">
-                        <td className="px-3 py-2 font-medium text-muted-foreground">Ask to Edit</td>
+                        <td className="px-3 py-2 font-medium text-muted-foreground">{t('common:skillInfo.permissionModeAsk')}</td>
                         <td className="px-3 py-2 flex items-center gap-2">
                           <Check className="h-3.5 w-3.5 text-success shrink-0" />
-                          <span className="text-foreground/80">Auto-approved — no prompts for allowed tools</span>
+                          <span className="text-foreground/80">{t('common:skillInfo.permissionAutoApproved')}</span>
                         </td>
                       </tr>
                       <tr>
-                        <td className="px-3 py-2 font-medium text-muted-foreground">Auto</td>
+                        <td className="px-3 py-2 font-medium text-muted-foreground">{t('common:skillInfo.permissionModeAuto')}</td>
                         <td className="px-3 py-2 flex items-center gap-2">
                           <Minus className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                          <span className="text-foreground/80">No effect — all tools already auto-approved</span>
+                          <span className="text-foreground/80">{t('common:skillInfo.permissionNoEffect')}</span>
                         </td>
                       </tr>
                     </tbody>
@@ -225,7 +227,7 @@ export default function SkillInfoPage({ skillSlug, workspaceId }: SkillInfoPageP
 
           {/* Instructions */}
           <Info_Section
-            title="Instructions"
+            title={t('common:skillInfo.instructionsTitle')}
             actions={
               // EditPopover for AI-assisted editing with "Edit File" as secondary action
               <EditPopover
@@ -239,7 +241,7 @@ export default function SkillInfoPage({ skillSlug, workspaceId }: SkillInfoPageP
             }
           >
             <Info_Markdown maxHeight={540} fullscreen>
-              {skill.content || '*No instructions provided.*'}
+              {skill.content || `*${t('common:skillInfo.noInstructions')}*`}
             </Info_Markdown>
           </Info_Section>
 

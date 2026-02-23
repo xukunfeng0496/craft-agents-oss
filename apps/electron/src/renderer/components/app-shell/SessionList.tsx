@@ -379,6 +379,7 @@ function SessionItem({
   onRangeSelect,
   onFocusZone,
 }: SessionItemProps) {
+  const { t } = useTranslation(['common'])
   const [menuOpen, setMenuOpen] = useState(false)
   const [contextMenuOpen, setContextMenuOpen] = useState(false)
   const [todoMenuOpen, setTodoMenuOpen] = useState(false)
@@ -695,39 +696,39 @@ function SessionItem({
                     <StyledDropdownMenuContent align="start">
                       <StyledDropdownMenuItem onClick={() => window.electronAPI.openUrl(item.sharedUrl!)}>
                         <Globe />
-                        Open in Browser
+                        {t('common:sessionList.share.openInBrowser')}
                       </StyledDropdownMenuItem>
                       <StyledDropdownMenuItem onClick={async () => {
                         await navigator.clipboard.writeText(item.sharedUrl!)
-                        toast.success('Link copied to clipboard')
+                        toast.success(t('common:sessionList.share.linkCopied'))
                       }}>
                         <Copy />
-                        Copy Link
+                        {t('common:sessionList.share.copyLink')}
                       </StyledDropdownMenuItem>
                       <StyledDropdownMenuItem onClick={async () => {
                         const result = await window.electronAPI.sessionCommand(item.id, { type: 'updateShare' })
                         if (result && 'success' in result && result.success) {
-                          toast.success('Share updated')
+                          toast.success(t('common:sessionList.share.updated'))
                         } else {
                           const errorMsg = result && 'error' in result ? result.error : undefined
-                          toast.error('Failed to update share', { description: errorMsg })
+                          toast.error(t('common:sessionList.share.updateFailed'), { description: errorMsg })
                         }
                       }}>
                         <RefreshCw />
-                        Update Share
+                        {t('common:sessionList.share.updateShare')}
                       </StyledDropdownMenuItem>
                       <StyledDropdownMenuSeparator />
                       <StyledDropdownMenuItem onClick={async () => {
                         const result = await window.electronAPI.sessionCommand(item.id, { type: 'revokeShare' })
                         if (result && 'success' in result && result.success) {
-                          toast.success('Sharing stopped')
+                          toast.success(t('common:sessionList.share.stopped'))
                         } else {
                           const errorMsg = result && 'error' in result ? result.error : undefined
-                          toast.error('Failed to stop sharing', { description: errorMsg })
+                          toast.error(t('common:sessionList.share.stopFailed'), { description: errorMsg })
                         }
                       }} variant="destructive">
                         <Link2Off />
-                        Stop Sharing
+                        {t('common:sessionList.share.stopSharing')}
                       </StyledDropdownMenuItem>
                     </StyledDropdownMenuContent>
                   </DropdownMenu>
@@ -1291,60 +1292,60 @@ export function SessionList({
   const handleFlagWithToast = useCallback((sessionId: string) => {
     if (!onFlag) return
     onFlag(sessionId)
-    toast('Session flagged', {
-      description: 'Added to your flagged items',
+    toast(t('common:toast.sessionFlagged'), {
+      description: t('common:toast.sessionFlaggedDescription'),
       action: onUnflag ? {
-        label: 'Undo',
+        label: t('common:undo'),
         onClick: () => onUnflag(sessionId),
       } : undefined,
     })
-  }, [onFlag, onUnflag])
+  }, [onFlag, onUnflag, t])
 
   const handleUnflagWithToast = useCallback((sessionId: string) => {
     if (!onUnflag) return
     onUnflag(sessionId)
-    toast('Flag removed', {
-      description: 'Removed from flagged items',
+    toast(t('common:toast.flagRemoved'), {
+      description: t('common:toast.flagRemovedDescription'),
       action: onFlag ? {
-        label: 'Undo',
+        label: t('common:undo'),
         onClick: () => onFlag(sessionId),
       } : undefined,
     })
-  }, [onFlag, onUnflag])
+  }, [onFlag, onUnflag, t])
 
   const handleArchiveWithToast = useCallback((sessionId: string) => {
     if (!onArchive) return
     onArchive(sessionId)
-    toast('Session archived', {
-      description: 'Moved to archive',
+    toast(t('common:toast.sessionArchived'), {
+      description: t('common:toast.sessionArchivedDescription'),
       action: onUnarchive ? {
-        label: 'Undo',
+        label: t('common:undo'),
         onClick: () => onUnarchive(sessionId),
       } : undefined,
     })
-  }, [onArchive, onUnarchive])
+  }, [onArchive, onUnarchive, t])
 
   const handleUnarchiveWithToast = useCallback((sessionId: string) => {
     if (!onUnarchive) return
     onUnarchive(sessionId)
-    toast('Session restored', {
-      description: 'Moved from archive',
+    toast(t('common:toast.sessionRestored'), {
+      description: t('common:toast.sessionRestoredDescription'),
       action: onArchive ? {
-        label: 'Undo',
+        label: t('common:undo'),
         onClick: () => onArchive(sessionId),
       } : undefined,
     })
-  }, [onArchive, onUnarchive])
+  }, [onArchive, onUnarchive, t])
 
   const handleDeleteWithToast = useCallback(async (sessionId: string): Promise<boolean> => {
     // Confirmation dialog is shown by handleDeleteSession in App.tsx
     // We await so toast only shows after successful deletion (if user confirmed)
     const deleted = await onDelete(sessionId)
     if (deleted) {
-      toast('Session deleted')
+      toast(t('common:toast.sessionDeleted'))
     }
     return deleted
-  }, [onDelete])
+  }, [onDelete, t])
 
   // Keyboard eligibility: determines when SessionList handles global keyboard shortcuts.
   // Two modes are supported:
@@ -1732,11 +1733,11 @@ export function SessionList({
       <RenameDialog
         open={renameDialogOpen}
         onOpenChange={setRenameDialogOpen}
-        title="Rename Session"
+        title={listLabels.renameConversation}
         value={renameName}
         onValueChange={setRenameName}
         onSubmit={handleRenameSubmit}
-        placeholder="Enter session name..."
+        placeholder={listLabels.renamePlaceholder}
       />
     </div>
   )

@@ -111,7 +111,7 @@ jobs:
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
       - name: Delete existing release
-        run: gh release delete "v${{ steps.version.outputs.version }}-cvte" --yes --cleanup-tag || true
+        run: gh release delete "v${{ steps.version.outputs.version }}" --yes --cleanup-tag || true
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -132,7 +132,7 @@ jobs:
 
           ---
 
-          ## v0.5.2 更新内容
+          ## v${VERSION} 更新内容
 
           ### 性能优化
           - **macOS 省电**：窗口隐藏时降低 GPU 渲染频率，减少后台能耗
@@ -146,14 +146,14 @@ jobs:
 
           ---
 
-          Built from [craft-agents-oss](https://github.com/xukunfeng0496/craft-agents-oss) · Apache 2.0
+          Work Agents · Apache 2.0
           EOF
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v${{ steps.version.outputs.version }}-cvte
-          name: v${{ steps.version.outputs.version }} (CVTE Build)
+          tag_name: v${{ steps.version.outputs.version }}
+          name: v${{ steps.version.outputs.version }}
           body_path: .release-notes.md
           files: artifacts/**/*
           draft: false

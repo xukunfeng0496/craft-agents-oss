@@ -56,6 +56,67 @@ function isApiMessagesUrl(url: string): boolean {
 }
 
 /**
+ * Check if URL belongs to the configured API provider (any endpoint, not just /messages).
+ */
+function isApiUrl(url: string): boolean {
+  const baseUrl = getConfiguredBaseUrl();
+  return url.startsWith(baseUrl);
+}
+
+/**
+ * Resolve conflicting auth headers on API requests.
+ *
+ * The Claude Agent SDK subprocess may independently read OAuth tokens from the
+ * macOS Keychain (from a previous `claude login`), even when the user has
+ * configured a custom API endpoint with an API key. This causes both
+ * `x-api-key` and `Authorization: Bearer` to be sent on the same request,
+ * which many API gateways reject as ambiguous authentication.
+ *
+ * Fix: use the env-var–based auth intent set by reinitializeAuth() as the
+ * source of truth and strip the conflicting header.
+ */
+function resolveConflictingAuthHeaders(headers: HeadersInitType | undefined): HeadersInitType | undefined {
+  if (!headers) return headers;
+
+  // Normalize to a mutable Record
+  let headerObj: Record<string, string>;
+  if (headers instanceof Headers) {
+    headerObj = {};
+    headers.forEach((value, key) => { headerObj[key.toLowerCase()] = value; });
+  } else if (Array.isArray(headers)) {
+    headerObj = {};
+    for (const [key, value] of headers) {
+      headerObj[(key as string).toLowerCase()] = value as string;
+    }
+  } else {
+    headerObj = {};
+    for (const [key, value] of Object.entries(headers)) {
+      headerObj[key.toLowerCase()] = value;
+    }
+  }
+
+  const hasApiKey = !!headerObj['x-api-key'];
+  const hasBearer = !!headerObj['authorization']?.toLowerCase().startsWith('bearer ');
+
+  if (!hasApiKey || !hasBearer) return headers;
+
+  // Both present — resolve based on env-var intent
+  if (process.env.ANTHROPIC_API_KEY) {
+    // User intends API key auth → strip the Keychain-sourced Bearer token
+    delete headerObj['authorization'];
+    debugLog('[Auth Conflict] Stripped conflicting Authorization header (ANTHROPIC_API_KEY is set)');
+  } else if (process.env.CLAUDE_CODE_OAUTH_TOKEN) {
+    // User intends OAuth auth → strip the stale API key
+    delete headerObj['x-api-key'];
+    debugLog('[Auth Conflict] Stripped conflicting x-api-key header (CLAUDE_CODE_OAUTH_TOKEN is set)');
+  } else {
+    debugLog('[Auth Conflict] Both x-api-key and Authorization headers present but no env-var auth intent found — passing through unchanged');
+  }
+
+  return headerObj;
+}
+
+/**
  * Add _intent and _displayName fields to all tool schemas in Anthropic API request.
  * Returns the modified request body object.
  *
@@ -657,6 +718,11 @@ async function interceptedFetch(
 
   const startTime = Date.now();
 
+  // Resolve conflicting auth headers (SDK may read both API key from env and
+  // OAuth token from macOS Keychain, causing dual-auth 401 errors on proxies)
+  if (isApiUrl(url) && init) {
+    init = { ...init, headers: resolveConflictingAuthHeaders(init.headers as HeadersInitType | undefined) };
+  }
 
   // Log all requests as cURL commands
   if (DEBUG) {

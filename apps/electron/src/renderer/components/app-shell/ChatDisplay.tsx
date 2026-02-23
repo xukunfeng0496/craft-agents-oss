@@ -39,6 +39,7 @@ import {
 } from "@work-agent/ui"
 import { useFocusZone } from "@/hooks/keyboard"
 import { useTheme } from "@/hooks/useTheme"
+import { usePageVisible } from "@/hooks/usePageVisible"
 import type { Session, Message, FileAttachment, StoredAttachment, PermissionRequest, CredentialRequest, CredentialResponse, UserQuestionRequest, UserQuestionResponse, LoadedSource, LoadedSkill } from "../../../shared/types"
 import type { PermissionMode } from "@work-agent/shared/agent/modes"
 import type { ThinkingLevel } from "@work-agent/shared/agent/thinking-levels"
@@ -285,22 +286,29 @@ function ProcessingIndicator({ startTime, statusMessage }: ProcessingIndicatorPr
   const [messageIndex, setMessageIndex] = React.useState(() =>
     Math.floor(Math.random() * PROCESSING_MESSAGES.length)
   )
+  const isPageVisible = usePageVisible()
 
   // Update elapsed time every second using provided startTime
+  // When page is hidden, clear interval to avoid CPU wake-ups.
+  // On becoming visible again, immediately recalculate elapsed from startTime.
   React.useEffect(() => {
     const start = startTime || Date.now()
     // Set initial elapsed immediately
     setElapsed(Math.floor((Date.now() - start) / 1000))
 
+    if (!isPageVisible) return
+
     const interval = setInterval(() => {
       setElapsed(Math.floor((Date.now() - start) / 1000))
     }, 1000)
     return () => clearInterval(interval)
-  }, [startTime])
+  }, [startTime, isPageVisible])
 
   // Cycle through messages every 10 seconds (only when not showing status)
+  // Paused when page is hidden to avoid unnecessary work.
   React.useEffect(() => {
     if (statusMessage) return  // Don't cycle when showing status
+    if (!isPageVisible) return
     const interval = setInterval(() => {
       setMessageIndex(prev => {
         // Pick a random different message
@@ -312,7 +320,7 @@ function ProcessingIndicator({ startTime, statusMessage }: ProcessingIndicatorPr
       })
     }, 10000)
     return () => clearInterval(interval)
-  }, [statusMessage])
+  }, [statusMessage, isPageVisible])
 
   // Use status message if provided, otherwise cycle through default messages
   const displayMessage = statusMessage || PROCESSING_MESSAGES[messageIndex]

@@ -1,6 +1,7 @@
 import * as React from 'react'
 import { PulsingBorder } from '@paper-design/shaders-react'
 import { motion, AnimatePresence } from 'motion/react'
+import { usePageVisible } from '@/hooks/usePageVisible'
 
 interface UltrathinkGlowProps {
   /** Whether the glow is active */
@@ -19,6 +20,7 @@ interface UltrathinkGlowProps {
  * Uses absolute positioning to fill parent container.
  */
 export function UltrathinkGlow({ enabled, width = 600, height = 120 }: UltrathinkGlowProps) {
+  const isPageVisible = usePageVisible()
   // Calculate roundness based on 8px corner radius relative to the shorter dimension
   // The shader's roundness is a 0-1 ratio where the value represents corner radius / (shorter dimension / 2)
   const cornerRadiusPx = 8
@@ -26,7 +28,7 @@ export function UltrathinkGlow({ enabled, width = 600, height = 120 }: Ultrathin
   const roundness = (cornerRadiusPx / (shorterDimension / 2))
   return (
     <AnimatePresence>
-      {enabled && (
+      {enabled && isPageVisible && (
         <motion.div
           className="absolute inset-0 overflow-hidden rounded-[8px] pointer-events-none"
           initial={{ opacity: 0 }}

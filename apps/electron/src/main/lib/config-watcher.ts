@@ -56,8 +56,8 @@ const CONFIG_DIR = join(homedir(), '.workagent');
 const CONFIG_FILE = join(CONFIG_DIR, 'config.json');
 const PREFERENCES_FILE = join(CONFIG_DIR, 'preferences.json');
 
-// Debounce delay in milliseconds
-const DEBOUNCE_MS = 100;
+// Debounce delay in milliseconds — 300ms is well below human perception for config edits
+const DEBOUNCE_MS = 300;
 
 // ============================================================
 // Types

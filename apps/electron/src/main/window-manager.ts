@@ -178,12 +178,13 @@ export class WindowManager {
     if (restoreUrl) {
       // Restore from saved URL - need to adapt for dev vs prod
       if (VITE_DEV_SERVER_URL) {
-        // In dev mode, replace the base URL but keep the path and query
+        // In dev mode, extract only the query params from the saved URL
+        // and rebuild using the dev server base. Never preserve the pathname
+        // because a saved file:// or prod URL path is invalid for Vite.
         try {
           const savedUrl = new URL(restoreUrl)
           const devUrl = new URL(VITE_DEV_SERVER_URL)
-          // Preserve pathname and search from saved URL, use dev server host
-          devUrl.pathname = savedUrl.pathname
+          // Only carry over search params (workspaceId, focused, etc.)
           devUrl.search = savedUrl.search
           window.loadURL(devUrl.toString())
         } catch {

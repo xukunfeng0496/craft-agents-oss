@@ -62,7 +62,29 @@ export default defineConfig({
     exclude: ['@work-agent/ui'],
     esbuildOptions: {
       supported: { 'top-level-await': true },
-      target: 'esnext'
+      target: 'esnext',
+      plugins: [
+        {
+          // electron-log's node transports reference Node.js built-ins (https, fs, etc.)
+          // which can't be resolved in the browser context during Vite dep pre-bundling.
+          // Stub them out so esbuild can finish bundling electron-log/renderer.
+          name: 'node-builtins-external',
+          setup(build) {
+            const builtins = new Set([
+              'https', 'http', 'fs', 'path', 'os', 'util', 'events',
+              'stream', 'electron', 'original-fs', 'child_process', 'net',
+            ])
+            build.onResolve({ filter: /.*/ }, (args) => {
+              if (builtins.has(args.path)) {
+                return { path: args.path, namespace: 'node-builtin-stub' }
+              }
+            })
+            build.onLoad({ filter: /.*/, namespace: 'node-builtin-stub' }, () => {
+              return { contents: 'export default {}', loader: 'js' }
+            })
+          },
+        },
+      ],
     }
   },
   server: {

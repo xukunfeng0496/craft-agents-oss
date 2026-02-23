@@ -1572,6 +1572,11 @@ function AppShellContent({
     navigate(routes.view.settings(subpage))
   }, [])
 
+  // Handler for "What's New" sidebar item — no dedicated page yet, so no-op
+  const handleWhatsNewClick = useCallback(() => {
+    // TODO: open a What's New / Release Notes dialog when implemented
+  }, [])
+
   // ============================================================================
   // EDIT POPOVER STATE
   // ============================================================================

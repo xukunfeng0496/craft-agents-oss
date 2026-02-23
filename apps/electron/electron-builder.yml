@@ -81,12 +81,12 @@ mac:
     - "!**/vendor/copilot/linux-*/**"
     - "!**/vendor/copilot/win32-*/**"
   # Use predictable naming for macOS packages (applies to zip; dmg uses its own config below)
-  artifactName: "Work-Agent-osx-${arch}.${ext}"
+  artifactName: "Work-Agent-${version}-osx-${arch}.${ext}"
   # Code signing and notarization disabled
 
 dmg:
   # Use predictable naming: Work-Agent-osx-arm64.dmg, Work-Agent-osx-x64.dmg
-  artifactName: "Work-Agent-osx-${arch}.dmg"
+  artifactName: "Work-Agent-${version}-osx-${arch}.dmg"
   # Custom background (multi-resolution TIFF with 1x+2x for retina support)
   background: resources/dmg-background.tiff
   # Use app icon as the mounted volume icon in Finder
@@ -111,7 +111,7 @@ win:
       arch:
         - x64
   # Use predictable naming: Work-Agent-windows-x64.exe
-  artifactName: "Work-Agent-windows-${arch}.${ext}"
+  artifactName: "Work-Agent-${version}-windows-${arch}.${ext}"
   files:
     # Exclude binaries for other platforms
     - "!**/vendor/codex/darwin-*/**"
@@ -158,7 +158,7 @@ linux:
     - target: AppImage
       arch:
         - x64
-  artifactName: "Work-Agent-linux-${arch}.${ext}"
+  artifactName: "Work-Agent-${version}-linux-${arch}.${ext}"
   extraResources:
     - from: node_modules/@anthropic-ai/claude-agent-sdk
       to: app/node_modules/@anthropic-ai/claude-agent-sdk

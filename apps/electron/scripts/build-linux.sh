@@ -143,6 +143,9 @@ cd "$ELECTRON_DIR"
 npx electron-builder --linux --${ARCH} --publish never
 
 # 8. Verify the AppImage was built
+# Read version from package.json
+ELECTRON_VERSION=$(cat "$ELECTRON_DIR/package.json" | grep '"version"' | head -1 | sed 's/.*"version": *"\([^"]*\)".*/\1/')
+
 # electron-builder uses Linux-style arch names: x86_64 for x64, aarch64 for arm64
 if [ "$ARCH" = "x64" ]; then
     LINUX_ARCH="x86_64"
@@ -150,8 +153,8 @@ else
     LINUX_ARCH="aarch64"
 fi
 
-# electron-builder outputs: Work-Agent-linux-x86_64.AppImage (uses native arch names)
-BUILT_APPIMAGE_NAME="Work-Agent-linux-${LINUX_ARCH}.AppImage"
+# electron-builder outputs: Work-Agent-${version}-linux-x86_64.AppImage (uses native arch names)
+BUILT_APPIMAGE_NAME="Work-Agent-${ELECTRON_VERSION}-linux-${LINUX_ARCH}.AppImage"
 BUILT_APPIMAGE_PATH="$ELECTRON_DIR/release/$BUILT_APPIMAGE_NAME"
 
 if [ ! -f "$BUILT_APPIMAGE_PATH" ]; then
@@ -161,8 +164,8 @@ if [ ! -f "$BUILT_APPIMAGE_PATH" ]; then
     exit 1
 fi
 
-# Rename to standard naming convention: Work-Agent-linux-x64.AppImage
-APPIMAGE_NAME="Work-Agent-linux-${ARCH}.AppImage"
+# Rename to standard naming convention: Work-Agent-${version}-linux-x64.AppImage
+APPIMAGE_NAME="Work-Agent-${ELECTRON_VERSION}-linux-${ARCH}.AppImage"
 APPIMAGE_PATH="$ELECTRON_DIR/release/$APPIMAGE_NAME"
 mv "$BUILT_APPIMAGE_PATH" "$APPIMAGE_PATH"
 echo "Renamed $BUILT_APPIMAGE_NAME -> $APPIMAGE_NAME"
@@ -173,8 +176,6 @@ echo "AppImage: $ELECTRON_DIR/release/${APPIMAGE_NAME}"
 echo "Size: $(du -h "$ELECTRON_DIR/release/${APPIMAGE_NAME}" | cut -f1)"
 
 # 9. Create manifest.json for upload script
-# Read version from package.json
-ELECTRON_VERSION=$(cat "$ELECTRON_DIR/package.json" | grep '"version"' | head -1 | sed 's/.*"version": *"\([^"]*\)".*/\1/')
 echo "Creating manifest.json (version: $ELECTRON_VERSION)..."
 mkdir -p "$ROOT_DIR/.build/upload"
 echo "{\"version\": \"$ELECTRON_VERSION\"}" > "$ROOT_DIR/.build/upload/manifest.json"

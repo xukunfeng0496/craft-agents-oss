@@ -161,8 +161,10 @@ export CSC_IDENTITY="-"
 npx electron-builder --mac --${ARCH} --publish never
 
 # 8. Verify the DMG was built
-# electron-builder.yml uses artifactName to output: Work-Agent-${arch}.dmg
-DMG_NAME="Work-Agent-osx-${ARCH}.dmg"
+# Read version from package.json
+ELECTRON_VERSION=$(cat "$ELECTRON_DIR/package.json" | grep '"version"' | head -1 | sed 's/.*"version": *"\([^"]*\)".*/\1/')
+# electron-builder.yml uses artifactName to output: Work-Agent-${version}-osx-${arch}.dmg
+DMG_NAME="Work-Agent-${ELECTRON_VERSION}-osx-${ARCH}.dmg"
 DMG_PATH="$ELECTRON_DIR/release/$DMG_NAME"
 
 if [ ! -f "$DMG_PATH" ]; then
@@ -179,8 +181,6 @@ echo "DMG: $ELECTRON_DIR/release/${DMG_NAME}"
 echo "Size: $(du -h "$ELECTRON_DIR/release/${DMG_NAME}" | cut -f1)"
 
 # 9. Create manifest.json for upload script
-# Read version from package.json
-ELECTRON_VERSION=$(cat "$ELECTRON_DIR/package.json" | grep '"version"' | head -1 | sed 's/.*"version": *"\([^"]*\)".*/\1/')
 echo "Creating manifest.json (version: $ELECTRON_VERSION)..."
 mkdir -p "$ROOT_DIR/.build/upload"
 echo "{\"version\": \"$ELECTRON_VERSION\"}" > "$ROOT_DIR/.build/upload/manifest.json"

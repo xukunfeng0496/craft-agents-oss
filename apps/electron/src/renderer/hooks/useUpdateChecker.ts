@@ -20,6 +20,8 @@ interface UseUpdateCheckerResult {
   updateAvailable: boolean
   /** Whether update is currently downloading */
   isDownloading: boolean
+  /** Whether download progress is indeterminate (no percentage available) */
+  isIndeterminate: boolean
   /** Whether update is ready to install */
   isReadyToInstall: boolean
   /** Download progress (0-100) */
@@ -54,9 +56,12 @@ export function useUpdateChecker(): UseUpdateCheckerResult {
         label: 'Restart',
         onClick: onInstall,
       },
-      onDismiss: () => {
-        // Persist dismissal so we don't show again after app restart
-        window.electronAPI.dismissUpdate(version)
+      cancel: {
+        label: 'Later',
+        onClick: () => {
+          // Only persist dismissal on explicit user action (not auto-timeout)
+          window.electronAPI.dismissUpdate(version)
+        },
       },
     })
   }, [])
@@ -146,6 +151,8 @@ export function useUpdateChecker(): UseUpdateCheckerResult {
     updateInfo,
     updateAvailable: updateInfo?.available ?? false,
     isDownloading: updateInfo?.downloadState === 'downloading',
+    isIndeterminate: updateInfo?.downloadState === 'downloading' &&
+      (updateInfo?.supportsProgress === false || updateInfo?.downloadProgress === -1),
     isReadyToInstall: updateInfo?.downloadState === 'ready',
     downloadProgress: updateInfo?.downloadProgress ?? 0,
     checkForUpdates,

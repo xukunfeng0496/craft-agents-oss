@@ -21,9 +21,8 @@ Sentry.init({
   dsn: process.env.SENTRY_ELECTRON_INGEST_URL,
   environment: app.isPackaged ? 'production' : 'development',
   release: app.getVersion(),
-  // Enabled whenever the ingest URL is available — works in both production (baked via CI)
-  // and development (injected via .env / 1Password). Filter by environment in Sentry dashboard.
-  enabled: !!process.env.SENTRY_ELECTRON_INGEST_URL,
+  // Only enable in production (packaged) builds to avoid noise during development
+  enabled: app.isPackaged && !!process.env.SENTRY_ELECTRON_INGEST_URL,
 
   // Scrub sensitive data before sending to Sentry.
   // Removes authorization headers, API keys/tokens, and credential-like values.
@@ -413,7 +412,7 @@ let isQuitting = false
 
 // Save window state and clean up resources before quitting
 app.on('before-quit', async (event) => {
-  // Avoid re-entry when we call app.exit()
+  // Avoid re-entry when we call app.quit() below (it re-emits before-quit)
   if (isQuitting) return
   isQuitting = true
 
@@ -436,6 +435,18 @@ app.on('before-quit', async (event) => {
 
   // Flush all pending session writes before quitting
   if (sessionManager) {
+    // If update is in progress, don't block the quit — let electron-updater
+    // handle the restart. Blocking with event.preventDefault() breaks quitAndInstall().
+    if (isUpdating()) {
+      mainLog.info('Update in progress, letting electron-updater handle quit')
+      // Best-effort session flush (non-blocking)
+      sessionManager.flushAllSessions().catch(err => {
+        mainLog.error('Failed to flush sessions during update:', err)
+      })
+      sessionManager.cleanup()
+      return
+    }
+
     // Prevent quit until sessions are flushed
     event.preventDefault()
     try {
@@ -454,16 +465,11 @@ app.on('before-quit', async (event) => {
     const { cleanup: cleanupPowerManager } = await import('./power-manager')
     cleanupPowerManager()
 
-    // If update is in progress, let electron-updater handle the quit flow
-    // Force exit breaks the NSIS installer on Windows
-    if (isUpdating()) {
-      mainLog.info('Update in progress, letting electron-updater handle quit')
-      app.quit()
-      return
-    }
-
-    // Now actually quit
-    app.exit(0)
+    // Now actually quit — use app.quit() instead of app.exit(0) so the full
+    // quit lifecycle runs (will-quit, quit). This allows electron-updater's
+    // autoInstallOnAppQuit handler to fire and install pending updates.
+    // The isQuitting guard above prevents re-entry into this handler.
+    app.quit()
   }
 })
 

@@ -1278,7 +1278,7 @@ export interface UpdateInfo {
   downloadState: 'idle' | 'downloading' | 'ready' | 'installing' | 'error'
   /** Download progress (0-100, or -1 for indeterminate on macOS) */
   downloadProgress: number
-  /** Whether this platform supports download progress events (false on macOS) */
+  /** Whether this platform supports download progress events (electron-updater v6.8.0+) */
   supportsProgress: boolean
   /** Error message if download/install failed */
   error?: string

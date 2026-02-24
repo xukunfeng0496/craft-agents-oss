@@ -44,7 +44,10 @@ const IS_WINDOWS = PLATFORM === 'win32'
 function getUpdateCacheDir(): string {
   // electron-updater sanitizes the app name by removing '/' characters
   // We need to use the package name, not the product name (app.getName() returns productName)
-  const sanitizedAppName = '@work-agentelectron'
+  // Derive dynamically to stay in sync if the package name ever changes
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const pkgName: string = require('../../package.json').name
+  const sanitizedAppName = pkgName.replace(/\//g, '')
   if (IS_MAC) {
     return path.join(app.getPath('home'), 'Library', 'Caches', `${sanitizedAppName}-updater`, 'pending')
   } else if (IS_WINDOWS) {
@@ -64,6 +67,7 @@ let updateInfo: UpdateInfo = {
   latestVersion: null,
   downloadState: 'idle',
   downloadProgress: 0,
+  supportsProgress: true, // electron-updater v6.8.0+ supports progress on all platforms
 }
 
 let windowManager: WindowManager | null = null

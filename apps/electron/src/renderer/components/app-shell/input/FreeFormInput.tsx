@@ -937,15 +937,29 @@ export function FreeFormInput({
     e.stopPropagation()
   }
 
-  // Helper to read a File using FileReader API
+  // File size threshold for converting to path reference instead of inline content
+  // 20MB chosen as balance: large enough for most images/PDFs, small enough to avoid UI jank
+  // Must match MAX_FILE_SIZE in packages/shared/src/utils/files.ts
+  const MAX_EMBED_SIZE = 20 * 1024 * 1024 // 20MB
+
+  // Chunk size for base64 encoding - balances call stack depth and iteration overhead
+  const BASE64_CHUNK_SIZE = 8192
+
+  // Helper to read a File using FileReader API and convert to FileAttachment
+  // Note: Caller should check file.size <= MAX_EMBED_SIZE before calling to avoid memory issues
   const readFileAsAttachment = async (file: File, overrideName?: string): Promise<FileAttachment | null> => {
     return new Promise((resolve) => {
       const reader = new FileReader()
       reader.onload = async () => {
         const result = reader.result as ArrayBuffer
-        const base64 = btoa(
-          new Uint8Array(result).reduce((data, byte) => data + String.fromCharCode(byte), '')
-        )
+        // Use a more efficient base64 conversion approach
+        // Instead of O(n²) reduce with string concatenation, use chunked processing
+        const bytes = new Uint8Array(result)
+        let binary = ''
+        for (let i = 0; i < bytes.length; i += BASE64_CHUNK_SIZE) {
+          binary += String.fromCharCode(...bytes.subarray(i, i + BASE64_CHUNK_SIZE))
+        }
+        const base64 = btoa(binary)
 
         let type: FileAttachment['type'] = 'unknown'
         const fileName = overrideName || file.name
@@ -1012,8 +1026,17 @@ export function FreeFormInput({
     })
 
     for (let i = 0; i < files.length; i++) {
+      const file = files[i]
+      // Check if file is too large for inline embedding
+      if (file.size > MAX_EMBED_SIZE) {
+        // Clipboard files don't have paths, so we can't reference them
+        toast.error(`File too large to paste: ${fileNames[i]} (${Math.round(file.size / 1024 / 1024)}MB). Try dragging the file instead.`)
+        setLoadingCount(prev => prev - 1)
+        continue
+      }
+
       try {
-        const attachment = await readFileAsAttachment(files[i], fileNames[i])
+        const attachment = await readFileAsAttachment(file, fileNames[i])
         if (attachment) {
           setAttachments(prev => [...prev, attachment])
         }
@@ -1052,7 +1075,33 @@ export function FreeFormInput({
     setLoadingCount(files.length)
 
     for (const file of files) {
-      const filePath = (file as File & { path?: string }).path
+      // Try to get file path using webUtils.getPathForFile (more reliable than file.path)
+      let filePath: string | null = null
+      if (hasElectronAPI) {
+        filePath = window.electronAPI.getPathForFile(file)
+      }
+      // Fallback to file.path property (may not be available in all cases)
+      if (!filePath) {
+        filePath = (file as File & { path?: string }).path || null
+      }
+
+      // Check if file is too large for inline embedding
+      if (file.size > MAX_EMBED_SIZE) {
+        // Large file: convert to path reference instead of embedding
+        if (filePath) {
+          // Insert file path reference into input
+          const fileRef = `[file:${filePath}]`
+          setInput(prev => prev ? `${prev} ${fileRef}` : fileRef)
+          toast.info(`Large file added as path reference: ${file.name}`)
+        } else {
+          // No path available (e.g., from browser drag)
+          toast.error(`File too large to embed and no path available: ${file.name} (${Math.round(file.size / 1024 / 1024)}MB)`)
+        }
+        setLoadingCount(prev => prev - 1)
+        continue
+      }
+
+      // Small file: try IPC path first, then fallback to FileReader
       if (filePath && hasElectronAPI) {
         try {
           const attachment = await window.electronAPI.readFileAttachment(filePath)

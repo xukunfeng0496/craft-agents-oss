@@ -479,7 +479,12 @@
       "directory": "文件夹",
       "clickExpand": "点击展开",
       "clickReveal": "点击查看",
-      "doubleClickOpen": "双击打开"
+      "doubleClickOpen": "双击打开",
+      "contextMenu": {
+        "open": "打开",
+        "copyPath": "复制路径",
+        "openFolder": "打开文件夹"
+      }
     },
     "history": {
       "comingSoon": "历史面板 - 即将上线"

@@ -269,6 +269,7 @@ export default function App() {
   const DRAFT_SAVE_DEBOUNCE_MS = 500
 
   const resolveDefaultConnectionSlug = useCallback((connections: LlmConnectionWithStatus[]) => {
+    if (connections.length === 0) return undefined
     return connections.find(c => c.isDefault)?.slug ?? connections[0]?.slug
   }, [])
 

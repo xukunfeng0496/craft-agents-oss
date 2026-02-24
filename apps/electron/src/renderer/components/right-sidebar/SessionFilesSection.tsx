@@ -16,13 +16,20 @@
 import * as React from 'react'
 import { useState, useEffect, useCallback, useRef, memo } from 'react'
 import { AnimatePresence, motion, type Variants } from 'motion/react'
-import { File, Folder, FolderOpen, FileText, Image, FileCode, ChevronRight, FileSpreadsheet, FileArchive, Globe, Presentation, BookOpen, Video, Music } from 'lucide-react'
+import { File, Folder, FolderOpen, FileText, Image, FileCode, ChevronRight, FileSpreadsheet, FileArchive, Globe, Presentation, BookOpen, Video, Music, ExternalLink, Copy } from 'lucide-react'
 import type { SessionFile } from '../../../shared/types'
 import { cn } from '@/lib/utils'
 import * as storage from '@/lib/local-storage'
 import { useAppShellContext } from '@/context/AppShellContext'
 import { useTranslation } from 'react-i18next'
 import { getSessionFilesLabels } from './session-files-labels'
+import {
+  ContextMenu,
+  ContextMenuTrigger,
+  StyledContextMenuContent,
+  StyledContextMenuItem,
+  StyledContextMenuSeparator,
+} from '@/components/ui/styled-context-menu'
 
 /**
  * Stagger animation variants for child items - matches LeftSidebar pattern
@@ -214,6 +221,8 @@ interface FileTreeItemProps {
   onToggleExpand: (path: string) => void
   onFileClick: (file: SessionFile) => void
   onFileDoubleClick: (file: SessionFile) => void
+  onContextMenuCopyPath: (path: string) => void
+  onContextMenuOpenFolder: (file: SessionFile) => void
   /** Whether this item is inside an expanded folder (for stagger animation) */
   isNested?: boolean
 }
@@ -232,6 +241,8 @@ function FileTreeItem({
   onToggleExpand,
   onFileClick,
   onFileDoubleClick,
+  onContextMenuCopyPath,
+  onContextMenuOpenFolder,
   isNested,
 }: FileTreeItemProps) {
   const isDirectory = file.type === 'directory'
@@ -262,53 +273,72 @@ function FileTreeItem({
 
   // The button element for the file/folder item
   const buttonElement = (
-    <button
-      type="button"
-      onClick={handleClick}
-      onDoubleClick={handleDoubleClick}
-      className={cn(
-        // Base styles matching LeftSidebar exactly
-        // min-w-0 and overflow-hidden required for truncation to work in grid context
-        "group flex w-full min-w-0 overflow-hidden items-center gap-2 rounded-[6px] py-[5px] text-[13px] select-none outline-none text-left",
-        "focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring",
-        "hover:bg-sidebar-hover transition-colors",
-        // Same padding for all items - nested indentation handled by container
-        "px-2"
-      )}
-      title={`${file.path}\n${file.type === 'file' ? formatFileSize(file.size) : labels.directory}\n\n${hasChildren ? labels.clickExpand : labels.clickReveal}, ${labels.doubleClickOpen}`}
-    >
-      {/* Icon container with hover-revealed chevron for expandable items */}
-      <span className="relative h-3.5 w-3.5 shrink-0 flex items-center justify-center">
-        {hasChildren ? (
-          <>
-            {/* Main icon - hidden on hover */}
-            <span className="absolute inset-0 flex items-center justify-center group-hover:opacity-0 transition-opacity duration-150">
-              {getFileIcon(file, isExpanded)}
-            </span>
-            {/* Toggle chevron - shown on hover */}
-            <button
-              type="button"
-              className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-150 cursor-pointer"
-              onClick={handleChevronClick}
-            >
-              <ChevronRight
-                className={cn(
-                  "h-3.5 w-3.5 text-muted-foreground transition-transform duration-200",
-                  isExpanded && "rotate-90"
-                )}
-              />
-            </button>
-          </>
-        ) : (
-          /* Non-directory files: show thumbnail preview for previewable types,
-             with cross-fade from icon. Falls back to icon for unsupported types. */
-          <FileThumbnail file={file} />
-        )}
-      </span>
+    <ContextMenu>
+      <ContextMenuTrigger asChild>
+        <button
+          type="button"
+          onClick={handleClick}
+          onDoubleClick={handleDoubleClick}
+          className={cn(
+            // Base styles matching LeftSidebar exactly
+            // min-w-0 and overflow-hidden required for truncation to work in grid context
+            "group flex w-full min-w-0 overflow-hidden items-center gap-2 rounded-[6px] py-[5px] text-[13px] select-none outline-none text-left",
+            "focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring",
+            "hover:bg-sidebar-hover transition-colors",
+            // Same padding for all items - nested indentation handled by container
+            "px-2"
+          )}
+          title={`${file.path}\n${file.type === 'file' ? formatFileSize(file.size) : labels.directory}\n\n${hasChildren ? labels.clickExpand : labels.clickReveal}, ${labels.doubleClickOpen}`}
+        >
+          {/* Icon container with hover-revealed chevron for expandable items */}
+          <span className="relative h-3.5 w-3.5 shrink-0 flex items-center justify-center">
+            {hasChildren ? (
+              <>
+                {/* Main icon - hidden on hover */}
+                <span className="absolute inset-0 flex items-center justify-center group-hover:opacity-0 transition-opacity duration-150">
+                  {getFileIcon(file, isExpanded)}
+                </span>
+                {/* Toggle chevron - shown on hover */}
+                <button
+                  type="button"
+                  className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-150 cursor-pointer"
+                  onClick={handleChevronClick}
+                >
+                  <ChevronRight
+                    className={cn(
+                      "h-3.5 w-3.5 text-muted-foreground transition-transform duration-200",
+                      isExpanded && "rotate-90"
+                    )}
+                  />
+                </button>
+              </>
+            ) : (
+              /* Non-directory files: show thumbnail preview for previewable types,
+                 with cross-fade from icon. Falls back to icon for unsupported types. */
+              <FileThumbnail file={file} />
+            )}
+          </span>
 
-      {/* File/folder name - min-w-0 required for truncate to work in flex container */}
-      <span className="flex-1 min-w-0 truncate">{file.name}</span>
-    </button>
+          {/* File/folder name - min-w-0 required for truncate to work in flex container */}
+          <span className="flex-1 min-w-0 truncate">{file.name}</span>
+        </button>
+      </ContextMenuTrigger>
+      <StyledContextMenuContent>
+        <StyledContextMenuItem onSelect={() => onFileDoubleClick(file)}>
+          <ExternalLink />
+          {labels.contextMenuOpen}
+        </StyledContextMenuItem>
+        <StyledContextMenuSeparator />
+        <StyledContextMenuItem onSelect={() => onContextMenuCopyPath(file.path)}>
+          <Copy />
+          {labels.contextMenuCopyPath}
+        </StyledContextMenuItem>
+        <StyledContextMenuItem onSelect={() => onContextMenuOpenFolder(file)}>
+          <FolderOpen />
+          {labels.contextMenuOpenFolder}
+        </StyledContextMenuItem>
+      </StyledContextMenuContent>
+    </ContextMenu>
   )
 
   // Inner content: button and expandable children (wrapped in group/section like LeftSidebar)
@@ -349,6 +379,8 @@ function FileTreeItem({
                         onToggleExpand={onToggleExpand}
                         onFileClick={onFileClick}
                         onFileDoubleClick={onFileDoubleClick}
+                        onContextMenuCopyPath={onContextMenuCopyPath}
+                        onContextMenuOpenFolder={onContextMenuOpenFolder}
                         isNested={true}
                       />
                     </motion.div>
@@ -472,6 +504,21 @@ export function SessionFilesSection({ sessionId, className }: SessionFilesSectio
     }
   }, [onOpenFile])
 
+  // Context menu: copy path to clipboard
+  const handleContextMenuCopyPath = useCallback((path: string) => {
+    void navigator.clipboard.writeText(path)
+  }, [])
+
+  // Context menu: open the containing folder (files) or the folder itself (directories)
+  const handleContextMenuOpenFolder = useCallback((file: SessionFile) => {
+    if (file.type === 'directory') {
+      // eslint-disable-next-line craft-links/no-direct-file-open -- open directory in Finder
+      window.electronAPI.openFile(file.path)
+    } else {
+      window.electronAPI.showInFolder(file.path)
+    }
+  }, [])
+
   // Toggle folder expanded state
   const handleToggleExpand = useCallback((path: string) => {
     setExpandedPaths((prev) => {
@@ -518,6 +565,8 @@ export function SessionFilesSection({ sessionId, className }: SessionFilesSectio
                 onToggleExpand={handleToggleExpand}
                 onFileClick={handleFileClick}
                 onFileDoubleClick={handleFileDoubleClick}
+                onContextMenuCopyPath={handleContextMenuCopyPath}
+                onContextMenuOpenFolder={handleContextMenuOpenFolder}
               />
             ))}
           </nav>

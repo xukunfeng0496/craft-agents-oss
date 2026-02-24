@@ -479,7 +479,12 @@
       "directory": "Directory",
       "clickExpand": "Click to expand",
       "clickReveal": "Click to reveal",
-      "doubleClickOpen": "double-click to open"
+      "doubleClickOpen": "double-click to open",
+      "contextMenu": {
+        "open": "Open",
+        "copyPath": "Copy Path",
+        "openFolder": "Open Folder"
+      }
     },
     "history": {
       "comingSoon": "History panel - Coming soon"

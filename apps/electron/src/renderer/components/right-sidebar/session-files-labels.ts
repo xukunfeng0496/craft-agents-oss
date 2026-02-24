@@ -9,5 +9,8 @@ export function getSessionFilesLabels(t: TFunction) {
     clickExpand: t('common:rightSidebar.files.clickExpand'),
     clickReveal: t('common:rightSidebar.files.clickReveal'),
     doubleClickOpen: t('common:rightSidebar.files.doubleClickOpen'),
+    contextMenuOpen: t('common:rightSidebar.files.contextMenu.open'),
+    contextMenuCopyPath: t('common:rightSidebar.files.contextMenu.copyPath'),
+    contextMenuOpenFolder: t('common:rightSidebar.files.contextMenu.openFolder'),
   }
 }

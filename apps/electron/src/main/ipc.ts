@@ -1700,8 +1700,12 @@ export function registerIpcHandlers(sessionManager: SessionManager, windowManage
 
       // Set as default only if no default exists yet (first connection)
       if (!getDefaultLlmConnection()) {
-        setDefaultLlmConnection(setup.slug)
-        ipcLog.info(`Set default LLM connection: ${setup.slug}`)
+        const didSet = setDefaultLlmConnection(setup.slug)
+        if (didSet) {
+          ipcLog.info(`Set default LLM connection: ${setup.slug}`)
+        } else {
+          ipcLog.warn(`Failed to set default LLM connection: ${setup.slug} (connection may not exist in config yet)`)
+        }
       }
 
       // For Copilot connections, fetch available models from the API

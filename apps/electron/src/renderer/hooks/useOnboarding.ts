@@ -264,12 +264,8 @@ export function useOnboarding({
         // Notify caller immediately so UI can reflect billing/model changes
         onConfigSaved?.()
       } else {
-        console.error('[Onboarding] Save failed:', result.error)
-        setState(s => ({
-          ...s,
-          completionStatus: 'saving',
-          errorMessage: result.error || 'Failed to save configuration',
-        }))
+        // Throw so callers (e.g. handleSubmitCredential) don't proceed to step='complete'
+        throw new Error(result.error || 'Failed to save configuration')
       }
     } catch (error) {
       console.error('[Onboarding] handleSaveConfig error:', error)
@@ -277,6 +273,8 @@ export function useOnboarding({
         ...s,
         errorMessage: error instanceof Error ? error.message : 'Failed to save configuration',
       }))
+      // Re-throw so handleSubmitCredential's catch prevents step='complete'
+      throw error
     }
   }, [state.apiSetupMethod, onConfigSaved, editingSlug, existingSlugs])
 

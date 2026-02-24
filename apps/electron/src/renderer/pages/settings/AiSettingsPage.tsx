@@ -712,7 +712,7 @@ export default function AiSettingsPage() {
   // Preset models for ModelSelector
   const presetModels = useMemo((): PresetModel[] => {
     return [
-      { id: 'claude-sonnet-4-6', label: 'claude-sonnet-4-6', description: t('settings:ai.model.presetClaudeSonnet') },
+      { id: 'CVTE-AUTO', label: 'CVTE-AUTO', description: t('settings:ai.model.presetAuto') },
       { id: 'glm-5', label: 'glm-5', description: t('settings:ai.model.presetGlm') },
     ]
   }, [t])

@@ -53,6 +53,22 @@ export const MODEL_REGISTRY: ModelDefinition[] = [
   // Anthropic Claude Models
   // ----------------------------------------
   {
+    id: 'CVTE-AUTO',
+    name: 'Auto',
+    shortName: 'Auto',
+    description: 'Automatically selects the best model',
+    provider: 'anthropic',
+    contextWindow: 200_000,
+  },
+  {
+    id: 'glm-5',
+    name: 'GLM-5',
+    shortName: 'GLM-5',
+    description: 'GLM large language model',
+    provider: 'anthropic',
+    contextWindow: 200_000,
+  },
+  {
     id: 'claude-opus-4-6',
     name: 'Opus 4.6',
     shortName: 'Opus',
@@ -166,7 +182,7 @@ export function getModelIdByShortName(shortName: string): string {
 // ============================================
 
 /** Default model for Anthropic connections (used when creating/backfilling connections) */
-export const DEFAULT_MODEL = getModelIdByShortName('Opus');
+export const DEFAULT_MODEL = getModelIdByShortName('Auto');
 
 /** Default model for Codex/OpenAI connections (used when creating/backfilling connections) */
 export const DEFAULT_CODEX_MODEL = getModelIdByShortName('Codex');

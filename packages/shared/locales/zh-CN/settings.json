@@ -358,7 +358,7 @@
       "invalid": "不可用",
       "remove": "移除",
       "recommended": "推荐",
-      "presetClaudeSonnet": "Claude 最新旗舰模型，能力强，速度均衡",
+      "presetAuto": "自动选择最适合任务的模型",
       "presetGlm": "国内可用，兼容 OpenAI API 格式，成本低"
     },
     "thinking": {

@@ -358,7 +358,7 @@
       "invalid": "Unavailable",
       "remove": "Remove",
       "recommended": "Recommended",
-      "presetClaudeSonnet": "Latest Claude flagship, strong capabilities, balanced speed",
+      "presetAuto": "Automatically selects the best model for the task",
       "presetGlm": "China-accessible, OpenAI API compatible, low cost"
     },
     "thinking": {

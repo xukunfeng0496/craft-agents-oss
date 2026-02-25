@@ -1074,6 +1074,10 @@ export class SessionManager {
         sessionLog.info(`LLM connections changed in ${workspaceId}`)
         this.broadcastLlmConnectionsChanged()
       },
+      onScheduleConfigChange: () => {
+        sessionLog.info(`Schedule config changed in ${workspaceId}`)
+        this.broadcastSchedulesChanged(workspaceId)
+      },
       onAppThemeChange: (theme) => {
         sessionLog.info(`App theme changed`)
         this.broadcastAppThemeChanged(theme)
@@ -1225,6 +1229,15 @@ export class SessionManager {
     if (!this.windowManager) return
     sessionLog.info(`Broadcasting labels changed for ${workspaceId}`)
     this.windowManager.broadcastToAll(IPC_CHANNELS.LABELS_CHANGED, workspaceId)
+  }
+
+  /**
+   * Broadcast schedules changed event to all windows
+   */
+  private broadcastSchedulesChanged(workspaceId: string): void {
+    if (!this.windowManager) return
+    sessionLog.info(`Broadcasting schedules changed for ${workspaceId}`)
+    this.windowManager.broadcastToAll(IPC_CHANNELS.SCHEDULES_CHANGED, workspaceId)
   }
 
   /**
@@ -2191,6 +2204,7 @@ export class SessionManager {
       sessionStatus: options?.sessionStatus,
       labels: options?.labels,
       isFlagged: options?.isFlagged,
+      triggeredBy: options?.triggeredBy,
     })
 
     // If isolation is enabled and a working directory is configured, create a

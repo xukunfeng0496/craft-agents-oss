@@ -156,9 +156,12 @@ export const routes = {
       return `skills/skill/${skillSlug}` as const
     },
 
+    /** Schedules view (schedules navigator) */
+    schedules: () => 'schedules' as const,
+
     /** Settings view (settings navigator) - uses SettingsSubpage from registry */
     settings: (subpage?: SettingsSubpage) =>
-      subpage
+      subpage && subpage !== 'app'
         ? `settings/${subpage}` as const
         : 'settings' as const,
   },

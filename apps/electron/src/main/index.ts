@@ -68,6 +68,7 @@ import { SessionManager } from './sessions'
 import { registerIpcHandlers, startCodexModelRefresh, stopCodexModelRefresh } from './ipc'
 import { createApplicationMenu } from './menu'
 import { WindowManager } from './window-manager'
+import { SchedulerService } from './scheduler'
 import { loadWindowState, saveWindowState } from './window-state'
 import { getWorkspaces, loadStoredConfig, addWorkspace, saveConfig, getAppLanguage } from '@work-agent/shared/config'
 import { getDefaultWorkspacesDir } from '@work-agent/shared/workspaces'
@@ -101,6 +102,7 @@ const DEEPLINK_SCHEME = process.env.CRAFT_DEEPLINK_SCHEME || 'workagents'
 
 let windowManager: WindowManager | null = null
 let sessionManager: SessionManager | null = null
+let schedulerService: SchedulerService | null = null
 
 // Store pending deep link if app not ready yet (cold start)
 let pendingDeepLink: string | null = null
@@ -307,6 +309,10 @@ app.whenReady().then(async () => {
       }
     }
 
+    // Initialize scheduler service (checks for scheduled prompts every minute)
+    schedulerService = new SchedulerService(sessionManager, windowManager)
+    schedulerService.start()
+
     // Register IPC handlers (must happen before window creation)
     registerIpcHandlers(sessionManager, windowManager)
 
@@ -457,6 +463,11 @@ app.on('before-quit', async (event) => {
     }
     // Clean up SessionManager resources (file watchers, timers, etc.)
     sessionManager.cleanup()
+
+    // Stop scheduler service
+    if (schedulerService) {
+      schedulerService.stop()
+    }
 
     // Stop periodic Codex model refresh
     stopCodexModelRefresh()

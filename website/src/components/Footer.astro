@@ -1,0 +1,71 @@
+---
+import pkg from '../../package.json';
+
+const currentYear = new Date().getFullYear();
+---
+
+<footer class="border-t border-foreground/5 bg-white/30">
+  <div class="max-w-6xl mx-auto px-6 py-12">
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-8">
+      <!-- 品牌 -->
+      <div class="col-span-1 md:col-span-2">
+        <a href="/" class="flex items-center gap-2 mb-4">
+          <svg class="w-8 h-8" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <rect width="24" height="24" rx="5" fill="#1E3E2A"/>
+            <rect x="2.5" y="3"  width="4" height="18" rx="1" fill="white"/>
+            <rect x="7.5" y="8"  width="4" height="13" rx="1" fill="white"/>
+            <rect x="12.5" y="8" width="4" height="13" rx="1" fill="white"/>
+            <rect x="17.5" y="3" width="4" height="18" rx="1" fill="white"/>
+            <rect x="2.5" y="17" width="19" height="4" rx="1" fill="white"/>
+          </svg>
+          <span class="font-semibold text-lg">Work Agents</span>
+        </a>
+        <p class="text-foreground/60 text-sm max-w-md">
+          让 AI 为你工作的桌面应用。像对话一样描述需求，它帮你写代码、整理文档、连接各种工具。
+        </p>
+      </div>
+
+      <!-- 链接 -->
+      <div>
+        <h4 class="font-semibold mb-4">资源</h4>
+        <ul class="space-y-2 text-sm">
+          <li><a href="/docs/getting-started" class="text-foreground/60 hover:text-foreground">快速开始</a></li>
+          <li><a href="/docs/skills" class="text-foreground/60 hover:text-foreground">技能系统</a></li>
+          <li><a href="/docs/faq" class="text-foreground/60 hover:text-foreground">常见问题</a></li>
+          <li><a href="/#cases" class="text-foreground/60 hover:text-foreground">使用案例</a></li>
+        </ul>
+      </div>
+
+      <!-- 社区 -->
+      <div>
+        <h4 class="font-semibold mb-4">社区</h4>
+        <ul class="space-y-2 text-sm">
+          <li>
+            <a href="https://github.com/xukunfeng0496/work-agents" target="_blank" rel="noopener" class="text-foreground/60 hover:text-foreground">
+              GitHub
+            </a>
+          </li>
+          <li>
+            <a href="https://github.com/xukunfeng0496/work-agents/issues" target="_blank" rel="noopener" class="text-foreground/60 hover:text-foreground">
+              反馈问题
+            </a>
+          </li>
+          <li>
+            <a href="https://github.com/xukunfeng0496/work-agents/blob/main/LICENSE" target="_blank" rel="noopener" class="text-foreground/60 hover:text-foreground">
+              开源协议
+            </a>
+          </li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="border-t border-foreground/5 mt-8 pt-8 flex flex-col md:flex-row justify-between items-center gap-4">
+      <p class="text-sm text-foreground/50">
+        © {currentYear} Work Agents. Apache 2.0 开源协议。
+      </p>
+      <p class="text-sm text-foreground/50">
+        由 <a href="https://craft.do" target="_blank" rel="noopener" class="hover:text-foreground">Craft</a> 团队打造
+      </p>
+    </div>
+  </div>
+</footer>

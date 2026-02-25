@@ -1,0 +1,166 @@
+---
+import BaseLayout from './BaseLayout.astro';
+
+interface Props {
+  title: string;
+  description?: string;
+}
+
+const { title, description } = Astro.props;
+const currentPath = Astro.url.pathname;
+
+const navGroups = [
+  {
+    label: '入门指南',
+    links: [
+      { href: '/docs/getting-started', label: '快速开始' },
+      { href: '/docs/installation', label: '安装配置' },
+    ],
+  },
+  {
+    label: '核心功能',
+    links: [
+      { href: '/docs/sessions', label: '会话管理' },
+      { href: '/docs/skills', label: '技能系统' },
+      { href: '/docs/sources', label: '数据源' },
+      { href: '/docs/files', label: '文件处理' },
+    ],
+  },
+  {
+    label: '高级功能',
+    links: [
+      { href: '/docs/permissions', label: '权限模式' },
+      { href: '/docs/themes', label: '主题定制' },
+      { href: '/docs/hooks', label: '自动化' },
+    ],
+  },
+  {
+    label: '帮助',
+    links: [
+      { href: '/docs/faq', label: '常见问题' },
+      { href: '/docs/troubleshooting', label: '问题排查' },
+    ],
+  },
+];
+---
+
+<BaseLayout title={`${title} - Work Agents 文档`} description={description}>
+  <!-- 移动端顶栏 -->
+  <div class="md:hidden fixed top-0 left-0 right-0 z-50 flex items-center gap-3 px-4 h-14 bg-white/90 backdrop-blur border-b border-foreground/5">
+    <button id="sidebar-toggle" aria-label="打开菜单" style="padding:6px; border-radius:6px; border:none; background:transparent; cursor:pointer;">
+      <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/>
+      </svg>
+    </button>
+    <a href="/" class="flex items-center gap-2">
+      <svg class="w-6 h-6" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <rect width="24" height="24" rx="5" fill="#1E3E2A"/>
+        <rect x="2.5" y="3"  width="4" height="18" rx="1" fill="white"/>
+        <rect x="7.5" y="8"  width="4" height="13" rx="1" fill="white"/>
+        <rect x="12.5" y="8" width="4" height="13" rx="1" fill="white"/>
+        <rect x="17.5" y="3" width="4" height="18" rx="1" fill="white"/>
+        <rect x="2.5" y="17" width="19" height="4" rx="1" fill="white"/>
+      </svg>
+      <span class="font-semibold">Work Agents 文档</span>
+    </a>
+  </div>
+
+  <!-- 遮罩层 -->
+  <div id="sidebar-overlay" class="md:hidden fixed inset-0 bg-black/30 z-30" style="display:none;"></div>
+
+  <div class="flex min-h-screen">
+    <!-- 侧边导航 -->
+    <aside
+      id="sidebar"
+      class="w-64 border-r border-foreground/5 bg-white/50 flex-shrink-0 fixed h-full overflow-y-auto z-40 transition-transform duration-200"
+      style="transform: translateX(-100%);"
+    >
+      <div class="p-6">
+        <a href="/" class="hidden md:flex items-center gap-2 mb-8">
+          <svg class="w-8 h-8" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <rect width="24" height="24" rx="5" fill="#1E3E2A"/>
+            <rect x="2.5" y="3"  width="4" height="18" rx="1" fill="white"/>
+            <rect x="7.5" y="8"  width="4" height="13" rx="1" fill="white"/>
+            <rect x="12.5" y="8" width="4" height="13" rx="1" fill="white"/>
+            <rect x="17.5" y="3" width="4" height="18" rx="1" fill="white"/>
+            <rect x="2.5" y="17" width="19" height="4" rx="1" fill="white"/>
+          </svg>
+          <span class="font-semibold text-lg">Work Agents</span>
+        </a>
+        <!-- 移动端顶部占位 -->
+        <div class="md:hidden h-4"></div>
+
+        <nav class="space-y-6">
+          {navGroups.map((group) => (
+            <div>
+              <h3 class="text-xs font-semibold text-muted uppercase tracking-wider mb-3">{group.label}</h3>
+              <ul class="space-y-1">
+                {group.links.map((link) => (
+                  <li>
+                    <a
+                      href={link.href}
+                      class={`nav-link block py-1 ${currentPath === link.href || currentPath === link.href + '/' ? 'nav-link-active' : ''}`}
+                    >
+                      {link.label}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </nav>
+      </div>
+    </aside>
+
+    <!-- 主内容区 -->
+    <main class="flex-1 md:ml-64 pt-14 md:pt-0">
+      <div class="max-w-3xl mx-auto px-8 py-12">
+        <slot />
+      </div>
+    </main>
+  </div>
+</BaseLayout>
+
+<style>
+  .nav-link-active {
+    color: var(--color-brand);
+    font-weight: 500;
+  }
+</style>
+
+<script>
+  const sidebar = document.getElementById('sidebar');
+  const overlay = document.getElementById('sidebar-overlay');
+  const toggle = document.getElementById('sidebar-toggle');
+
+  function isDesktop() {
+    return window.innerWidth >= 768;
+  }
+
+  function openSidebar() {
+    if (sidebar) sidebar.style.transform = 'translateX(0)';
+    if (overlay) overlay.style.display = 'block';
+  }
+
+  function closeSidebar() {
+    if (!isDesktop()) {
+      if (sidebar) sidebar.style.transform = 'translateX(-100%)';
+      if (overlay) overlay.style.display = 'none';
+    }
+  }
+
+  // 桌面端始终显示
+  function applyLayout() {
+    if (isDesktop()) {
+      if (sidebar) sidebar.style.transform = 'translateX(0)';
+      if (overlay) overlay.style.display = 'none';
+    } else {
+      if (sidebar) sidebar.style.transform = 'translateX(-100%)';
+    }
+  }
+
+  applyLayout();
+  window.addEventListener('resize', applyLayout);
+  toggle?.addEventListener('click', openSidebar);
+  overlay?.addEventListener('click', closeSidebar);
+</script>

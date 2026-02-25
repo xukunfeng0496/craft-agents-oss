@@ -129,6 +129,10 @@ export interface ConfigWatcherCallbacks {
   /** Called when hooks.json changes */
   onHooksConfigChange?: (workspaceId: string) => void;
 
+  // Schedule callbacks
+  /** Called when schedules config.json changes */
+  onScheduleConfigChange?: (workspaceId: string) => void;
+
   // Session callbacks
   /** Called when a session's JSONL header is modified externally (labels, name, flags, etc.) */
   onSessionMetadataChange?: (sessionId: string, header: SessionHeader) => void;
@@ -471,7 +475,17 @@ export class ConfigWatcher {
         this.debounce('labels-config', () => this.handleLabelConfigChange());
         return;
       }
+    }
 
+    // Schedules changes: schedules/...
+    if (parts[0] === 'schedules' && parts.length >= 2) {
+      const file = parts[1];
+
+      // config.json change
+      if (file === 'config.json') {
+        this.debounce('schedules-config', () => this.handleScheduleConfigChange());
+        return;
+      }
     }
   }
 
@@ -897,6 +911,18 @@ export class ConfigWatcher {
   private handleHooksConfigChange(): void {
     debug('[ConfigWatcher] hooks.json changed:', this.workspaceId);
     this.callbacks.onHooksConfigChange?.(this.workspaceId);
+  }
+
+  // ============================================================
+  // Schedules Handlers
+  // ============================================================
+
+  /**
+   * Handle schedules config.json change.
+   */
+  private handleScheduleConfigChange(): void {
+    debug('[ConfigWatcher] Schedules config.json changed:', this.workspaceId);
+    this.callbacks.onScheduleConfigChange?.(this.workspaceId);
   }
 
   // ============================================================

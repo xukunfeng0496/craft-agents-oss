@@ -1,0 +1,116 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* 复用 Work Agents 应用的精致阴影效果 */
+:root {
+  --brand: #2e6e44;
+  --brand-light: #3a8a58;
+  --brand-dark: #245636;
+  --background: #f8f8fa;
+  --foreground: #26242a;
+  --foreground-rgb: 38, 36, 42;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  background-color: var(--background);
+  color: var(--foreground);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* 代码块样式 */
+pre {
+  @apply bg-foreground/5 rounded-lg p-4 overflow-x-auto;
+}
+
+code {
+  @apply text-sm;
+}
+
+/* 链接样式 */
+a {
+  @apply text-brand hover:text-brand-light transition-colors;
+}
+
+/* 文档内容样式 */
+.prose {
+  @apply max-w-3xl;
+}
+
+.prose h1 {
+  @apply text-3xl font-bold mb-6 text-foreground;
+}
+
+.prose h2 {
+  @apply text-2xl font-semibold mt-8 mb-4 text-foreground;
+}
+
+.prose h3 {
+  @apply text-xl font-medium mt-6 mb-3 text-foreground;
+}
+
+.prose p {
+  @apply mb-4 text-foreground/80 leading-relaxed;
+}
+
+.prose ul, .prose ol {
+  @apply mb-4 pl-6;
+}
+
+.prose li {
+  @apply mb-2 text-foreground/80;
+}
+
+.prose code {
+  @apply bg-foreground/5 px-1.5 py-0.5 rounded text-sm;
+}
+
+.prose pre code {
+  @apply bg-transparent p-0;
+}
+
+/* 按钮样式 */
+.btn-primary {
+  @apply inline-flex items-center gap-2 px-6 py-3 bg-brand text-white font-medium rounded-lg
+         hover:bg-brand-light transition-all duration-200 shadow-card hover:shadow-card-hover;
+}
+
+.btn-secondary {
+  @apply inline-flex items-center gap-2 px-6 py-3 bg-foreground/5 text-foreground font-medium rounded-lg
+         hover:bg-foreground/10 transition-all duration-200;
+}
+
+/* 卡片样式 */
+.card {
+  @apply bg-white rounded-xl p-6 shadow-card hover:shadow-card-hover transition-all duration-200;
+}
+
+/* 下拉菜单样式 */
+.dropdown {
+  @apply absolute top-full left-0 mt-2 w-64 bg-white rounded-lg shadow-dropdown py-2 z-50;
+}
+
+.dropdown-item {
+  @apply px-4 py-2.5 hover:bg-foreground/5 cursor-pointer transition-colors flex items-center gap-3;
+}
+
+/* 导航栏样式 */
+.nav-link {
+  @apply text-foreground/70 hover:text-foreground transition-colors font-medium;
+}
+
+/* 动画 */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.5s ease-out forwards;
+}

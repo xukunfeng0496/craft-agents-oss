@@ -1,0 +1,27 @@
+{
+  "version": "0.5.3",
+  "publishedAt": "2026-02-25T07:36:58.369Z",
+  "htmlUrl": "https://github.com/xukunfeng0496/work-agents/releases/tag/v0.5.3",
+  "assets": [
+    {
+      "name": "Work-Agent-0.5.3-osx-arm64.dmg",
+      "downloadUrl": "https://github.com/xukunfeng0496/work-agents/releases/download/v0.5.3/Work-Agent-0.5.3-osx-arm64.dmg",
+      "size": 0
+    },
+    {
+      "name": "Work-Agent-0.5.3-osx-x64.dmg",
+      "downloadUrl": "https://github.com/xukunfeng0496/work-agents/releases/download/v0.5.3/Work-Agent-0.5.3-osx-x64.dmg",
+      "size": 0
+    },
+    {
+      "name": "Work-Agent-0.5.3-windows-x64.exe",
+      "downloadUrl": "https://github.com/xukunfeng0496/work-agents/releases/download/v0.5.3/Work-Agent-0.5.3-windows-x64.exe",
+      "size": 0
+    },
+    {
+      "name": "Work-Agent-0.5.3-linux-x64.AppImage",
+      "downloadUrl": "https://github.com/xukunfeng0496/work-agents/releases/download/v0.5.3/Work-Agent-0.5.3-linux-x64.AppImage",
+      "size": 0
+    }
+  ]
+}

@@ -910,15 +910,20 @@ export function registerIpcHandlers(sessionManager: SessionManager, windowManage
       const attachment = await readFileAttachment(safePath)
       if (!attachment) return null
 
-      // Generate Quick Look thumbnail for preview (works for images, PDFs, Office docs on macOS)
-      try {
-        const thumbnail = await nativeImage.createThumbnailFromPath(safePath, { width: 200, height: 200 })
-        if (!thumbnail.isEmpty()) {
-          ;(attachment as { thumbnailBase64?: string }).thumbnailBase64 = thumbnail.toPNG().toString('base64')
+      // Generate Quick Look thumbnail for preview (images and PDFs only)
+      // Office files (xlsx, docx, pptx) are skipped - Quick Look can hang indefinitely on them
+      if (attachment.type !== 'office') {
+        try {
+          const thumbPromise = nativeImage.createThumbnailFromPath(safePath, { width: 200, height: 200 })
+          const timeoutPromise = new Promise<null>((resolve) => setTimeout(() => resolve(null), 5000))
+          const thumbnail = await Promise.race([thumbPromise, timeoutPromise])
+          if (thumbnail && !thumbnail.isEmpty()) {
+            ;(attachment as { thumbnailBase64?: string }).thumbnailBase64 = thumbnail.toPNG().toString('base64')
+          }
+        } catch (thumbError) {
+          // Thumbnail generation failed - this is ok, we'll show an icon fallback
+          ipcLog.info('Quick Look thumbnail failed (using fallback):', thumbError instanceof Error ? thumbError.message : thumbError)
         }
-      } catch (thumbError) {
-        // Thumbnail generation failed - this is ok, we'll show an icon fallback
-        ipcLog.info('Quick Look thumbnail failed (using fallback):', thumbError instanceof Error ? thumbError.message : thumbError)
       }
 
       return attachment
@@ -941,8 +946,14 @@ export function registerIpcHandlers(sessionManager: SessionManager, windowManage
       const buffer = Buffer.from(base64, 'base64')
       await writeFile(tempPath, buffer)
 
-      // Generate thumbnail using Quick Look
-      const thumbnail = await nativeImage.createThumbnailFromPath(tempPath, { width: 200, height: 200 })
+      // Generate thumbnail using Quick Look (with timeout to prevent hanging on Office files)
+      const thumbPromise = nativeImage.createThumbnailFromPath(tempPath, { width: 200, height: 200 })
+      const timeoutPromise = new Promise<null>((resolve) => setTimeout(() => resolve(null), 5000))
+      const thumbnail = await Promise.race([thumbPromise, timeoutPromise])
+      if (!thumbnail) {
+        await unlink(tempPath).catch(() => {})
+        return null
+      }
 
       // Clean up temp file
       await unlink(tempPath).catch(() => {})
@@ -3593,7 +3604,7 @@ export function registerIpcHandlers(sessionManager: SessionManager, windowManage
     const workspace = getWorkspaceByNameOrId(workspaceId)
     if (!workspace) throw new Error('Workspace not found')
 
-    const { listSchedules } = await import('@craft-agent/shared/schedules/storage')
+    const { listSchedules } = await import('@work-agent/shared/schedules/storage')
     return listSchedules(workspace.rootPath)
   })
 
@@ -3604,12 +3615,12 @@ export function registerIpcHandlers(sessionManager: SessionManager, windowManage
       _event,
       workspaceId: string,
       scheduleId: string,
-      updates: Partial<import('@craft-agent/shared/schedules').ScheduledPromptConfig>
+      updates: Partial<import('@work-agent/shared/schedules').ScheduledPromptConfig>
     ) => {
       const workspace = getWorkspaceByNameOrId(workspaceId)
       if (!workspace) throw new Error('Workspace not found')
 
-      const { updateSchedule } = await import('@craft-agent/shared/schedules/storage')
+      const { updateSchedule } = await import('@work-agent/shared/schedules/storage')
       const result = updateSchedule(workspace.rootPath, scheduleId, updates)
       windowManager.broadcastToAll(IPC_CHANNELS.SCHEDULES_CHANGED, workspaceId)
       return result
@@ -3621,7 +3632,7 @@ export function registerIpcHandlers(sessionManager: SessionManager, windowManage
     const workspace = getWorkspaceByNameOrId(workspaceId)
     if (!workspace) throw new Error('Workspace not found')
 
-    const { deleteSchedule } = await import('@craft-agent/shared/schedules/storage')
+    const { deleteSchedule } = await import('@work-agent/shared/schedules/storage')
     const result = deleteSchedule(workspace.rootPath, scheduleId)
     windowManager.broadcastToAll(IPC_CHANNELS.SCHEDULES_CHANGED, workspaceId)
     return result

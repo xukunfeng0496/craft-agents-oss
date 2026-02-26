@@ -97,7 +97,7 @@ export async function initRendererI18n(options: RendererI18nInitOptions = {}): P
 export async function changeRendererLanguage(language: string, options: RendererI18nChangeOptions = {}): Promise<void> {
   if (!rendererI18n) return
   const localeGlob = options.localeGlob ?? getLocaleGlob()
-  const namespaces = options.namespaces ?? ['common', 'settings', 'chat']
+  const namespaces = options.namespaces ?? ['common', 'settings', 'chat', 'menu', 'dialogs']
   const resolved = resolveLocale(language)
 
   if (!rendererI18n.hasResourceBundle(resolved, 'common')) {

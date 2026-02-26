@@ -46,6 +46,8 @@ export const SESSION_PERSISTENT_FIELDS = [
   'isArchived', 'archivedAt',
   // Hierarchy
   'parentSessionId', 'siblingOrder',
+  // Automation
+  'triggeredBy',
 ] as const;
 
 export type SessionPersistentField = typeof SESSION_PERSISTENT_FIELDS[number];

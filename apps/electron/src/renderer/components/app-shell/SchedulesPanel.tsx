@@ -3,13 +3,14 @@
  *
  * Shows a list of scheduled prompts with their schedule description and prompt.
  * Allows adding, editing, and deleting schedules via context menu.
+ * Hook-derived entries from hooks.json are shown read-only with a badge.
  */
 
 import * as React from 'react'
 import { useState } from 'react'
-import { Calendar, Clock, Pause, Plus, Settings2 } from 'lucide-react'
-import type { ScheduledPromptConfig } from '@craft-agent/shared/schedules'
-import { formatScheduleDescription } from '@craft-agent/shared/schedules/utils'
+import { Calendar, Clock, Code2, Pause, Plus, Settings2 } from 'lucide-react'
+import type { ScheduledPromptConfig } from '@work-agent/shared/schedules'
+import { formatScheduleDescription, cronToDescription } from '@work-agent/shared/schedules/utils'
 import { cn } from '@/lib/utils'
 import {
   ContextMenu,
@@ -81,6 +82,73 @@ export function SchedulesPanel({
     }
   }
 
+  const renderScheduleCard = (schedule: ScheduledPromptConfig) => {
+    const isFromHooks = schedule._fromHooks
+    const description = isFromHooks && schedule._cron
+      ? cronToDescription(schedule._cron)
+      : schedule.enabled ? formatScheduleDescription(schedule) : 'Paused'
+
+    const card = (
+      <div
+        className={cn(
+          'p-3 rounded-lg border transition-colors cursor-default',
+          schedule.enabled
+            ? 'bg-card border-border hover:border-border/80'
+            : 'bg-muted/30 border-border/50 opacity-60'
+        )}
+      >
+        {/* Schedule Name */}
+        <div className="flex items-center gap-2 mb-1">
+          {isFromHooks ? (
+            <Code2 className="h-4 w-4 text-muted-foreground shrink-0" />
+          ) : schedule.enabled ? (
+            <Clock className="h-4 w-4 text-primary shrink-0" />
+          ) : (
+            <Pause className="h-4 w-4 text-muted-foreground shrink-0" />
+          )}
+          <span className="font-medium text-sm truncate">{schedule.name}</span>
+          {isFromHooks && (
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground shrink-0">
+              hooks.json
+            </span>
+          )}
+        </div>
+
+        {/* Schedule Description */}
+        <div className="text-xs text-muted-foreground mb-2 ml-6">
+          {description}
+        </div>
+
+        {/* Prompt Preview */}
+        <div className="text-xs text-muted-foreground/80 line-clamp-2 ml-6 italic">
+          "{schedule.prompt}"
+        </div>
+      </div>
+    )
+
+    // Hook-derived entries: no context menu
+    if (isFromHooks) {
+      return <div key={schedule.id}>{card}</div>
+    }
+
+    // Schedule-created entries: context menu with edit/delete
+    return (
+      <ContextMenu key={schedule.id}>
+        <ContextMenuTrigger asChild>
+          {card}
+        </ContextMenuTrigger>
+        <StyledContextMenuContent>
+          <ContextMenuProvider>
+            <ScheduleMenu
+              onEdit={() => handleEdit(schedule)}
+              onDelete={() => handleDelete(schedule.id)}
+            />
+          </ContextMenuProvider>
+        </StyledContextMenuContent>
+      </ContextMenu>
+    )
+  }
+
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
@@ -134,48 +202,7 @@ export function SchedulesPanel({
           </div>
         ) : (
           <div className="p-2 space-y-1">
-            {schedules.map(schedule => (
-              <ContextMenu key={schedule.id}>
-                <ContextMenuTrigger asChild>
-                  <div
-                    className={cn(
-                      'p-3 rounded-lg border transition-colors cursor-default',
-                      schedule.enabled
-                        ? 'bg-card border-border hover:border-border/80'
-                        : 'bg-muted/30 border-border/50 opacity-60'
-                    )}
-                  >
-                    {/* Schedule Name */}
-                    <div className="flex items-center gap-2 mb-1">
-                      {schedule.enabled ? (
-                        <Clock className="h-4 w-4 text-primary shrink-0" />
-                      ) : (
-                        <Pause className="h-4 w-4 text-muted-foreground shrink-0" />
-                      )}
-                      <span className="font-medium text-sm truncate">{schedule.name}</span>
-                    </div>
-
-                    {/* Schedule Description (e.g., "Every Wednesday at 9am") */}
-                    <div className="text-xs text-muted-foreground mb-2 ml-6">
-                      {schedule.enabled ? formatScheduleDescription(schedule) : 'Paused'}
-                    </div>
-
-                    {/* Prompt Preview */}
-                    <div className="text-xs text-muted-foreground/80 line-clamp-2 ml-6 italic">
-                      "{schedule.prompt}"
-                    </div>
-                  </div>
-                </ContextMenuTrigger>
-                <StyledContextMenuContent>
-                  <ContextMenuProvider>
-                    <ScheduleMenu
-                      onEdit={() => handleEdit(schedule)}
-                      onDelete={() => handleDelete(schedule.id)}
-                    />
-                  </ContextMenuProvider>
-                </StyledContextMenuContent>
-              </ContextMenu>
-            ))}
+            {schedules.map(renderScheduleCard)}
           </div>
         )}
       </div>

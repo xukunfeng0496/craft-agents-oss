@@ -2,11 +2,12 @@
  * useSchedules Hook
  *
  * React hook to load and manage workspace scheduled prompts.
+ * Merges entries from schedules/config.json and hooks.json SchedulerTick matchers.
  * Auto-refreshes when workspace changes or schedules config is modified.
  */
 
 import { useState, useEffect, useCallback } from 'react'
-import type { ScheduledPromptConfig } from '@craft-agent/shared/schedules'
+import type { ScheduledPromptConfig } from '@work-agent/shared/schedules'
 
 export interface UseSchedulesResult {
   schedules: ScheduledPromptConfig[]
@@ -17,7 +18,8 @@ export interface UseSchedulesResult {
 
 /**
  * Load schedules for a workspace via IPC
- * Auto-refreshes when workspaceId changes or config file changes
+ * Merges schedule-created entries with hooks.json SchedulerTick entries.
+ * Auto-refreshes when workspaceId changes or config file changes.
  */
 export function useSchedules(workspaceId: string | null): UseSchedulesResult {
   const [schedules, setSchedules] = useState<ScheduledPromptConfig[]>([])
@@ -33,8 +35,11 @@ export function useSchedules(workspaceId: string | null): UseSchedulesResult {
 
     try {
       setIsLoading(true)
-      const configs = await window.electronAPI.listSchedules(workspaceId)
-      setSchedules(configs)
+      const [configs, hookEntries] = await Promise.all([
+        window.electronAPI.listSchedules(workspaceId),
+        window.electronAPI.listScheduleHooks(workspaceId),
+      ])
+      setSchedules([...configs, ...hookEntries])
       setError(null)
     } catch (err) {
       console.error('[useSchedules] Failed to load schedules:', err)

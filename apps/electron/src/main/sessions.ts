@@ -971,6 +971,11 @@ export class SessionManager {
     return this.initGate.wait()
   }
 
+  /** Get the HookSystem for a workspace by root path */
+  getHookSystem(workspaceRootPath: string): HookSystem | undefined {
+    return this.hookSystems.get(workspaceRootPath)
+  }
+
   setWindowManager(wm: WindowManager): void {
     this.windowManager = wm
   }
@@ -1077,6 +1082,16 @@ export class SessionManager {
       onScheduleConfigChange: () => {
         sessionLog.info(`Schedule config changed in ${workspaceId}`)
         this.broadcastSchedulesChanged(workspaceId)
+        // Reload hooks so schedule-derived SchedulerTick matchers are updated
+        const hookSystem = this.hookSystems.get(workspaceRootPath)
+        if (hookSystem) {
+          const result = hookSystem.reloadConfig()
+          if (result.errors.length === 0) {
+            sessionLog.info(`Reloaded ${result.hookCount} hooks (including schedules) for workspace ${workspaceId}`)
+          } else {
+            sessionLog.error(`Failed to reload hooks after schedule change for workspace ${workspaceId}:`, result.errors)
+          }
+        }
       },
       onAppThemeChange: (theme) => {
         sessionLog.info(`App theme changed`)
@@ -1184,6 +1199,7 @@ export class SessionManager {
                 pending.labels,
                 pending.permissionMode,
                 pending.mentions,
+                pending.triggeredBy,
               )
             )
           )
@@ -5866,22 +5882,46 @@ To view this task's output:
     labels?: string[],
     permissionMode?: 'safe' | 'ask' | 'allow-all',
     mentions?: string[],
+    triggeredBy?: { type: 'schedule'; scheduleId: string; scheduleName: string },
   ): Promise<{ sessionId: string }> {
     // Resolve @mentions to source/skill slugs
     const resolved = mentions ? this.resolveHookMentions(workspaceRootPath, mentions) : undefined
 
+    // If triggered by a schedule, update lastRunAt to prevent duplicate runs
+    if (triggeredBy) {
+      try {
+        const { updateLastRunAt } = await import('@work-agent/shared/schedules/storage')
+        updateLastRunAt(workspaceRootPath, triggeredBy.scheduleId, Date.now())
+      } catch (error) {
+        sessionLog.error(`[Hooks] Failed to update lastRunAt for schedule ${triggeredBy.scheduleId}:`, error)
+      }
+    }
+
     // Create a new session for this hook
     const session = await this.createSession(workspaceId, {
-      name: `Hook: ${prompt.slice(0, 50)}${prompt.length > 50 ? '...' : ''}`,
+      name: triggeredBy
+        ? `Schedule: ${triggeredBy.scheduleName}`
+        : `Hook: ${prompt.slice(0, 50)}${prompt.length > 50 ? '...' : ''}`,
       labels,
       permissionMode: permissionMode || 'safe',
       enabledSourceSlugs: resolved?.sourceSlugs,
+      triggeredBy,
     })
 
     // Send the prompt
     await this.sendMessage(session.id, prompt, undefined, undefined, {
       skillSlugs: resolved?.skillSlugs,
     })
+
+    // Notify all windows if triggered by a schedule (so they see the new session)
+    if (triggeredBy && this.windowManager) {
+      this.windowManager.broadcastToAll('schedules:triggered', {
+        workspaceId,
+        sessionId: session.id,
+        scheduleName: triggeredBy.scheduleName,
+        scheduleId: triggeredBy.scheduleId,
+      })
+    }
 
     return { sessionId: session.id }
   }

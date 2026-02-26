@@ -80,6 +80,10 @@ export interface HookMatcher {
   /** Whether this hook matcher is enabled. Defaults to true. Set to false to disable without removing. */
   enabled?: boolean;
   hooks: HookDefinition[];
+  /** Schedule ID that generated this matcher (internal, set by HookSystem when merging schedules) */
+  _scheduleId?: string;
+  /** Schedule name for display (internal, set by HookSystem when merging schedules) */
+  _scheduleName?: string;
 }
 
 export interface HooksConfig {
@@ -137,6 +141,12 @@ export interface PendingPrompt {
   labels?: string[];
   /** Permission mode for the created session (from matcher config) */
   permissionMode?: 'safe' | 'ask' | 'allow-all';
+  /** Automation trigger info - set when this prompt was generated from a schedule */
+  triggeredBy?: {
+    type: 'schedule';
+    scheduleId: string;
+    scheduleName: string;
+  };
 }
 
 export interface HookResult {

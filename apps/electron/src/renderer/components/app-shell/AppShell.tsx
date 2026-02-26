@@ -2200,21 +2200,21 @@ function AppShellContent({
                       variant: sessionFilter?.kind === 'archived' ? "default" : "ghost",
                       onClick: handleArchivedClick,
                     },
-                    // Scheduled prompts: automatic prompts that run at configured times
-                    {
-                      id: "nav:scheduled",
-                      title: "Scheduled",
-                      label: schedules.filter(s => s.enabled).length > 0 ? String(schedules.filter(s => s.enabled).length) : undefined,
-                      icon: Calendar,
-                      variant: isSchedulesNavigation(navState) ? "default" : "ghost",
-                      onClick: handleSchedulesClick,
-                      contextMenu: {
-                        type: 'scheduled' as const,
-                        workspaceRootPath: activeWorkspace?.rootPath,
-                        onAddSchedule: openAddSchedule,
-                        onEditSchedules: openEditSchedules,
-                      },
-                    },
+                    // Scheduled prompts: hidden for now (not shipping this version)
+                    // {
+                    //   id: "nav:scheduled",
+                    //   title: "Scheduled",
+                    //   label: schedules.filter(s => s.enabled).length > 0 ? String(schedules.filter(s => s.enabled).length) : undefined,
+                    //   icon: Calendar,
+                    //   variant: isSchedulesNavigation(navState) ? "default" : "ghost",
+                    //   onClick: handleSchedulesClick,
+                    //   contextMenu: {
+                    //     type: 'scheduled' as const,
+                    //     workspaceRootPath: activeWorkspace?.rootPath,
+                    //     onAddSchedule: openAddSchedule,
+                    //     onEditSchedules: openEditSchedules,
+                    //   },
+                    // },
                     // --- Separator ---
                     { id: "separator:chats-sources", type: "separator" },
                     // --- Sources & Skills Section ---

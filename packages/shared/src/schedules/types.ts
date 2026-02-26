@@ -49,6 +49,12 @@ export interface ScheduledPromptConfig {
 
   /** Created timestamp */
   createdAt: number
+
+  /** True when this entry comes from hooks.json (read-only in UI) */
+  _fromHooks?: boolean
+
+  /** Raw cron expression (for hook-derived entries) */
+  _cron?: string
 }
 
 /**

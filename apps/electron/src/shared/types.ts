@@ -830,6 +830,7 @@ export const IPC_CHANNELS = {
 
   // Schedule management (workspace-scoped)
   SCHEDULES_LIST: 'schedules:list',
+  SCHEDULES_LIST_HOOKS: 'schedules:listHooks',
   SCHEDULES_UPDATE: 'schedules:update',
   SCHEDULES_DELETE: 'schedules:delete',
   SCHEDULES_CHANGED: 'schedules:changed',  // Broadcast event
@@ -1147,12 +1148,13 @@ export interface ElectronAPI {
   onStatusesChanged(callback: (workspaceId: string) => void): () => void
 
   // Schedules (workspace-scoped)
-  listSchedules(workspaceId: string): Promise<import('@craft-agent/shared/schedules').ScheduledPromptConfig[]>
+  listSchedules(workspaceId: string): Promise<import('@work-agent/shared/schedules').ScheduledPromptConfig[]>
+  listScheduleHooks(workspaceId: string): Promise<import('@work-agent/shared/schedules').ScheduledPromptConfig[]>
   updateSchedule(
     workspaceId: string,
     scheduleId: string,
-    updates: Partial<Omit<import('@craft-agent/shared/schedules').ScheduledPromptConfig, 'id' | 'createdAt'>>
-  ): Promise<import('@craft-agent/shared/schedules').ScheduledPromptConfig | null>
+    updates: Partial<Omit<import('@work-agent/shared/schedules').ScheduledPromptConfig, 'id' | 'createdAt'>>
+  ): Promise<import('@work-agent/shared/schedules').ScheduledPromptConfig | null>
   deleteSchedule(workspaceId: string, scheduleId: string): Promise<boolean>
   // Schedules change listener (live updates when schedules config changes)
   onSchedulesChanged(callback: (workspaceId: string) => void): () => void

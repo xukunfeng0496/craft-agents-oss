@@ -6,6 +6,27 @@
 
 import type { ScheduledPromptConfig, ScheduleTime, ScheduleDay } from './types.ts'
 
+/** Day-of-week to cron number mapping (0=Sun, 1=Mon, ..., 6=Sat) */
+const DAY_TO_CRON: Record<ScheduleDay, number> = {
+  sun: 0, mon: 1, tue: 2, wed: 3, thu: 4, fri: 5, sat: 6,
+}
+
+/**
+ * Convert schedule times and days to cron expressions.
+ * Returns one cron expression per time entry.
+ *
+ * Examples:
+ *   scheduleToCron([{hour:9, minute:0}], ['mon','tue']) → ["0 9 * * 1,2"]
+ *   scheduleToCron([{hour:9, minute:0}, {hour:15, minute:30}]) → ["0 9 * * *", "30 15 * * *"]
+ */
+export function scheduleToCron(times: ScheduleTime[], days?: ScheduleDay[]): string[] {
+  const dayField = (days && days.length > 0 && days.length < 7)
+    ? days.map(d => DAY_TO_CRON[d]).sort((a, b) => a - b).join(',')
+    : '*'
+
+  return times.map(t => `${t.minute} ${t.hour} * * ${dayField}`)
+}
+
 /**
  * Format a ScheduleTime to a readable string (e.g., "8am", "3:30pm")
  */
@@ -192,4 +213,49 @@ export function formatLastRunTime(timestamp: number | undefined, now: Date = new
   // More than a day
   const diffDays = Math.round(diffMs / 86400000)
   return `${diffDays}d ago`
+}
+
+/** Cron day-of-week number to abbreviation */
+const CRON_DAY_NAMES: Record<number, string> = {
+  0: 'Sun', 1: 'Mon', 2: 'Tue', 3: 'Wed', 4: 'Thu', 5: 'Fri', 6: 'Sat',
+}
+
+/**
+ * Convert a cron expression to a human-readable description.
+ * Handles the subset we generate: minute hour * * day-of-week
+ *
+ * Examples:
+ *   "0 9 * * *"     → "Every day at 9am"
+ *   "0 9 * * 1,3,5" → "Mon, Wed, Fri at 9am"
+ *   "30 15 * * *"   → "Every day at 3:30pm"
+ */
+export function cronToDescription(cron: string): string {
+  const parts = cron.trim().split(/\s+/)
+  if (parts.length !== 5) return cron
+
+  const [minuteStr, hourStr, , , dowStr] = parts
+  const minute = parseInt(minuteStr!, 10)
+  const hour = parseInt(hourStr!, 10)
+
+  if (isNaN(minute) || isNaN(hour)) return cron
+
+  // Format time
+  const timeStr = formatTime({ hour, minute })
+
+  // Format days
+  let dayStr: string
+  if (dowStr === '*') {
+    dayStr = 'Every day'
+  } else {
+    const dayNums = dowStr!.split(',').map(Number)
+    if (dayNums.length === 5 && [1,2,3,4,5].every(d => dayNums.includes(d))) {
+      dayStr = 'Weekdays'
+    } else if (dayNums.length === 2 && [0,6].every(d => dayNums.includes(d))) {
+      dayStr = 'Weekends'
+    } else {
+      dayStr = dayNums.map(n => CRON_DAY_NAMES[n] ?? String(n)).join(', ')
+    }
+  }
+
+  return `${dayStr} at ${timeStr}`
 }

@@ -2,6 +2,7 @@
  * Tests for schedule utility functions.
  *
  * Covers:
+ * - scheduleToCron: converting schedule times/days to cron expressions
  * - formatTime: formatting a ScheduleTime to a readable string
  * - formatTimes: formatting an array of ScheduleTimes
  * - getNextRunTime: calculating when a schedule will next run
@@ -11,6 +12,7 @@
 
 import { describe, it, expect } from 'bun:test'
 import {
+  scheduleToCron,
   formatTime,
   formatTimes,
   getNextRunTime,
@@ -19,6 +21,41 @@ import {
   formatScheduleDescription,
 } from '../utils.ts'
 import type { ScheduledPromptConfig, ScheduleTime } from '../types.ts'
+
+// ============================================
+// scheduleToCron
+// ============================================
+
+describe('scheduleToCron', () => {
+  it('converts single time with no days to every-day cron', () => {
+    expect(scheduleToCron([{ hour: 9, minute: 0 }])).toEqual(['0 9 * * *'])
+  })
+
+  it('converts single time with specific days', () => {
+    expect(scheduleToCron([{ hour: 9, minute: 0 }], ['mon', 'tue'])).toEqual(['0 9 * * 1,2'])
+  })
+
+  it('converts multiple times to multiple cron expressions', () => {
+    const result = scheduleToCron([{ hour: 9, minute: 0 }, { hour: 15, minute: 30 }], ['mon', 'wed', 'fri'])
+    expect(result).toEqual(['0 9 * * 1,3,5', '30 15 * * 1,3,5'])
+  })
+
+  it('treats all 7 days as wildcard', () => {
+    expect(scheduleToCron([{ hour: 8, minute: 0 }], ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'])).toEqual(['0 8 * * *'])
+  })
+
+  it('treats empty days array as every day', () => {
+    expect(scheduleToCron([{ hour: 10, minute: 15 }], [])).toEqual(['15 10 * * *'])
+  })
+
+  it('sorts day numbers in cron output', () => {
+    expect(scheduleToCron([{ hour: 9, minute: 0 }], ['fri', 'mon', 'sun'])).toEqual(['0 9 * * 0,1,5'])
+  })
+
+  it('handles midnight', () => {
+    expect(scheduleToCron([{ hour: 0, minute: 0 }])).toEqual(['0 0 * * *'])
+  })
+})
 
 // ============================================
 // formatTime

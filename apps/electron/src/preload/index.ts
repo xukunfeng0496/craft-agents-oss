@@ -346,6 +346,8 @@ const api: ElectronAPI = {
   // Schedule management
   listSchedules: (workspaceId: string) =>
     ipcRenderer.invoke(IPC_CHANNELS.SCHEDULES_LIST, workspaceId),
+  listScheduleHooks: (workspaceId: string) =>
+    ipcRenderer.invoke(IPC_CHANNELS.SCHEDULES_LIST_HOOKS, workspaceId),
   updateSchedule: (workspaceId: string, scheduleId: string, updates: any) =>
     ipcRenderer.invoke(IPC_CHANNELS.SCHEDULES_UPDATE, workspaceId, scheduleId, updates),
   deleteSchedule: (workspaceId: string, scheduleId: string) =>

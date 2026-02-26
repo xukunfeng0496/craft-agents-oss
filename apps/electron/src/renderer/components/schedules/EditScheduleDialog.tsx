@@ -22,7 +22,7 @@ import { Switch } from '@/components/ui/switch'
 import { Label } from '@/components/ui/label'
 import { useRegisterModal } from '@/context/ModalContext'
 import { cn } from '@/lib/utils'
-import type { ScheduledPromptConfig, ScheduleDay } from '@craft-agent/shared/schedules'
+import type { ScheduledPromptConfig, ScheduleDay } from '@work-agent/shared/schedules'
 
 const ALL_DAYS: ScheduleDay[] = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']
 const DAY_LABELS: Record<ScheduleDay, string> = {

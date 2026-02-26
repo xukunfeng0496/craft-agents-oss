@@ -25,6 +25,9 @@ import { validateHooksConfig } from './validation.ts';
 import { buildEnvFromSdkInput } from './sdk-bridge.ts';
 import { executeCommand } from './command-executor.ts';
 import { SchedulerService, type SchedulerTickPayload } from '../scheduler/scheduler-service.ts';
+import { listSchedules } from '../schedules/storage.ts';
+import { scheduleToCron } from '../schedules/utils.ts';
+import type { ScheduledPromptConfig } from '../schedules/types.ts';
 
 const log = createLogger('hook-system');
 
@@ -104,57 +107,62 @@ export class HookSystem implements HooksConfigProvider {
     if (!existsSync(configPath)) {
       log.debug(`[HookSystem] No hooks.json found at ${configPath}`);
       this.config = { hooks: {} };
-      return;
-    }
+    } else {
+      try {
+        const raw = JSON.parse(readFileSync(configPath, 'utf-8'));
+        const validation = validateHooksConfig(raw);
 
-    try {
-      const raw = JSON.parse(readFileSync(configPath, 'utf-8'));
-      const validation = validateHooksConfig(raw);
-
-      if (!validation.valid) {
-        console.warn('[HookSystem] Invalid hooks.json:', validation.errors);
+        if (!validation.valid) {
+          console.warn('[HookSystem] Invalid hooks.json:', validation.errors);
+          this.config = { hooks: {} };
+        } else {
+          this.config = validation.config;
+        }
+      } catch (e) {
+        const error = e instanceof Error ? e.message : 'Unknown error';
+        console.warn('[HookSystem] Failed to load hooks.json:', error);
         this.config = { hooks: {} };
-        return;
       }
-
-      this.config = validation.config;
-      const hookCount = this.getHookCount();
-      log.debug(`[HookSystem] Loaded ${hookCount} hooks from ${configPath}`);
-    } catch (e) {
-      const error = e instanceof Error ? e.message : 'Unknown error';
-      console.warn('[HookSystem] Failed to load hooks.json:', error);
-      this.config = { hooks: {} };
     }
+
+    // Merge schedules as SchedulerTick matchers
+    this.mergeScheduleMatchers();
+
+    const hookCount = this.getHookCount();
+    log.debug(`[HookSystem] Loaded ${hookCount} hooks from ${configPath}`);
   }
 
   /**
    * Reload hooks configuration.
-   * Call this when hooks.json changes.
+   * Call this when hooks.json or schedules change.
    */
   reloadConfig(): { success: boolean; hookCount: number; errors: string[] } {
     const configPath = join(this.options.workspaceRootPath, 'hooks.json');
 
     if (!existsSync(configPath)) {
       this.config = { hooks: {} };
-      return { success: true, hookCount: 0, errors: [] };
-    }
+    } else {
+      try {
+        const raw = JSON.parse(readFileSync(configPath, 'utf-8'));
+        const validation = validateHooksConfig(raw);
 
-    try {
-      const raw = JSON.parse(readFileSync(configPath, 'utf-8'));
-      const validation = validateHooksConfig(raw);
+        if (!validation.valid) {
+          return { success: false, hookCount: 0, errors: validation.errors };
+        }
 
-      if (!validation.valid) {
-        return { success: false, hookCount: 0, errors: validation.errors };
+        this.config = validation.config;
+      } catch (e) {
+        const error = e instanceof Error ? e.message : 'Unknown error';
+        return { success: false, hookCount: 0, errors: [`Failed to parse JSON: ${error}`] };
       }
-
-      this.config = validation.config;
-      const hookCount = this.getHookCount();
-      log.debug(`[HookSystem] Reloaded ${hookCount} hooks`);
-      return { success: true, hookCount, errors: [] };
-    } catch (e) {
-      const error = e instanceof Error ? e.message : 'Unknown error';
-      return { success: false, hookCount: 0, errors: [`Failed to parse JSON: ${error}`] };
     }
+
+    // Merge schedules as SchedulerTick matchers
+    this.mergeScheduleMatchers();
+
+    const hookCount = this.getHookCount();
+    log.debug(`[HookSystem] Reloaded ${hookCount} hooks`);
+    return { success: true, hookCount, errors: [] };
   }
 
   /**
@@ -168,6 +176,47 @@ export class HookSystem implements HooksConfigProvider {
     );
   }
 
+  /**
+   * Load schedules from workspace and merge them as SchedulerTick matchers.
+   * Each enabled schedule becomes one or more HookMatcher entries with cron expressions.
+   */
+  private mergeScheduleMatchers(): void {
+    if (!this.config) return;
+
+    try {
+      const schedules = listSchedules(this.options.workspaceRootPath);
+      const scheduleMatchers: HookMatcher[] = [];
+
+      for (const schedule of schedules) {
+        if (!schedule.enabled || schedule.times.length === 0) continue;
+
+        const cronExprs = scheduleToCron(schedule.times, schedule.days);
+        for (const cron of cronExprs) {
+          scheduleMatchers.push({
+            cron,
+            permissionMode: 'allow-all',
+            _scheduleId: schedule.id,
+            _scheduleName: schedule.name,
+            hooks: [{
+              type: 'prompt',
+              prompt: schedule.prompt,
+            }],
+          });
+        }
+      }
+
+      if (scheduleMatchers.length > 0) {
+        // Append schedule-derived matchers to any existing SchedulerTick matchers
+        const existing = this.config.hooks.SchedulerTick ?? [];
+        this.config.hooks.SchedulerTick = [...existing, ...scheduleMatchers];
+        log.debug(`[HookSystem] Merged ${scheduleMatchers.length} schedule matchers`);
+      }
+    } catch (e) {
+      const error = e instanceof Error ? e.message : 'Unknown error';
+      log.debug(`[HookSystem] Failed to load schedules: ${error}`);
+    }
+  }
+
   // ============================================================================
   // HooksConfigProvider Implementation
   // ============================================================================
@@ -178,6 +227,14 @@ export class HookSystem implements HooksConfigProvider {
 
   getMatchersForEvent(event: HookEvent): HookMatcher[] {
     return this.config?.hooks[event] ?? [];
+  }
+
+  /**
+   * Get SchedulerTick matchers defined directly in hooks.json (not schedule-derived).
+   * Used by the UI to show hook-based scheduled entries alongside schedule-created ones.
+   */
+  getSchedulerTickHooks(): HookMatcher[] {
+    return (this.config?.hooks.SchedulerTick ?? []).filter(m => !m._scheduleId);
   }
 
   // ============================================================================

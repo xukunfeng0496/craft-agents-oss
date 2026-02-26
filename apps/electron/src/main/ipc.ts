@@ -5,6 +5,7 @@ import { normalize, isAbsolute, join, basename, dirname, resolve, relative, sep 
 import { homedir, tmpdir } from 'os'
 import { randomUUID } from 'crypto'
 import { execSync } from 'child_process'
+import { Worker } from 'worker_threads'
 import { SessionManager } from './sessions'
 import { ipcLog, windowLog, searchLog } from './logger'
 import { WindowManager } from './window-manager'
@@ -19,7 +20,6 @@ import { isValidThinkingLevel } from '@work-agent/shared/agent/thinking-levels'
 import { getCredentialManager } from '@work-agent/shared/credentials'
 import { AppServerClient, getCodexPath } from '@work-agent/shared/codex'
 import type { ModelDefinition } from '@work-agent/shared/config'
-import { MarkItDown } from 'markitdown-js'
 import { isUsableGitBashPath, validateGitBashPath } from './git-bash'
 import { detectMissingTools } from './tool-detection'
 import { installTool } from './tool-installer'
@@ -477,6 +477,38 @@ async function validateFilePath(filePath: string): Promise<string> {
   }
 
   return realPath
+}
+
+// Run MarkItDown conversion in a worker thread to avoid blocking the main process event loop.
+// XLSX.readFile inside markitdown-js is synchronous; running it on the main thread freezes the UI.
+function convertOfficeInWorker(filePath: string, timeoutMs = 30000): Promise<string | null> {
+  return new Promise((resolve, reject) => {
+    const workerCode = `
+      const { parentPort, workerData } = require('worker_threads');
+      async function run() {
+        try {
+          const { MarkItDown } = require('markitdown-js');
+          const result = await new MarkItDown().convert(workerData.filePath);
+          parentPort.postMessage({ textContent: result?.textContent ?? null });
+        } catch (err) {
+          parentPort.postMessage({ error: err.message });
+        }
+      }
+      run();
+    `
+    const worker = new Worker(workerCode, { eval: true, workerData: { filePath } })
+    const timer = setTimeout(() => {
+      worker.terminate()
+      reject(new Error(`Office conversion timed out after ${timeoutMs / 1000}s`))
+    }, timeoutMs)
+    worker.on('message', (msg: { textContent?: string | null; error?: string }) => {
+      clearTimeout(timer)
+      if (msg.error) reject(new Error(msg.error))
+      else resolve(msg.textContent ?? null)
+    })
+    worker.on('error', (err) => { clearTimeout(timer); reject(err) })
+    worker.on('exit', (code) => { clearTimeout(timer); if (code !== 0) reject(new Error(`Worker exited with code ${code}`)) })
+  })
 }
 
 export function registerIpcHandlers(sessionManager: SessionManager, windowManager: WindowManager): void {
@@ -1095,22 +1127,27 @@ export function registerIpcHandlers(sessionManager: SessionManager, windowManage
       }
 
       // 2. Generate thumbnail using native OS APIs (Quick Look on macOS, Shell handlers on Windows)
+      // Office files are skipped - Quick Look can hang indefinitely on xlsx/docx/pptx
       let thumbnailPath: string | undefined
       let thumbnailBase64: string | undefined
-      const thumbFileName = `${id}_thumb.png`
-      const thumbPath = join(attachmentsDir, thumbFileName)
-      try {
-        const thumbnail = await nativeImage.createThumbnailFromPath(storedPath, { width: 200, height: 200 })
-        if (!thumbnail.isEmpty()) {
-          const pngBuffer = thumbnail.toPNG()
-          await writeFile(thumbPath, pngBuffer)
-          thumbnailPath = thumbPath
-          thumbnailBase64 = pngBuffer.toString('base64')
-          filesToCleanup.push(thumbPath)
+      if (attachment.type !== 'office') {
+        const thumbFileName = `${id}_thumb.png`
+        const thumbPath = join(attachmentsDir, thumbFileName)
+        try {
+          const thumbPromise = nativeImage.createThumbnailFromPath(storedPath, { width: 200, height: 200 })
+          const timeoutPromise = new Promise<null>((resolve) => setTimeout(() => resolve(null), 5000))
+          const thumbnail = await Promise.race([thumbPromise, timeoutPromise])
+          if (thumbnail && !thumbnail.isEmpty()) {
+            const pngBuffer = thumbnail.toPNG()
+            await writeFile(thumbPath, pngBuffer)
+            thumbnailPath = thumbPath
+            thumbnailBase64 = pngBuffer.toString('base64')
+            filesToCleanup.push(thumbPath)
+          }
+        } catch (thumbError) {
+          // Thumbnail generation failed - this is ok, we'll show an icon fallback
+          ipcLog.info('Thumbnail generation failed (using fallback):', thumbError instanceof Error ? thumbError.message : thumbError)
         }
-      } catch (thumbError) {
-        // Thumbnail generation failed - this is ok, we'll show an icon fallback
-        ipcLog.info('Thumbnail generation failed (using fallback):', thumbError instanceof Error ? thumbError.message : thumbError)
       }
 
       // 3. Convert Office files to markdown (for sending to Claude)
@@ -1120,17 +1157,16 @@ export function registerIpcHandlers(sessionManager: SessionManager, windowManage
         const mdFileName = `${id}_${safeName}.md`
         const mdPath = join(attachmentsDir, mdFileName)
         try {
-          const markitdown = new MarkItDown()
-          const result = await markitdown.convert(storedPath)
-          if (!result || !result.textContent) {
+          const textContent = await convertOfficeInWorker(storedPath)
+          if (!textContent) {
             throw new Error('Conversion returned empty result')
           }
-          await writeFile(mdPath, result.textContent, 'utf-8')
+          await writeFile(mdPath, textContent, 'utf-8')
           markdownPath = mdPath
           filesToCleanup.push(mdPath)
           ipcLog.info(`Converted Office file to markdown: ${mdPath}`)
         } catch (convertError) {
-          // Conversion failed (e.g. legacy .doc format not supported by MarkItDown)
+          // Conversion failed (e.g. legacy .doc format not supported by MarkItDown, or timeout)
           // Fall back gracefully: store the file as-is without markdown conversion
           // The agent won't be able to read the content but the attachment won't fail entirely
           const errorMsg = convertError instanceof Error ? convertError.message : String(convertError)
@@ -3606,6 +3642,31 @@ export function registerIpcHandlers(sessionManager: SessionManager, windowManage
 
     const { listSchedules } = await import('@work-agent/shared/schedules/storage')
     return listSchedules(workspace.rootPath)
+  })
+
+  // List SchedulerTick hooks from hooks.json (not schedule-derived)
+  ipcMain.handle(IPC_CHANNELS.SCHEDULES_LIST_HOOKS, async (_event, workspaceId: string) => {
+    const workspace = getWorkspaceByNameOrId(workspaceId)
+    if (!workspace) throw new Error('Workspace not found')
+
+    const hookSystem = sessionManager.getHookSystem(workspace.rootPath)
+    if (!hookSystem) return []
+
+    const matchers = hookSystem.getSchedulerTickHooks()
+    return matchers.map((m, i) => {
+      const promptHook = m.hooks.find(h => h.type === 'prompt')
+      const prompt = promptHook && 'prompt' in promptHook ? promptHook.prompt : ''
+      return {
+        id: `hook-${i}`,
+        name: m.matcher || `Hook ${i + 1}`,
+        prompt,
+        times: [],
+        enabled: m.enabled !== false,
+        createdAt: 0,
+        _fromHooks: true,
+        _cron: m.cron,
+      }
+    })
   })
 
   // Update a scheduled prompt

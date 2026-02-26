@@ -1300,13 +1300,15 @@ export interface UpdateInfo {
   /** Latest available version (null if check failed) */
   latestVersion: string | null
   /** Download state */
-  downloadState: 'idle' | 'downloading' | 'ready' | 'installing' | 'error'
+  downloadState: 'idle' | 'downloading' | 'ready' | 'installing' | 'error' | 'manual-download'
   /** Download progress (0-100, or -1 for indeterminate on macOS) */
   downloadProgress: number
   /** Whether this platform supports download progress events (electron-updater v6.8.0+) */
   supportsProgress: boolean
   /** Error message if download/install failed */
   error?: string
+  /** GitHub release URL for manual download (set when downloadState is 'manual-download') */
+  releaseUrl?: string
 }
 
 /**

@@ -65,6 +65,8 @@ export function getSettingsLabels(t: (key: string) => string) {
     restartToUpdateLabel: t('settings:sections.about.restartToUpdateLabel'),
     downloadingLabel: t('settings:sections.about.downloadingLabel'),
     downloadingProgressLabel: t('settings:sections.about.downloadingProgressLabel'),
+    manualDownloadLabel: t('settings:sections.about.manualDownloadLabel'),
+    downloadManuallyLabel: t('settings:sections.about.downloadManuallyLabel'),
   }
 }
 
@@ -224,6 +226,17 @@ export default function AppSettingsPage() {
                       onClick={updateChecker.installUpdate}
                     >
                       {labels.restartToUpdateLabel.replace('{{version}}', updateChecker.updateInfo.latestVersion)}
+                    </Button>
+                  </SettingsRow>
+                )}
+                {updateChecker.isManualDownload && updateChecker.updateInfo?.latestVersion && updateChecker.releaseUrl && (
+                  <SettingsRow label={labels.manualDownloadLabel}>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => window.electronAPI.openUrl(updateChecker.releaseUrl!)}
+                    >
+                      {labels.downloadManuallyLabel.replace('{{version}}', updateChecker.updateInfo!.latestVersion!)}
                     </Button>
                   </SettingsRow>
                 )}

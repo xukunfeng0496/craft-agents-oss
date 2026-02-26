@@ -24,6 +24,10 @@ interface UseUpdateCheckerResult {
   isIndeterminate: boolean
   /** Whether update is ready to install */
   isReadyToInstall: boolean
+  /** Whether auto-update failed and user must download manually */
+  isManualDownload: boolean
+  /** GitHub release URL for manual download */
+  releaseUrl: string | undefined
   /** Download progress (0-100) */
   downloadProgress: number
   /** Check for updates manually */
@@ -66,6 +70,26 @@ export function useUpdateChecker(): UseUpdateCheckerResult {
     })
   }, [])
 
+  // Show toast when auto-update fails and manual download is needed
+  const showManualDownloadToast = useCallback((version: string, releaseUrl: string) => {
+    if (shownToastVersionRef.current === version) return
+    shownToastVersionRef.current = version
+
+    toast.info(`Update v${version} available`, {
+      id: UPDATE_TOAST_ID,
+      description: 'Auto-update unavailable. Please download manually.',
+      duration: 15000,
+      action: {
+        label: 'Download',
+        onClick: () => window.electronAPI.openUrl(releaseUrl),
+      },
+      cancel: {
+        label: 'Later',
+        onClick: () => window.electronAPI.dismissUpdate(version),
+      },
+    })
+  }, [])
+
   // Install the update
   const installUpdate = useCallback(async () => {
     try {
@@ -88,16 +112,16 @@ export function useUpdateChecker(): UseUpdateCheckerResult {
   useEffect(() => {
     const checkAndNotify = async (info: UpdateInfo) => {
       if (!info.available || !info.latestVersion) return
-      if (info.downloadState !== 'ready') return
 
       // Check if this version was dismissed
       const dismissedVersion = await window.electronAPI.getDismissedUpdateVersion()
-      if (dismissedVersion === info.latestVersion) {
-        return
-      }
+      if (dismissedVersion === info.latestVersion) return
 
-      // Show toast for ready update
-      showUpdateToast(info.latestVersion, installUpdate)
+      if (info.downloadState === 'ready') {
+        showUpdateToast(info.latestVersion, installUpdate)
+      } else if (info.downloadState === 'manual-download' && info.releaseUrl) {
+        showManualDownloadToast(info.latestVersion, info.releaseUrl)
+      }
     }
 
     // Get initial update info
@@ -135,9 +159,11 @@ export function useUpdateChecker(): UseUpdateCheckerResult {
           duration: 3000,
         })
       } else if (info.downloadState === 'ready' && info.latestVersion) {
-        // If already ready, show toast (clear any previous dismissal since user explicitly checked)
-        shownToastVersionRef.current = null // Reset so toast can show again
+        shownToastVersionRef.current = null
         showUpdateToast(info.latestVersion, installUpdate)
+      } else if (info.downloadState === 'manual-download' && info.latestVersion && info.releaseUrl) {
+        shownToastVersionRef.current = null
+        showManualDownloadToast(info.latestVersion, info.releaseUrl)
       }
     } catch (error) {
       console.error('[useUpdateChecker] Check failed:', error)
@@ -145,7 +171,7 @@ export function useUpdateChecker(): UseUpdateCheckerResult {
         description: error instanceof Error ? error.message : 'Unknown error',
       })
     }
-  }, [showUpdateToast, installUpdate])
+  }, [showUpdateToast, showManualDownloadToast, installUpdate])
 
   return {
     updateInfo,
@@ -154,6 +180,8 @@ export function useUpdateChecker(): UseUpdateCheckerResult {
     isIndeterminate: updateInfo?.downloadState === 'downloading' &&
       (updateInfo?.supportsProgress === false || updateInfo?.downloadProgress === -1),
     isReadyToInstall: updateInfo?.downloadState === 'ready',
+    isManualDownload: updateInfo?.downloadState === 'manual-download',
+    releaseUrl: updateInfo?.releaseUrl,
     downloadProgress: updateInfo?.downloadProgress ?? 0,
     checkForUpdates,
     installUpdate,

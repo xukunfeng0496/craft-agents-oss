@@ -35,7 +35,9 @@
       "updateReadyLabel": "Update ready",
       "restartToUpdateLabel": "Restart to Update to v{{version}}",
       "downloadingLabel": "Downloading v{{version}}...",
-      "downloadingProgressLabel": "Downloading v{{version}} ({{progress}}%)"
+      "downloadingProgressLabel": "Downloading v{{version}} ({{progress}}%)",
+      "manualDownloadLabel": "Update available",
+      "downloadManuallyLabel": "Download v{{version}} manually"
     }
   },
   "appearance": {

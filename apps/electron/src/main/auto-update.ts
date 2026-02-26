@@ -34,6 +34,15 @@ const PLATFORM = platform()
 const IS_MAC = PLATFORM === 'darwin'
 const IS_WINDOWS = PLATFORM === 'win32'
 
+function isSquirrelCodeSignError(error: Error): boolean {
+  return IS_MAC && error.message.includes('SQRLCodeSignatureErrorDomain')
+}
+
+function getGitHubReleaseUrl(version: string | null): string {
+  const base = 'https://github.com/xukunfeng0496/craft-agents-oss/releases'
+  return version ? `${base}/tag/v${version}` : `${base}/latest`
+}
+
 // Get the update cache directory path (for file watcher fallback on macOS)
 // electron-updater uses these paths:
 // - Windows: %LOCALAPPDATA%/{sanitizedAppName}-updater/pending
@@ -230,10 +239,20 @@ autoUpdater.on('update-downloaded', async (info) => {
 autoUpdater.on('error', (error) => {
   mainLog.error('[auto-update] Error:', error.message)
 
-  updateInfo = {
-    ...updateInfo,
-    downloadState: 'error',
-    error: error.message,
+  if (isSquirrelCodeSignError(error)) {
+    mainLog.info('[auto-update] Squirrel code signature error — switching to manual-download state')
+    updateInfo = {
+      ...updateInfo,
+      downloadState: 'manual-download',
+      releaseUrl: getGitHubReleaseUrl(updateInfo.latestVersion),
+      error: error.message,
+    }
+  } else {
+    updateInfo = {
+      ...updateInfo,
+      downloadState: 'error',
+      error: error.message,
+    }
   }
   broadcastUpdateInfo()
 })
@@ -365,10 +384,20 @@ export async function checkForUpdates(options: CheckOptions = {}): Promise<Updat
     }
   } catch (error) {
     mainLog.error('[auto-update] Check failed:', error)
-    updateInfo = {
-      ...updateInfo,
-      downloadState: 'error',
-      error: error instanceof Error ? error.message : 'Check failed',
+    const err = error instanceof Error ? error : new Error('Check failed')
+    if (isSquirrelCodeSignError(err)) {
+      updateInfo = {
+        ...updateInfo,
+        downloadState: 'manual-download',
+        releaseUrl: getGitHubReleaseUrl(updateInfo.latestVersion),
+        error: err.message,
+      }
+    } else {
+      updateInfo = {
+        ...updateInfo,
+        downloadState: 'error',
+        error: err.message,
+      }
     }
   } finally {
     // Restore previous autoDownload setting

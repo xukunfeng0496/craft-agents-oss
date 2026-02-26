@@ -35,7 +35,9 @@
       "updateReadyLabel": "更新已准备",
       "restartToUpdateLabel": "重启以更新到 v{{version}}",
       "downloadingLabel": "正在下载 v{{version}}...",
-      "downloadingProgressLabel": "正在下载 v{{version}}（{{progress}}%）"
+      "downloadingProgressLabel": "正在下载 v{{version}}（{{progress}}%）",
+      "manualDownloadLabel": "有新版本",
+      "downloadManuallyLabel": "手动下载 v{{version}}"
     }
   },
   "appearance": {

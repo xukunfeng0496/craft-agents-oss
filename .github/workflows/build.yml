@@ -183,7 +183,8 @@ jobs:
       - name: Write release notes
         run: |
           VERSION="${{ steps.version.outputs.version }}"
-          cat > .release-notes.md << EOF
+          # Build final release notes: install table (auto) + changelog (from file)
+          cat > .release-notes.md << HEADER
           ## 安装
 
           | 平台 | 文件 |
@@ -197,25 +198,20 @@ jobs:
 
           ---
 
-          ## v${VERSION} 更新内容
+          HEADER
 
-          ### 新功能
-          - **定时提示**：添加 Scheduled Prompts 功能，支持配置定时自动执行的提示
+          # Append changelog from RELEASE_NOTES.md if it exists
+          if [ -f apps/electron/RELEASE_NOTES.md ]; then
+            cat apps/electron/RELEASE_NOTES.md >> .release-notes.md
+          else
+            echo "⚠ apps/electron/RELEASE_NOTES.md not found, using minimal notes"
+            echo "## v${VERSION}" >> .release-notes.md
+          fi
 
-          ### 修复
-          - **多语言翻译（打包版）**：修复打包后主进程 i18n 翻译缺失，原生菜单栏显示原始 key 的问题
-          - **多语言翻译（渲染进程）**：修复渲染进程缺少 menu 和 dialogs 命名空间导致菜单翻译丢失
-          - **设置导航**：修复点击设置菜单中「应用」页不切换的问题（路由持久化逻辑误拦截）
-          - **macOS 自动更新**：修复代码签名验证失败时的回退下载机制
-          - **Windows 平台标签**：修复 Windows 上文件管理器标签显示为 macOS「访达」的问题
-          - **拖拽 Office 文件**：修复拖拽 Excel 等 Office 文件到聊天输入框导致 UI 冻结
-          - **消息即时显示**：修复发送附件时消息不立即回显的问题
-          - **代码清理**：移除已废弃的 SchedulerService 引用
-
-          ---
-
-          Work Agents · Apache 2.0
-          EOF
+          echo "" >> .release-notes.md
+          echo "---" >> .release-notes.md
+          echo "" >> .release-notes.md
+          echo "Work Agents · Apache 2.0" >> .release-notes.md
 
       - name: Create Release
         uses: softprops/action-gh-release@v2

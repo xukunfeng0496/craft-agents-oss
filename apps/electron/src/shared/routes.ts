@@ -161,7 +161,7 @@ export const routes = {
 
     /** Settings view (settings navigator) - uses SettingsSubpage from registry */
     settings: (subpage?: SettingsSubpage) =>
-      subpage && subpage !== 'app'
+      subpage
         ? `settings/${subpage}` as const
         : 'settings' as const,
   },

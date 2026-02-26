@@ -27,6 +27,7 @@
     "remoteControl": "远程控制",
     "stopRemoteControl": "停止远程控制",
     "showInFinder": "在访达中显示",
+    "showInExplorer": "在文件资源管理器中显示",
     "deleteSource": "删除来源",
     "deleteSkill": "删除技能",
     "status": "状态",

@@ -22,6 +22,7 @@ import {
   AppWindow,
 } from 'lucide-react'
 import { useMenuComponents } from '@/components/ui/menu-context'
+import { isWindows } from '@/lib/platform'
 
 export interface SkillMenuProps {
   /** Skill slug */
@@ -37,7 +38,7 @@ export interface SkillMenuProps {
 export function getSkillMenuLabels(t: TFunction) {
   return {
     openInNewWindow: t('common:menu.openInNewWindow'),
-    showInFinder: t('common:menu.showInFinder'),
+    showInFinder: t(isWindows ? 'common:menu.showInExplorer' : 'common:menu.showInFinder'),
     deleteSkill: t('common:menu.deleteSkill'),
   }
 }

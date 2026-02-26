@@ -1,5 +1,9 @@
 export type TranslationFn = (key: string, options?: Record<string, unknown>) => string
 
+const isWindows =
+  typeof navigator !== 'undefined' &&
+  navigator.platform.toLowerCase().includes('win')
+
 export const getAppMenuLabels = (t: TranslationFn) => ({
   craftMenuAriaLabel: t('menu:craftMenuAriaLabel'),
   newChat: t('menu:newChat'),
@@ -35,7 +39,7 @@ export const getSessionMenuLabels = (t: TranslationFn) => ({
   rename: t('common:menu.rename'),
   regenerateTitle: t('common:menu.regenerateTitle'),
   openInNewWindow: t('common:menu.openInNewWindow'),
-  showInFinder: t('common:menu.showInFinder'),
+  showInFinder: t(isWindows ? 'common:menu.showInExplorer' : 'common:menu.showInFinder'),
   copyPath: t('common:menu.copyPath'),
   delete: t('common:menu.delete'),
   linkCopied: t('chat:toast.linkCopied'),

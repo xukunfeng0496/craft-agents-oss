@@ -22,6 +22,7 @@ import { Spinner } from '@work-agent/ui'
 import { Save, RotateCcw, Check, ExternalLink } from 'lucide-react'
 import { HeaderMenu } from '@/components/ui/HeaderMenu'
 import { routes } from '@/lib/navigate'
+import { isWindows } from '@/lib/platform'
 
 interface PreferencesFormState {
   name: string
@@ -186,7 +187,7 @@ export default function PreferencesPage() {
       <button
         onClick={() => window.electronAPI.showInFolder('~/.workagent/preferences.json')}
         className="flex items-center gap-1 text-xs h-7 px-2 rounded-md bg-foreground/5 hover:bg-foreground/10 text-muted-foreground"
-        title="Open in Finder"
+        title={isWindows ? 'Show in Explorer' : 'Open in Finder'}
       >
         <ExternalLink className="h-3 w-3" />
       </button>

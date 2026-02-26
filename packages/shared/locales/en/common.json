@@ -27,6 +27,7 @@
     "remoteControl": "Remote Control",
     "stopRemoteControl": "Stop Remote Control",
     "showInFinder": "Show in Finder",
+    "showInExplorer": "Show in Explorer",
     "deleteSource": "Delete Source",
     "deleteSkill": "Delete Skill",
     "status": "Status",

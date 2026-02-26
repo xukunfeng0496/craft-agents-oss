@@ -15,6 +15,7 @@ export function buildLocaleCandidatePaths(input: LocalePathInput): string[] {
   const candidates = input.isPackaged
     ? [
         join(input.resourcesPath, 'locales', input.locale, file),
+        join(input.appPath, 'dist', 'resources', 'locales', input.locale, file),
         join(input.appPath, 'packages', 'shared', 'locales', input.locale, file),
       ]
     : [

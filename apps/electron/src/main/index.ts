@@ -68,6 +68,7 @@ import { SessionManager } from './sessions'
 import { registerIpcHandlers, startCodexModelRefresh, stopCodexModelRefresh } from './ipc'
 import { createApplicationMenu } from './menu'
 import { WindowManager } from './window-manager'
+import { setAppQuitting, isAppQuitting } from './app-quit-state'
 import { loadWindowState, saveWindowState } from './window-state'
 import { getWorkspaces, loadStoredConfig, addWorkspace, saveConfig, getAppLanguage } from '@work-agent/shared/config'
 import { getDefaultWorkspacesDir } from '@work-agent/shared/workspaces'
@@ -407,14 +408,11 @@ app.on('window-all-closed', () => {
   }
 })
 
-// Track if we're in the process of quitting (to avoid re-entry)
-let isQuitting = false
-
 // Save window state and clean up resources before quitting
 app.on('before-quit', async (event) => {
   // Avoid re-entry when we call app.quit() below (it re-emits before-quit)
-  if (isQuitting) return
-  isQuitting = true
+  if (isAppQuitting()) return
+  setAppQuitting()
 
   if (windowManager) {
     // Get full window states (includes bounds, type, and query)

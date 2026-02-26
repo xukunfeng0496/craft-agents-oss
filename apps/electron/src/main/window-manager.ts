@@ -7,6 +7,7 @@ import { IPC_CHANNELS } from '../shared/types'
 import type { SavedWindow } from './window-state'
 import { getMainI18n } from './i18n'
 import { getContextMenuI18nLabels } from './i18n-labels'
+import { isAppQuitting } from './app-quit-state'
 
 // Vite dev server URL for hot reload
 const VITE_DEV_SERVER_URL = process.env.VITE_DEV_SERVER_URL
@@ -294,6 +295,9 @@ export class WindowManager {
     // Handle window close request (X button, Cmd+W) - intercept to allow modal closing first
     // The renderer can respond via WINDOW_CONFIRM_CLOSE to actually close the window
     window.on('close', (event) => {
+      // If app is quitting, allow the close to proceed without renderer round-trip
+      if (isAppQuitting()) return
+
       // Check if renderer is ready (mainFrame exists) - if not, allow close directly
       if (!window.webContents.isDestroyed() && window.webContents.mainFrame) {
         event.preventDefault()

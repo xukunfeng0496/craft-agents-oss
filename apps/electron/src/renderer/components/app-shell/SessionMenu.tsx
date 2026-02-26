@@ -43,6 +43,7 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useMenuComponents } from '@/components/ui/menu-context'
+import { isWindows } from '@/lib/platform'
 import { getStateColor, getStateIcon, type SessionStatusId } from '@/config/session-status-config'
 import type { SessionStatus } from '@/config/session-status-config'
 import type { LabelConfig } from '@work-agent/shared/labels'
@@ -107,7 +108,7 @@ export function getSessionMenuLabels(t: TFunction) {
       rename: t('common:menu.rename'),
       regenerateTitle: t('common:menu.regenerateTitle'),
       openInNewWindow: t('common:menu.openInNewWindow'),
-      showInFinder: t('common:menu.showInFinder'),
+      showInFinder: t(isWindows ? 'common:menu.showInExplorer' : 'common:menu.showInFinder'),
       copyPath: t('common:menu.copyPath'),
       delete: t('common:menu.delete'),
     },

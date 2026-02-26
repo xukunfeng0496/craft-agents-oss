@@ -11,6 +11,7 @@
 
 import * as React from 'react'
 import { useState, useEffect, useCallback } from 'react'
+import { useTranslation } from 'react-i18next'
 import { PanelHeader } from '@/components/app-shell/PanelHeader'
 import { Separator } from '@/components/ui/separator'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -115,6 +116,7 @@ function FormField({
 }
 
 export default function PreferencesPage() {
+  const { t } = useTranslation()
   const [formState, setFormState] = useState<PreferencesFormState>(emptyFormState)
   const [originalState, setOriginalState] = useState<PreferencesFormState>(emptyFormState)
   const [isLoading, setIsLoading] = useState(true)
@@ -187,7 +189,7 @@ export default function PreferencesPage() {
       <button
         onClick={() => window.electronAPI.showInFolder('~/.workagent/preferences.json')}
         className="flex items-center gap-1 text-xs h-7 px-2 rounded-md bg-foreground/5 hover:bg-foreground/10 text-muted-foreground"
-        title={isWindows ? 'Show in Explorer' : 'Open in Finder'}
+        title={t(isWindows ? 'common:menu.showInExplorer' : 'common:menu.showInFinder')}
       >
         <ExternalLink className="h-3 w-3" />
       </button>

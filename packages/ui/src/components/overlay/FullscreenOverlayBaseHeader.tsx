@@ -95,11 +95,7 @@ interface FilePathBadgeProps {
  * not re-trigger the in-app preview interceptor.
  */
 function FilePathBadge({ filePath }: FilePathBadgeProps) {
-  const { onOpenFileExternal, onRevealInFinder } = usePlatform()
-  const isWin =
-    typeof navigator !== 'undefined' &&
-    navigator.platform.toLowerCase().includes('win')
-  const revealLabel = isWin ? 'Show in Explorer' : 'Reveal in Finder'
+  const { onOpenFileExternal, onRevealInFinder, revealInFinderLabel = 'Reveal in Finder' } = usePlatform()
 
   const handleOpen = useCallback(() => {
     onOpenFileExternal?.(filePath)
@@ -124,7 +120,7 @@ function FilePathBadge({ filePath }: FilePathBadgeProps) {
       {onRevealInFinder && (
         <DropdownMenu.Item className={menuItemClasses} onSelect={handleReveal}>
           <FolderOpen className="w-3.5 h-3.5 shrink-0" />
-          {revealLabel}
+          {revealInFinderLabel}
         </DropdownMenu.Item>
       )}
     </>
@@ -141,7 +137,7 @@ function FilePathBadge({ filePath }: FilePathBadgeProps) {
       {onRevealInFinder && (
         <ContextMenu.Item className={menuItemClasses} onSelect={handleReveal}>
           <FolderOpen className="w-3.5 h-3.5 shrink-0" />
-          {revealLabel}
+          {revealInFinderLabel}
         </ContextMenu.Item>
       )}
     </>

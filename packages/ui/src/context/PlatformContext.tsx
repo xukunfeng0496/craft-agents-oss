@@ -95,6 +95,12 @@ export interface PlatformActions {
   onRevealInFinder?: (path: string) => void
 
   /**
+   * Label for the "reveal in file manager" action.
+   * Defaults to "Reveal in Finder" (macOS). Pass "Show in Explorer" on Windows.
+   */
+  revealInFinderLabel?: string
+
+  /**
    * Show/hide macOS traffic light buttons (close/minimize/maximize).
    * Used to hide them when fullscreen overlays are open to prevent accidental clicks.
    * No-op on non-macOS platforms or in web viewer.

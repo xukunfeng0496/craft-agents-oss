@@ -1,8 +1,5 @@
 import type { TFunction } from 'i18next'
-
-const isWindows =
-  typeof navigator !== 'undefined' &&
-  navigator.platform.toLowerCase().includes('win')
+import { isWindows } from '@/lib/platform'
 
 export function getSourceMenuLabels(t: TFunction) {
   return {

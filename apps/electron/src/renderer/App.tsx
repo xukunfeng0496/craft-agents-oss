@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { useTheme } from '@/hooks/useTheme'
+import { isWindows } from '@/lib/platform'
 import type { ThemeOverrides } from '@config/theme'
 import { useSetAtom, useStore, useAtomValue, useAtom } from 'jotai'
 import type { Session, Workspace, SessionEvent, Message, FileAttachment, StoredAttachment, PermissionRequest, CredentialRequest, CredentialResponse, UserQuestionRequest, UserQuestionResponse, SetupNeeds, SessionStatus, NewChatActionParams, ContentBadge, LlmConnectionWithStatus } from '../shared/types'
@@ -1389,6 +1390,7 @@ export default function App() {
     onSetTrafficLightsVisible: (visible: boolean) => {
       window.electronAPI.setTrafficLightsVisible(visible)
     },
+    revealInFinderLabel: isWindows ? 'Show in Explorer' : 'Reveal in Finder',
   }), [handleOpenFile, handleOpenUrl, linkInterceptor.openFileExternal])
 
   // Loading state - show splash screen

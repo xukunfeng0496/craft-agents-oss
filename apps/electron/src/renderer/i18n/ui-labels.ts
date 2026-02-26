@@ -1,8 +1,6 @@
 export type TranslationFn = (key: string, options?: Record<string, unknown>) => string
 
-const isWindows =
-  typeof navigator !== 'undefined' &&
-  navigator.platform.toLowerCase().includes('win')
+import { isWindows } from '@/lib/platform'
 
 export const getAppMenuLabels = (t: TranslationFn) => ({
   craftMenuAriaLabel: t('menu:craftMenuAriaLabel'),

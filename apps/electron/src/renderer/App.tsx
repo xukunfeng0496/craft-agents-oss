@@ -808,69 +808,20 @@ export default function App() {
       let storedAttachments: StoredAttachment[] | undefined
       let processedAttachments: FileAttachment[] | undefined
 
-      if (attachments?.length) {
-        // Store each attachment to disk (generates thumbnails, converts Office→markdown)
-        // Use allSettled so one failure doesn't kill all attachments
-        const storeResults = await Promise.allSettled(
-          attachments.map(a => window.electronAPI.storeAttachment(sessionId, a))
-        )
-
-        // Filter successful stores, warn about failures
-        storedAttachments = []
-        const successfulAttachments: FileAttachment[] = []
-        storeResults.forEach((result, i) => {
-          if (result.status === 'fulfilled') {
-            storedAttachments!.push(result.value)
-            successfulAttachments.push(attachments[i])
-          } else {
-            console.warn(`Failed to store attachment "${attachments[i].name}":`, result.reason)
-          }
-        })
-
-        // Notify user about failed attachments
-        const failedCount = storeResults.filter(r => r.status === 'rejected').length
-        if (failedCount > 0) {
-          console.warn(`${failedCount} attachment(s) failed to store`)
-          // Add warning message to session so user knows some attachments weren't included
-          const failedNames = attachments
-            .filter((_, i) => storeResults[i].status === 'rejected')
-            .map(a => a.name)
-            .join(', ')
-          updateSessionById(sessionId, (s) => ({
-            messages: [...s.messages, {
-              id: generateMessageId(),
-              role: 'warning' as const,
-              content: `⚠️ ${failedCount} attachment(s) could not be stored and will not be sent: ${failedNames}`,
-              timestamp: Date.now()
-            }]
+      // Build temporary StoredAttachment[] from FileAttachment for immediate display.
+      // FileAttachment already has thumbnailBase64 from readFileAttachment, so the UI
+      // looks correct while the real store (Office conversion etc.) runs in the background.
+      const tempStoredAttachments: StoredAttachment[] | undefined = attachments?.length
+        ? attachments.map(a => ({
+            id: generateMessageId(),
+            type: a.type,
+            name: a.name,
+            mimeType: a.mimeType,
+            size: a.size,
+            storedPath: a.path ?? '',
+            thumbnailBase64: a.thumbnailBase64,
           }))
-        }
-
-        // Step 2: Create processed attachments for Claude
-        // - Office files: Convert to text with markdown content
-        // - Others: Use original FileAttachment
-        // - All: Include storedPath so agent knows where files are stored
-        // - Resized images: Use resizedBase64 instead of original large base64
-        processedAttachments = await Promise.all(
-          successfulAttachments.map(async (att, i) => {
-            const stored = storedAttachments?.[i]
-            if (!stored) {
-              console.error(`Missing stored attachment at index ${i}`)
-              return att // Fall back to original
-            }
-            // Include storedPath and markdownPath for all attachment types
-            // Agent will use Read tool to access text/office files via these paths
-            // If image was resized, use the resized base64 for Claude API
-            return {
-              ...att,
-              storedPath: stored.storedPath,
-              markdownPath: stored.markdownPath,
-              // Use resized base64 if available (for images that exceeded size limits)
-              base64: stored.resizedBase64 ?? att.base64,
-            }
-          })
-        )
-      }
+        : undefined
 
       // Step 3: Check if ultrathink is enabled for this session
       const isUltrathink = sessionOptions.get(sessionId)?.ultrathinkEnabled ?? false
@@ -917,25 +868,83 @@ export default function App() {
         })
       }
 
-      // Step 5: Create user message with StoredAttachments (for UI display)
-      // Mark as isPending for optimistic UI - will be confirmed by user_message event
+      // Step 5: Create user message and show it immediately (optimistic UI)
+      // Use tempStoredAttachments so thumbnails appear right away without waiting for storage
       const userMessage: Message = {
         id: generateMessageId(),
         role: 'user',
         content: message,
         timestamp: Date.now(),
-        attachments: storedAttachments,
+        attachments: tempStoredAttachments,
         badges: badges.length > 0 ? badges : undefined,
         ultrathink: isUltrathink || undefined,  // Only set if true
         isPending: true,  // Optimistic - will be confirmed by backend
       }
 
-      // Optimistic UI update - add user message and set processing state
+      // Optimistic UI update - add user message immediately, before storeAttachment completes
       updateSessionById(sessionId, (s) => ({
         messages: [...s.messages, userMessage],
         isProcessing: true,
         lastMessageAt: Date.now()
       }))
+
+      // Step 5.1: Now await storeAttachment (UI already updated, so no perceived freeze)
+      if (attachments?.length) {
+        const storeResults = await Promise.allSettled(
+          attachments.map(a => window.electronAPI.storeAttachment(sessionId, a))
+        )
+
+        storedAttachments = []
+        const successfulAttachments: FileAttachment[] = []
+        storeResults.forEach((result, i) => {
+          if (result.status === 'fulfilled') {
+            storedAttachments!.push(result.value)
+            successfulAttachments.push(attachments[i])
+          } else {
+            console.warn(`Failed to store attachment "${attachments[i].name}":`, result.reason)
+          }
+        })
+
+        const failedCount = storeResults.filter(r => r.status === 'rejected').length
+        if (failedCount > 0) {
+          console.warn(`${failedCount} attachment(s) failed to store`)
+          const failedNames = attachments
+            .filter((_, i) => storeResults[i].status === 'rejected')
+            .map(a => a.name)
+            .join(', ')
+          updateSessionById(sessionId, (s) => ({
+            messages: [...s.messages, {
+              id: generateMessageId(),
+              role: 'warning' as const,
+              content: `⚠️ ${failedCount} attachment(s) could not be stored and will not be sent: ${failedNames}`,
+              timestamp: Date.now()
+            }]
+          }))
+        }
+
+        // Update message with real stored attachments (replaces temp ones)
+        updateSessionById(sessionId, (s) => ({
+          messages: s.messages.map(m =>
+            m.id === userMessage.id ? { ...m, attachments: storedAttachments } : m
+          )
+        }))
+
+        processedAttachments = await Promise.all(
+          successfulAttachments.map(async (att, i) => {
+            const stored = storedAttachments?.[i]
+            if (!stored) {
+              console.error(`Missing stored attachment at index ${i}`)
+              return att
+            }
+            return {
+              ...att,
+              storedPath: stored.storedPath,
+              markdownPath: stored.markdownPath,
+              base64: stored.resizedBase64 ?? att.base64,
+            }
+          })
+        )
+      }
 
       // Step 6: Send to Claude with processed attachments + stored attachments for persistence
       await window.electronAPI.sendMessage(sessionId, message, processedAttachments, storedAttachments, {

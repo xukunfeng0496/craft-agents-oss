@@ -19,6 +19,13 @@ cpSync('resources', 'dist/resources', { recursive: true });
 
 console.log('✓ Copied resources/ → dist/resources/');
 
+// Copy i18n locale files for main process (renderer bundles them via Vite)
+// Source: packages/shared/locales/ → dist/resources/locales/
+const localesSrc = join('..', '..', 'packages', 'shared', 'locales');
+const localesDest = join('dist', 'resources', 'locales');
+cpSync(localesSrc, localesDest, { recursive: true });
+console.log('✓ Copied locales/ → dist/resources/locales/');
+
 // Copy PowerShell parser script (for Windows command validation in Explore mode)
 // Source: packages/shared/src/agent/powershell-parser.ps1
 // Destination: dist/resources/powershell-parser.ps1

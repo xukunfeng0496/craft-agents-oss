@@ -61,6 +61,14 @@ export const MODEL_REGISTRY: ModelDefinition[] = [
     contextWindow: 200_000,
   },
   {
+    id: 'CVTE-SECRET',
+    name: 'CVTE Secret',
+    shortName: 'Secret',
+    description: 'Secure model for confidential data tasks',
+    provider: 'anthropic',
+    contextWindow: 200_000,
+  },
+  {
     id: 'glm-5',
     name: 'GLM-5',
     shortName: 'GLM-5',
@@ -68,6 +76,7 @@ export const MODEL_REGISTRY: ModelDefinition[] = [
     provider: 'anthropic',
     contextWindow: 200_000,
   },
+
   {
     id: 'claude-opus-4-6',
     name: 'Opus 4.6',

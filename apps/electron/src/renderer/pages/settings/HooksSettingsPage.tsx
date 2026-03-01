@@ -17,8 +17,7 @@ import { HeaderMenu } from '@/components/ui/HeaderMenu'
 import { routes } from '@/lib/navigate'
 import { useTranslation } from 'react-i18next'
 import type { DetailsPageMeta } from '@/lib/navigation-registry'
-import { useAtomValue } from 'jotai'
-import { activeWorkspaceAtom } from '@/atoms/workspaces'
+import { useAppShellContext } from '@/context/AppShellContext'
 import { Clock, Plus, Trash2, Calendar, AlertCircle } from 'lucide-react'
 import { toast } from 'sonner'
 import { cronToDescription, cronToSchedule } from '@work-agent/shared/schedules/utils'
@@ -371,7 +370,6 @@ function HookDialog({ open, onOpenChange, hook, onSave }: HookDialogProps) {
 export default function HooksSettingsPage() {
   const { t } = useTranslation(['settings'])
   const labels = getHooksSettingsLabels(t)
-  const workspace = useAtomValue(activeWorkspaceAtom)
 
   const [hooks, setHooks] = useState<SchedulerHookData[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -386,7 +384,7 @@ export default function HooksSettingsPage() {
 
     setIsLoading(true)
     try {
-      const result = await window.electronAPI.listSchedulerHooks(workspace.id)
+      const result = await window.electronAPI.listSchedulerHooks(activeWorkspaceId)
       setHooks(result)
     } catch (error) {
       console.error('Failed to load hooks:', error)
@@ -431,14 +429,14 @@ export default function HooksSettingsPage() {
 
       if (editingHook) {
         // Update existing hook
-        await window.electronAPI.updateSchedulerHook(workspace.id, {
+        await window.electronAPI.updateSchedulerHook(activeWorkspaceId, {
           ...hookData,
           id: editingHook.id, // Keep original ID
         })
         toast.success('Hook updated')
       } else {
         // Create new hook
-        await window.electronAPI.createSchedulerHook(workspace.id, hookData)
+        await window.electronAPI.createSchedulerHook(activeWorkspaceId, hookData)
         toast.success('Hook created')
       }
 
@@ -455,7 +453,7 @@ export default function HooksSettingsPage() {
     if (!workspace?.id || !deletingHook) return
 
     try {
-      await window.electronAPI.deleteSchedulerHook(workspace.id, deletingHook.id)
+      await window.electronAPI.deleteSchedulerHook(activeWorkspaceId, deletingHook.id)
       toast.success('Hook deleted')
       await loadHooks()
       setDeleteDialogOpen(false)
@@ -471,7 +469,7 @@ export default function HooksSettingsPage() {
     if (!workspace?.id) return
 
     try {
-      await window.electronAPI.updateSchedulerHook(workspace.id, {
+      await window.electronAPI.updateSchedulerHook(activeWorkspaceId, {
         ...hook,
         enabled,
       })

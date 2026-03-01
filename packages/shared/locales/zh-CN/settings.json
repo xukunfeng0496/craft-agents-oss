@@ -525,6 +525,72 @@
         "label": "隔离会话目录",
         "description": "在工作目录下为每个会话分配独立的子目录"
       }
+    },
+    "hooks": {
+      "title": "定时任务",
+      "description": "在指定时间自动创建带有预填充提示的聊天会话",
+      "emptyTitle": "暂无定时任务配置",
+      "emptyDescription": "定时任务会在应用打开时，在指定时间自动开始新对话。",
+      "addTask": "添加任务",
+      "editTask": "编辑任务",
+      "deleteTask": "删除任务",
+      "enableTask": "启用任务",
+      "disableTask": "禁用任务",
+      "taskEnabled": "任务已启用",
+      "taskDisabled": "任务已禁用",
+      "taskDeleted": "任务已删除",
+      "taskSaved": "任务已保存",
+      "taskCreated": "任务已创建",
+      "form": {
+        "nameLabel": "名称",
+        "namePlaceholder": "例如：晨会站会",
+        "promptLabel": "提示",
+        "promptPlaceholder": "我应该问智能体什么？",
+        "scheduleLabel": "计划",
+        "scheduleDescription": "此任务应何时运行？",
+        "timesLabel": "时间",
+        "daysLabel": "日期",
+        "enabledLabel": "已启用",
+        "enabledDescription": "按计划运行此任务"
+      },
+      "schedule": {
+        "everyday": "每天",
+        "weekdays": "工作日",
+        "weekends": "周末",
+        "custom": "自定义",
+        "addTime": "添加时间",
+        "removeTime": "移除时间",
+        "days": {
+          "mon": "星期一",
+          "tue": "星期二",
+          "wed": "星期三",
+          "thu": "星期四",
+          "fri": "星期五",
+          "sat": "星期六",
+          "sun": "星期日"
+        },
+        "daysShort": {
+          "mon": "周一",
+          "tue": "周二",
+          "wed": "周三",
+          "thu": "周四",
+          "fri": "周五",
+          "sat": "周六",
+          "sun": "周日"
+        }
+      },
+      "status": {
+        "fromHooks": "在 hooks.json 中定义（只读）",
+        "lastRun": "上次运行：{{time}}",
+        "neverRun": "从未运行",
+        "nextRun": "下次运行：{{time}}"
+      },
+      "validation": {
+        "nameRequired": "名称为必填项",
+        "promptRequired": "提示为必填项",
+        "timesRequired": "至少需要一个时间",
+        "invalidTime": "无效的时间格式"
+      }
     }
   }
 }

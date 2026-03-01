@@ -526,6 +526,72 @@
         "label": "Isolate Session Directories",
         "description": "Give each session its own subdirectory under the working directory"
       }
+    },
+    "hooks": {
+      "title": "Scheduled Tasks",
+      "description": "Automatically create chat sessions with pre-filled prompts at specified times",
+      "emptyTitle": "No scheduled tasks configured",
+      "emptyDescription": "Scheduled tasks automatically start new conversations at specified times when the app is open.",
+      "addTask": "Add Task",
+      "editTask": "Edit Task",
+      "deleteTask": "Delete Task",
+      "enableTask": "Enable Task",
+      "disableTask": "Disable Task",
+      "taskEnabled": "Task enabled",
+      "taskDisabled": "Task disabled",
+      "taskDeleted": "Task deleted",
+      "taskSaved": "Task saved",
+      "taskCreated": "Task created",
+      "form": {
+        "nameLabel": "Name",
+        "namePlaceholder": "e.g., Morning Standup",
+        "promptLabel": "Prompt",
+        "promptPlaceholder": "What should I ask the agent?",
+        "scheduleLabel": "Schedule",
+        "scheduleDescription": "When should this task run?",
+        "timesLabel": "Times",
+        "daysLabel": "Days",
+        "enabledLabel": "Enabled",
+        "enabledDescription": "Run this task on schedule"
+      },
+      "schedule": {
+        "everyday": "Every day",
+        "weekdays": "Weekdays",
+        "weekends": "Weekends",
+        "custom": "Custom",
+        "addTime": "Add Time",
+        "removeTime": "Remove Time",
+        "days": {
+          "mon": "Monday",
+          "tue": "Tuesday",
+          "wed": "Wednesday",
+          "thu": "Thursday",
+          "fri": "Friday",
+          "sat": "Saturday",
+          "sun": "Sunday"
+        },
+        "daysShort": {
+          "mon": "Mon",
+          "tue": "Tue",
+          "wed": "Wed",
+          "thu": "Thu",
+          "fri": "Fri",
+          "sat": "Sat",
+          "sun": "Sun"
+        }
+      },
+      "status": {
+        "fromHooks": "Defined in hooks.json (read-only)",
+        "lastRun": "Last run: {{time}}",
+        "neverRun": "Never run",
+        "nextRun": "Next run: {{time}}"
+      },
+      "validation": {
+        "nameRequired": "Name is required",
+        "promptRequired": "Prompt is required",
+        "timesRequired": "At least one time is required",
+        "invalidTime": "Invalid time format"
+      }
     }
   }
 }

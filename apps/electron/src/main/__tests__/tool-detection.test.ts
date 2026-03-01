@@ -20,4 +20,16 @@ describe('detectMissingTools', () => {
       expect(typeof result.found).toBe('boolean')
     }
   })
+
+  it('found tools include path and source information', async () => {
+    const results = await detectMissingTools()
+    for (const result of results) {
+      if (result.found) {
+        expect(result.path).toBeDefined()
+        expect(typeof result.path).toBe('string')
+        expect(result.source).toBeDefined()
+        expect(['system', 'bundled']).toContain(result.source)
+      }
+    }
+  })
 })

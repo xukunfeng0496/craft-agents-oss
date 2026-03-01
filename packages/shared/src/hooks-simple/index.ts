@@ -121,3 +121,9 @@ export {
   type EventLogHandlerOptions,
   type HooksConfigProvider,
 } from './handlers/index.ts';
+
+// ============================================================================
+// CRUD Operations
+// ============================================================================
+
+export * from './crud.ts';

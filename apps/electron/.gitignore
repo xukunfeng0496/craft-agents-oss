@@ -6,3 +6,4 @@ node_modules/@anthropic-ai/
 
 # Bundled tools (downloaded during build)
 resources/tools/
+!resources/tools/README.md

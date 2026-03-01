@@ -64,8 +64,10 @@ mac:
   target:
     - target: dmg
     - target: zip
-  hardenedRuntime: false
+  hardenedRuntime: true
   gatekeeperAssess: false
+  entitlements: resources/entitlements.mac.plist
+  entitlementsInherit: resources/entitlements.mac.plist
   extraResources:
     - from: node_modules/@anthropic-ai/claude-agent-sdk
       to: app/node_modules/@anthropic-ai/claude-agent-sdk
@@ -82,7 +84,9 @@ mac:
     - "!**/vendor/copilot/win32-*/**"
   # Use predictable naming for macOS packages (applies to zip; dmg uses its own config below)
   artifactName: "Work-Agent-${version}-osx-${arch}.${ext}"
-  # Code signing and notarization disabled
+  # Notarization: electron-builder v24+ reads APPLE_ID, APPLE_TEAM_ID, APPLE_APP_SPECIFIC_PASSWORD from env
+  # teamId is read from APPLE_TEAM_ID env var automatically when notarize block is present
+  notarize: true
 
 dmg:
   # Use predictable naming: Work-Agent-osx-arm64.dmg, Work-Agent-osx-x64.dmg

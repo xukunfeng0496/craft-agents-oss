@@ -11,6 +11,12 @@ jobs:
     runs-on: macos-latest
     env:
       NODE_OPTIONS: --max-old-space-size=4096
+      APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+      APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+      APPLE_ID: ${{ secrets.APPLE_ID }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+      APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
     steps:
       - uses: actions/checkout@v4
 
@@ -194,7 +200,7 @@ jobs:
           | Windows x64 | \`Work-Agent-${VERSION}-windows-x64.exe\` |
           | Linux x64 | \`Work-Agent-${VERSION}-linux-x64.AppImage\` |
 
-          > **macOS 提示**：此版本暂未进行 Apple 公证，安装时需在「系统设置 → 隐私与安全性」中手动允许，或右键点击 DMG 选择「打开」。
+          > **macOS 提示**：如安装时提示无法打开，请右键点击 DMG 选择「打开」，或在「系统设置 → 隐私与安全性」中允许。
 
           ---
 

@@ -153,9 +153,38 @@ bun run electron:build
 echo "Packaging app with electron-builder..."
 cd "$ELECTRON_DIR"
 
-# Code signing and notarization disabled — build without signing
-export CSC_IDENTITY_AUTO_DISCOVERY=false
-export CSC_IDENTITY="-"
+# Code signing setup
+# In CI: APPLE_CERTIFICATE (base64 p12) and APPLE_CERTIFICATE_PASSWORD are injected as env vars
+# Locally: relies on Keychain; set APPLE_SIGNING_IDENTITY if needed
+if [ -n "$APPLE_CERTIFICATE" ]; then
+    echo "Setting up code signing certificate from environment..."
+    CERT_PATH="$TEMP_DIR/certificate.p12"
+    echo "$APPLE_CERTIFICATE" | base64 --decode > "$CERT_PATH"
+
+    # Create a temporary keychain for CI
+    KEYCHAIN_PATH="$TEMP_DIR/build.keychain"
+    KEYCHAIN_PASSWORD="ci-temp-password"
+    security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+    security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+    security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+    # Import certificate into the temporary keychain
+    security import "$CERT_PATH" -P "$APPLE_CERTIFICATE_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+    security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+    # Add temp keychain to the search list
+    security list-keychains -d user -s "$KEYCHAIN_PATH" $(security list-keychains -d user | tr -d '"' | xargs)
+
+    echo "Certificate imported successfully"
+    export CSC_KEYCHAIN="$KEYCHAIN_PATH"
+fi
+
+# If no signing identity set, disable code signing (local dev fallback)
+if [ -z "$APPLE_SIGNING_IDENTITY" ] && [ -z "$APPLE_CERTIFICATE" ]; then
+    echo "Warning: No signing identity found, building without code signing"
+    export CSC_IDENTITY_AUTO_DISCOVERY=false
+    export CSC_IDENTITY="-"
+fi
 
 # Run electron-builder
 npx electron-builder --mac --${ARCH} --publish never

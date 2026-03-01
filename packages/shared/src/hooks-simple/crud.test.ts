@@ -168,4 +168,65 @@ describe('Hooks CRUD Operations', () => {
 
     await expect(deleteSchedulerHook(testDir, 'scheduler-999')).rejects.toThrow()
   })
+
+  test('creates multiple hooks with incrementing IDs', async () => {
+    await writeFile(
+      join(testDir, 'hooks.json'),
+      JSON.stringify({ version: 1, hooks: {} })
+    )
+
+    const hook1 = await createSchedulerHook(testDir, {
+      cron: '0 9 * * *',
+      prompt: 'First hook',
+    })
+    const hook2 = await createSchedulerHook(testDir, {
+      cron: '0 10 * * *',
+      prompt: 'Second hook',
+    })
+    const hook3 = await createSchedulerHook(testDir, {
+      cron: '0 11 * * *',
+      prompt: 'Third hook',
+    })
+
+    expect(hook1.id).toBe('scheduler-0')
+    expect(hook2.id).toBe('scheduler-1')
+    expect(hook3.id).toBe('scheduler-2')
+
+    const hooks = await listSchedulerHooks(testDir)
+    expect(hooks).toHaveLength(3)
+  })
+
+  test('handles hooks with all optional fields', async () => {
+    await writeFile(
+      join(testDir, 'hooks.json'),
+      JSON.stringify({ version: 1, hooks: {} })
+    )
+
+    const created = await createSchedulerHook(testDir, {
+      cron: '0 9 * * 1-5',
+      timezone: 'America/New_York',
+      permissionMode: 'safe',
+      labels: ['work', 'morning'],
+      enabled: false,
+      prompt: 'Complex hook',
+    })
+
+    expect(created).toMatchObject({
+      id: 'scheduler-0',
+      cron: '0 9 * * 1-5',
+      timezone: 'America/New_York',
+      permissionMode: 'safe',
+      labels: ['work', 'morning'],
+      enabled: false,
+      prompt: 'Complex hook',
+    })
+
+    const hooks = await listSchedulerHooks(testDir)
+    expect(hooks[0]).toMatchObject({
+      timezone: 'America/New_York',
+      permissionMode: 'safe',
+      labels: ['work', 'morning'],
+      enabled: false,
+    })
+  })
 })

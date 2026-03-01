@@ -70,6 +70,38 @@ describe('cronToSchedule', () => {
     expect(cronToSchedule('0 9 * * -1')).toBeNull()
     expect(cronToSchedule('0 9 * * abc')).toBeNull()
   })
+
+  test('accepts valid boundary values', () => {
+    // Minute boundaries
+    expect(cronToSchedule('0 9 * * *')).toEqual({
+      times: [{ hour: 9, minute: 0 }],
+      days: undefined
+    })
+    expect(cronToSchedule('59 9 * * *')).toEqual({
+      times: [{ hour: 9, minute: 59 }],
+      days: undefined
+    })
+
+    // Hour boundaries
+    expect(cronToSchedule('0 0 * * *')).toEqual({
+      times: [{ hour: 0, minute: 0 }],
+      days: undefined
+    })
+    expect(cronToSchedule('0 23 * * *')).toEqual({
+      times: [{ hour: 23, minute: 0 }],
+      days: undefined
+    })
+
+    // Day-of-week boundaries
+    expect(cronToSchedule('0 9 * * 0')).toEqual({
+      times: [{ hour: 9, minute: 0 }],
+      days: ['sun']
+    })
+    expect(cronToSchedule('0 9 * * 6')).toEqual({
+      times: [{ hour: 9, minute: 0 }],
+      days: ['sat']
+    })
+  })
 })
 
 describe('scheduleToCron and cronToSchedule roundtrip', () => {

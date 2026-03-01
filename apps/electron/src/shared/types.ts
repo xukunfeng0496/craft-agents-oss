@@ -299,10 +299,18 @@ export interface GitBashStatus {
 /**
  * Result of detecting whether a system tool is installed
  */
-export interface MissingTool {
+export interface ToolInfo {
   id: 'git' | 'python'
   found: boolean
+  path?: string
+  source?: 'system' | 'bundled' | 'none'
+  version?: string
 }
+
+/**
+ * @deprecated Use ToolInfo instead. Kept for backward compatibility.
+ */
+export type MissingTool = ToolInfo
 
 /**
  * Installation progress event sent from main → renderer during tool download

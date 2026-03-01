@@ -30,9 +30,12 @@
     "typecheck": "tsc --noEmit",
     "dist:mac": "bash scripts/build-dmg.sh arm64",
     "dist:mac:x64": "bash scripts/build-dmg.sh x64",
+    "prebuild:win": "bun run tools:download",
     "dist:win": "powershell -ExecutionPolicy Bypass -File scripts/build-win.ps1",
     "lint": "eslint src/",
-    "lint:fix": "eslint src/ --fix"
+    "lint:fix": "eslint src/ --fix",
+    "tools:download": "node scripts/download-tools.cjs",
+    "tools:clean": "rm -rf resources/tools"
   },
   "dependencies": {
     "@work-agent/core": "workspace:*",
@@ -69,5 +72,8 @@
     "strip-markdown": "^6.0.0",
     "unist-util-visit": "^5.0.0",
     "vaul": "^1.1.2"
+  },
+  "devDependencies": {
+    "adm-zip": "^0.5.10"
   }
 }

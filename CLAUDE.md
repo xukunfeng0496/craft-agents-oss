@@ -104,6 +104,39 @@ All data lives under `~/.workagent/`:
 - **Theme system** cascades: app → workspace (last wins). 6-color system: `background`, `foreground`, `accent`, `info`, `success`, `destructive`.
 - **Sources** are external data connections (MCP servers, APIs, local filesystems, Gmail). Types: `mcp`, `api`, `local`, `gmail`.
 
+### Windows Bundled Tools
+
+On Windows, the app bundles MinGit and Python to ensure agent functionality without requiring system installations.
+
+**Tool locations (in packaged app):**
+- MinGit 2.44.0: `resources/tools/mingit/cmd/git.exe`
+- Python 3.12.8: `resources/tools/python/python.exe`
+
+**Detection priority:**
+1. Bundled tools (Windows only) — checked first via `getBundledToolPath()`
+2. System tools — fallback via PATH lookup
+
+**Build process:**
+```bash
+# Download tools (idempotent, skips if exists)
+cd apps/electron && node scripts/download-tools.cjs
+
+# Tools are automatically included in Windows builds via electron-builder.yml
+bun run electron:dist:win
+```
+
+**Implementation:**
+- `packages/shared/src/tools/bundled-tools.ts` — Path resolution for bundled tools
+- `apps/electron/src/main/tool-detection.ts` — Detection logic with bundled → system priority
+- `apps/electron/src/main/agent-env.ts` — Injects tool paths into agent environment
+- `apps/electron/scripts/download-tools.cjs` — Downloads and extracts tools
+
+**Maintenance:**
+- Tools are downloaded once and cached in `apps/electron/resources/tools/`
+- To update versions: modify `TOOLS` config in `download-tools.cjs` and re-run script
+- Total size: ~100MB (MinGit ~50MB, Python ~50MB)
+- See `apps/electron/resources/tools/README.md` for detailed tool information
+
 ### Package Imports
 
 ```typescript

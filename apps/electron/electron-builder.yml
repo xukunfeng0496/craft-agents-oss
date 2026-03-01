@@ -19,6 +19,8 @@ files:
   # Include bundled MCP servers (bridge + session) for Codex sessions
   - resources/bridge-mcp-server/**/*
   - resources/session-mcp-server/**/*
+  # Include bundled tools directory (Windows only, contains git, gh, etc.)
+  - resources/tools/**/*
   # Note: Bundled assets (docs, themes, permissions, tool-icons) are in resources/
   # and copied to dist/resources/ by build:copy. They're included via dist/**/* above.
   # Include network interceptor for API error capture and MCP schema injection
@@ -51,6 +53,10 @@ publish:
 
 # Disable ASAR to avoid decompression overhead and click delays
 asar: false
+
+# Keep tools directory uncompressed so executables work properly
+asarUnpack:
+  - "resources/tools/**/*"
 
 mac:
   category: public.app-category.productivity
@@ -146,6 +152,9 @@ win:
       to: app/vendor/codex/win32-x64
     - from: vendor/copilot/win32-x64
       to: app/vendor/copilot/win32-x64
+    - from: resources/tools
+      to: tools
+      filter: ["**/*"]
 
 nsis:
   oneClick: true

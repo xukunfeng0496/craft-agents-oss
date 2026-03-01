@@ -91,6 +91,9 @@ import { HookSystem, type HookSystemMetadataSnapshot } from '@work-agent/shared/
 // Import and re-export (extracted to avoid Electron dependency in tests)
 import { sanitizeForTitle } from './title-sanitizer'
 export { sanitizeForTitle }
+import { buildAgentEnv } from './agent-env'
+export { buildAgentEnv }
+import { detectMissingTools } from './tool-detection'
 
 /**
  * Get the path to the bundled Bun executable.
@@ -2568,6 +2571,23 @@ export class SessionManager {
       // Set up agentReady promise so title generation can await agent creation
       managed.agentReady = new Promise<void>(r => { managed.agentReadyResolve = r })
 
+      // Detect bundled tools and build environment with tool paths
+      // This ensures agents can find bundled git/python on Windows
+      const toolInfo = await detectMissingTools()
+      const agentEnv = buildAgentEnv(toolInfo, process.env)
+
+      // Update process.env.PATH with bundled tool directories
+      // This affects all subprocesses spawned by agents (Codex, Copilot, SDK)
+      if (agentEnv.PATH !== process.env.PATH) {
+        process.env.PATH = agentEnv.PATH
+      }
+
+      // Log bundled tools that will be available to the agent
+      const bundledTools = toolInfo.filter(t => t.found && t.source === 'bundled')
+      if (bundledTools.length > 0) {
+        sessionLog.info(`Agent will use bundled tools: ${bundledTools.map(t => `${t.id} (${t.version || 'unknown version'})`).join(', ')}`)
+      }
+
       // Create the appropriate backend based on provider
       if (provider === 'openai') {
         // Codex backend - uses app-server protocol
@@ -2813,7 +2833,8 @@ export class SessionManager {
         // Build per-session env overrides from the connection config.
         // These are passed explicitly to getDefaultOptions() and spread AFTER process.env,
         // so they survive even if another session's reinitializeAuth() clobbers process.env.
-        const envOverrides: Record<string, string> = {}
+        // Also merge in bundled tool paths from agentEnv.
+        const envOverrides: Record<string, string> = { ...agentEnv }
         if (connection?.baseUrl) {
           envOverrides.ANTHROPIC_BASE_URL = connection.baseUrl
         }

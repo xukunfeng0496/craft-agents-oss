@@ -28,6 +28,52 @@ export function scheduleToCron(times: ScheduleTime[], days?: ScheduleDay[]): str
 }
 
 /**
+ * Parse a cron expression back to schedule times and days.
+ * Only handles the subset we generate: "minute hour * * day-of-week"
+ *
+ * Returns null if the cron expression is too complex to represent in simple UI.
+ *
+ * Examples:
+ *   "0 9 * * *"     → { times: [{hour:9, minute:0}], days: undefined }
+ *   "0 9 * * 1,3,5" → { times: [{hour:9, minute:0}], days: ['mon','wed','fri'] }
+ *   "30 15 * * *"   → { times: [{hour:15, minute:30}], days: undefined }
+ */
+export function cronToSchedule(cron: string): { times: ScheduleTime[], days?: ScheduleDay[] } | null {
+  const parts = cron.trim().split(/\s+/)
+  if (parts.length !== 5) return null
+
+  const [minuteStr, hourStr, dayOfMonth, month, dowStr] = parts
+
+  // We only support: minute hour * * day-of-week
+  if (dayOfMonth !== '*' || month !== '*') return null
+
+  const minute = parseInt(minuteStr!, 10)
+  const hour = parseInt(hourStr!, 10)
+
+  if (isNaN(minute) || isNaN(hour)) return null
+  if (minute < 0 || minute > 59 || hour < 0 || hour > 23) return null
+
+  const times: ScheduleTime[] = [{ hour, minute }]
+
+  // Parse day-of-week
+  let days: ScheduleDay[] | undefined = undefined
+  if (dowStr !== '*') {
+    const cronToDayMap: Record<number, ScheduleDay> = {
+      0: 'sun', 1: 'mon', 2: 'tue', 3: 'wed', 4: 'thu', 5: 'fri', 6: 'sat',
+    }
+
+    const dayNums = dowStr!.split(',').map(s => parseInt(s.trim(), 10))
+    if (dayNums.some(n => isNaN(n) || n < 0 || n > 6)) return null
+
+    days = dayNums.map(n => cronToDayMap[n]!).filter(Boolean)
+    if (days.length === 0) return null
+  }
+
+  return { times, days }
+}
+
+
+/**
  * Format a ScheduleTime to a readable string (e.g., "8am", "3:30pm")
  */
 export function formatTime(time: ScheduleTime): string {

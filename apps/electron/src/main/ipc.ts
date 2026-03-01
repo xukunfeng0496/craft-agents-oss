@@ -3609,6 +3609,31 @@ export function registerIpcHandlers(sessionManager: SessionManager, windowManage
   })
 
   // ============================================================
+  // Skill Variables
+  // ============================================================
+
+  // Get all variable values for a skill
+  ipcMain.handle(IPC_CHANNELS.SKILL_VARS_GET, async (_event, workspaceId: string, skillSlug: string, varNames: string[]) => {
+    ipcLog.info(`SKILL_VARS_GET: workspace=${workspaceId}, skill=${skillSlug}, vars=${varNames.join(',')}`)
+    const { getSkillVars } = await import('@work-agent/shared/skills')
+    return getSkillVars(workspaceId, skillSlug, varNames)
+  })
+
+  // Set variable values for a skill
+  ipcMain.handle(IPC_CHANNELS.SKILL_VARS_SET, async (_event, workspaceId: string, skillSlug: string, vars: Record<string, string>) => {
+    ipcLog.info(`SKILL_VARS_SET: workspace=${workspaceId}, skill=${skillSlug}, vars=${Object.keys(vars).join(',')}`)
+    const { setSkillVars } = await import('@work-agent/shared/skills')
+    await setSkillVars(workspaceId, skillSlug, vars)
+  })
+
+  // Delete variable values for a skill
+  ipcMain.handle(IPC_CHANNELS.SKILL_VARS_DELETE, async (_event, workspaceId: string, skillSlug: string, varNames: string[]) => {
+    ipcLog.info(`SKILL_VARS_DELETE: workspace=${workspaceId}, skill=${skillSlug}, vars=${varNames.join(',')}`)
+    const { deleteSkillVars } = await import('@work-agent/shared/skills')
+    await deleteSkillVars(workspaceId, skillSlug, varNames)
+  })
+
+  // ============================================================
   // Status Management (Workspace-scoped)
   // ============================================================
 

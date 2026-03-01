@@ -14,6 +14,7 @@ import { toast } from 'sonner'
 import { useTranslation } from 'react-i18next'
 import { SkillMenu } from '@/components/app-shell/SkillMenu'
 import { SkillAvatar } from '@/components/ui/skill-avatar'
+import { SkillVariablesSection } from '@/components/skills/SkillVariablesSection'
 import { routes, navigate } from '@/lib/navigate'
 import {
   Info_Page,
@@ -186,6 +187,15 @@ export default function SkillInfoPage({ skillSlug, workspaceId }: SkillInfoPageP
               </Info_Table.Row>
             </Info_Table>
           </Info_Section>
+
+          {/* Variables */}
+          {skill.metadata.vars && skill.metadata.vars.length > 0 && (
+            <SkillVariablesSection
+              workspaceId={workspaceId}
+              skillSlug={skillSlug}
+              variables={skill.metadata.vars}
+            />
+          )}
 
           {/* Permission Modes */}
           {skill.metadata.alwaysAllow && skill.metadata.alwaysAllow.length > 0 && (

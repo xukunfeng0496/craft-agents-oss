@@ -823,6 +823,11 @@ export const IPC_CHANNELS = {
   SKILLS_OPEN_FINDER: 'skills:openFinder',
   SKILLS_CHANGED: 'skills:changed',
 
+  // Skill Variables
+  SKILL_VARS_GET: 'skills:vars:get',
+  SKILL_VARS_SET: 'skills:vars:set',
+  SKILL_VARS_DELETE: 'skills:vars:delete',
+
   // Status management (workspace-scoped)
   STATUSES_LIST: 'statuses:list',
   STATUSES_REORDER: 'statuses:reorder',  // Reorder statuses (drag-and-drop)

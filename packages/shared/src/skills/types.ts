@@ -6,6 +6,22 @@
  */
 
 /**
+ * Skill variable definition
+ */
+export interface SkillVariable {
+  /** Variable name (e.g., "JDY_API_KEY") */
+  name: string;
+  /** Human-readable description */
+  description: string;
+  /** Whether this variable is required */
+  required: boolean;
+  /** Default value if not set (only for optional variables) */
+  default?: string;
+  /** Example value to show in UI */
+  example?: string;
+}
+
+/**
  * Skill metadata from SKILL.md YAML frontmatter
  */
 export interface SkillMetadata {
@@ -26,6 +42,8 @@ export interface SkillMetadata {
   icon?: string;
   /** Optional source slugs to auto-enable when this skill is invoked */
   requiredSources?: string[];
+  /** Optional variables that this skill needs */
+  vars?: SkillVariable[];
 }
 
 /** Source of a loaded skill */

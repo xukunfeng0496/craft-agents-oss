@@ -321,6 +321,14 @@ const api: ElectronAPI = {
   openSkillInFinder: (workspaceId: string, skillSlug: string) =>
     ipcRenderer.invoke(IPC_CHANNELS.SKILLS_OPEN_FINDER, workspaceId, skillSlug),
 
+  // Skill variables
+  getSkillVars: (workspaceId: string, skillSlug: string, varNames: string[]) =>
+    ipcRenderer.invoke(IPC_CHANNELS.SKILL_VARS_GET, workspaceId, skillSlug, varNames),
+  setSkillVars: (workspaceId: string, skillSlug: string, vars: Record<string, string>) =>
+    ipcRenderer.invoke(IPC_CHANNELS.SKILL_VARS_SET, workspaceId, skillSlug, vars),
+  deleteSkillVars: (workspaceId: string, skillSlug: string, varNames: string[]) =>
+    ipcRenderer.invoke(IPC_CHANNELS.SKILL_VARS_DELETE, workspaceId, skillSlug, varNames),
+
   // Skills change listener (live updates when skills are added/removed/modified)
   onSkillsChanged: (callback: (skills: import('@work-agent/shared/skills').LoadedSkill[]) => void) => {
     const handler = (_event: Electron.IpcRendererEvent, skills: import('@work-agent/shared/skills').LoadedSkill[]) => {

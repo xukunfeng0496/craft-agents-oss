@@ -10,6 +10,9 @@ import { readPluginName } from '../utils/workspace.ts';
 import { globSync } from 'glob';
 import os from 'os';
 
+// Export skill variables context helper
+export { getSkillVariablesContext } from './skill-variables-context.ts';
+
 /** Maximum size of CLAUDE.md file to include (10KB) */
 const MAX_CONTEXT_FILE_SIZE = 10 * 1024;
 

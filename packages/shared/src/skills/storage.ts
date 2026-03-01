@@ -78,6 +78,9 @@ function parseSkillFile(content: string): { metadata: SkillMetadata; body: strin
     // Only accepts emoji or URL - rejects inline SVG and relative paths
     const icon = validateIconValue(parsed.data.icon, 'Skills');
 
+    // Parse vars field if present
+    const vars = parsed.data.vars ? parseSkillVars(parsed.data.vars) : undefined;
+
     return {
       metadata: {
         name: parsed.data.name as string,
@@ -86,12 +89,57 @@ function parseSkillFile(content: string): { metadata: SkillMetadata; body: strin
         alwaysAllow: parsed.data.alwaysAllow as string[] | undefined,
         icon,
         requiredSources: normalizeRequiredSources(parsed.data.requiredSources),
+        vars,
       },
       body: parsed.content,
     };
   } catch {
     return null;
   }
+}
+
+/**
+ * Parse and validate skill variables from frontmatter
+ */
+function parseSkillVars(vars: unknown): import('./types.ts').SkillVariable[] | undefined {
+  if (!Array.isArray(vars)) {
+    return undefined;
+  }
+
+  const parsed: import('./types.ts').SkillVariable[] = [];
+
+  for (const v of vars) {
+    if (typeof v !== 'object' || v === null) {
+      continue;
+    }
+
+    const varObj = v as Record<string, unknown>;
+
+    // Required fields
+    if (typeof varObj.name !== 'string' || !varObj.name) {
+      continue;
+    }
+    if (typeof varObj.description !== 'string' || !varObj.description) {
+      continue;
+    }
+
+    // Required field (defaults to false if not specified)
+    const required = typeof varObj.required === 'boolean' ? varObj.required : false;
+
+    // Optional fields
+    const defaultValue = typeof varObj.default === 'string' ? varObj.default : undefined;
+    const example = typeof varObj.example === 'string' ? varObj.example : undefined;
+
+    parsed.push({
+      name: varObj.name,
+      description: varObj.description,
+      required,
+      default: defaultValue,
+      example,
+    });
+  }
+
+  return parsed.length > 0 ? parsed : undefined;
 }
 
 // ============================================================

@@ -18,3 +18,26 @@ export {
   skillNeedsIconDownload,
   downloadSkillIcon,
 } from './storage.ts';
+
+// Skill variables storage
+export {
+  getSkillVar,
+  getSkillVars,
+  setSkillVar,
+  setSkillVars,
+  deleteSkillVar,
+  deleteSkillVars,
+} from './vars-storage.ts';
+
+// Skill variables substitution
+export {
+  substituteSkillVars,
+  getUnsetRequiredVars,
+  hasVarPlaceholders,
+} from './vars-substitution.ts';
+
+// Skill variables processor (for agent integration)
+export {
+  prepareSkillVarsOverlay,
+  type SkillVarsOverlayResult,
+} from './vars-processor.ts';

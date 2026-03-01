@@ -31,7 +31,9 @@ export type CredentialType =
   | 'source_oauth'       // OAuth tokens for MCP/API sources
   | 'source_bearer'      // Bearer tokens
   | 'source_apikey'      // API keys
-  | 'source_basic';      // Basic auth (base64 encoded user:pass)
+  | 'source_basic'       // Basic auth (base64 encoded user:pass)
+  // Skill variables (encrypted storage for skill configuration)
+  | 'skill_var';         // Skill variable values
 
 /** Valid credential types for validation */
 const VALID_CREDENTIAL_TYPES: readonly CredentialType[] = [
@@ -46,6 +48,7 @@ const VALID_CREDENTIAL_TYPES: readonly CredentialType[] = [
   'source_bearer',
   'source_apikey',
   'source_basic',
+  'skill_var',
 ] as const;
 
 /** Check if a string is a valid CredentialType */
@@ -68,6 +71,12 @@ export interface CredentialId {
   sourceId?: string;
   /** Server name or API name */
   name?: string;
+
+  // Skill variable-scoped format
+  /** Skill slug for skill_var credentials */
+  skillSlug?: string;
+  /** Variable name for skill_var credentials */
+  varName?: string;
 }
 
 /**
@@ -181,6 +190,15 @@ export function credentialIdToAccount(id: CredentialId): string {
     return parts.join(CREDENTIAL_DELIMITER);
   }
 
+  // Skill variable format:
+  // skill_var::{workspaceId}::{skillSlug}::{varName}
+  if (id.type === 'skill_var' && id.workspaceId && id.skillSlug && id.varName) {
+    parts.push(id.workspaceId);
+    parts.push(id.skillSlug);
+    parts.push(id.varName);
+    return parts.join(CREDENTIAL_DELIMITER);
+  }
+
   parts.push('global');
   return parts.join(CREDENTIAL_DELIMITER);
 }
@@ -241,6 +259,12 @@ export function accountToCredentialId(account: string): CredentialId | null {
   // Source credentials: source_oauth::{workspaceId}::{sourceId}
   if (isSourceCredential(type) && parts.length === 3) {
     return { type, workspaceId: parts[1], sourceId: parts[2] };
+  }
+
+  // Skill variable format:
+  // skill_var::{workspaceId}::{skillSlug}::{varName}
+  if (type === 'skill_var' && parts.length === 4) {
+    return { type, workspaceId: parts[1], skillSlug: parts[2], varName: parts[3] };
   }
 
   if (parts.length === 2 && parts[1] === 'global') {

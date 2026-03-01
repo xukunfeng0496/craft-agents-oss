@@ -50,6 +50,7 @@ import { join } from 'node:path';
 import { homedir } from 'node:os';
 import { expandPath } from '../utils/paths.ts';
 import { extractWorkspaceSlug } from '../utils/workspace.ts';
+import { loadAllSkills, prepareSkillVarsOverlay } from '../skills/index.ts';
 import {
   ConfigWatcher,
   createConfigWatcher,
@@ -356,6 +357,8 @@ export class ClaudeAgent extends BaseAgent {
   // Event adapter for SDK message → AgentEvent conversion (testable, pluggable)
   private eventAdapter!: ClaudeEventAdapter;
   // Thinking level and ultrathink override are now managed by BaseAgent
+  // Skill variables overlay: temp directory with substituted skill files
+  private skillVarsOverlay: import('../skills/vars-processor.ts').SkillVarsOverlayResult | null = null;
   // Pinned system prompt components (captured on first chat, used for consistency after compaction)
   private pinnedPreferencesPrompt: string | null = null;
   // Track if preference drift notification has been shown this session

@@ -156,8 +156,11 @@ export const routes = {
       return `skills/skill/${skillSlug}` as const
     },
 
-    /** Schedules view (schedules navigator) */
-    schedules: () => 'schedules' as const,
+    /** Schedules view (schedules navigator). Pass a hookId for detail view. */
+    schedules: (hookId?: string) => {
+      if (!hookId) return 'schedules' as const
+      return `schedules/hook/${hookId}` as const
+    },
 
     /** Settings view (settings navigator) - uses SettingsSubpage from registry */
     settings: (subpage?: SettingsSubpage) =>

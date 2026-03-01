@@ -329,6 +329,16 @@ const api: ElectronAPI = {
   deleteSkillVars: (workspaceId: string, skillSlug: string, varNames: string[]) =>
     ipcRenderer.invoke(IPC_CHANNELS.SKILL_VARS_DELETE, workspaceId, skillSlug, varNames),
 
+  // Scheduler hooks CRUD
+  listSchedulerHooks: (workspaceId: string) =>
+    ipcRenderer.invoke(IPC_CHANNELS.HOOKS_LIST, workspaceId),
+  createSchedulerHook: (workspaceId: string, data: any) =>
+    ipcRenderer.invoke(IPC_CHANNELS.HOOKS_CREATE, workspaceId, data),
+  updateSchedulerHook: (workspaceId: string, data: any) =>
+    ipcRenderer.invoke(IPC_CHANNELS.HOOKS_UPDATE, workspaceId, data),
+  deleteSchedulerHook: (workspaceId: string, hookId: string) =>
+    ipcRenderer.invoke(IPC_CHANNELS.HOOKS_DELETE, workspaceId, hookId),
+
   // Skills change listener (live updates when skills are added/removed/modified)
   onSkillsChanged: (callback: (skills: import('@work-agent/shared/skills').LoadedSkill[]) => void) => {
     const handler = (_event: Electron.IpcRendererEvent, skills: import('@work-agent/shared/skills').LoadedSkill[]) => {
@@ -350,37 +360,6 @@ const api: ElectronAPI = {
       ipcRenderer.removeListener(IPC_CHANNELS.STATUSES_CHANGED, handler)
     }
   },
-
-  // Schedule management
-  listSchedules: (workspaceId: string) =>
-    ipcRenderer.invoke(IPC_CHANNELS.SCHEDULES_LIST, workspaceId),
-  listScheduleHooks: (workspaceId: string) =>
-    ipcRenderer.invoke(IPC_CHANNELS.SCHEDULES_LIST_HOOKS, workspaceId),
-  updateSchedule: (workspaceId: string, scheduleId: string, updates: any) =>
-    ipcRenderer.invoke(IPC_CHANNELS.SCHEDULES_UPDATE, workspaceId, scheduleId, updates),
-  deleteSchedule: (workspaceId: string, scheduleId: string) =>
-    ipcRenderer.invoke(IPC_CHANNELS.SCHEDULES_DELETE, workspaceId, scheduleId),
-
-  // Schedules change listener (live updates when schedules config changes)
-  onSchedulesChanged: (callback: (workspaceId: string) => void) => {
-    const handler = (_event: Electron.IpcRendererEvent, workspaceId: string) => {
-      callback(workspaceId)
-    }
-    ipcRenderer.on(IPC_CHANNELS.SCHEDULES_CHANGED, handler)
-    return () => {
-      ipcRenderer.removeListener(IPC_CHANNELS.SCHEDULES_CHANGED, handler)
-    }
-  },
-
-  // Hooks
-  listSchedulerHooks: (workspaceId: string) =>
-    ipcRenderer.invoke(IPC_CHANNELS.HOOKS_LIST_SCHEDULER, workspaceId),
-  createSchedulerHook: (workspaceId: string, data: any) =>
-    ipcRenderer.invoke(IPC_CHANNELS.HOOKS_CREATE_SCHEDULER, workspaceId, data),
-  updateSchedulerHook: (workspaceId: string, data: any) =>
-    ipcRenderer.invoke(IPC_CHANNELS.HOOKS_UPDATE_SCHEDULER, workspaceId, data),
-  deleteSchedulerHook: (workspaceId: string, id: string) =>
-    ipcRenderer.invoke(IPC_CHANNELS.HOOKS_DELETE_SCHEDULER, workspaceId, id),
 
   // Label management
   listLabels: (workspaceId: string) =>

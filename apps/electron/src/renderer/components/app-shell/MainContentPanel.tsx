@@ -26,16 +26,19 @@ import { sessionMetaMapAtom, type SessionMeta } from '@/atoms/sessions'
 import { StoplightProvider } from '@/context/StoplightContext'
 import {
   useNavigationState,
+  useNavigation,
   isSessionsNavigation,
   isSourcesNavigation,
   isSettingsNavigation,
   isSkillsNavigation,
+  isSchedulesNavigation,
 } from '@/contexts/NavigationContext'
 import { useSessionSelection, useIsMultiSelectActive, useSelectedIds, useSelectionCount } from '@/hooks/useSession'
 import { extractLabelId } from '@work-agent/shared/labels'
 import type { SessionStatusId } from '@/config/session-status-config'
 import { SourceInfoPage, ChatPage } from '@/pages'
 import SkillInfoPage from '@/pages/SkillInfoPage'
+import HookDetailPage from '@/pages/HookDetailPage'
 import { getSettingsPageComponent } from '@/pages/settings/settings-pages'
 import { getMainContentLabels } from './main-content-labels'
 
@@ -53,6 +56,7 @@ export function MainContentPanel({
   const { t } = useTranslation(['common'])
   const i18nLabels = getMainContentLabels(t)
   const navState = useNavigationState()
+  const { navigate } = useNavigation()
   const {
     activeWorkspaceId,
     onSessionStatusChange,
@@ -186,6 +190,29 @@ export function MainContentPanel({
       <Panel variant="grow" className={className}>
         <div className="flex items-center justify-center h-full text-muted-foreground">
           <p className="text-sm">{i18nLabels.noSkillsConfigured}</p>
+        </div>
+      </Panel>
+    )
+  }
+
+  // Schedules navigator - show hook detail or empty state
+  if (isSchedulesNavigation(navState)) {
+    if (navState.details?.type === 'hook') {
+      return wrapWithStoplight(
+        <Panel variant="grow" className={className}>
+          <HookDetailPage
+            hookId={navState.details.hookId}
+            workspaceId={activeWorkspaceId || ''}
+            onDeleted={() => navigate('schedules')}
+          />
+        </Panel>
+      )
+    }
+    // No hook selected - empty state
+    return wrapWithStoplight(
+      <Panel variant="grow" className={className}>
+        <div className="flex items-center justify-center h-full text-muted-foreground">
+          <p className="text-sm">{t('common:schedules.noScheduledTasks')}</p>
         </div>
       </Panel>
     )

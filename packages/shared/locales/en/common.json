@@ -136,7 +136,8 @@
     "helpDocs": "Help & Documentation",
     "allDocumentation": "All Documentation",
     "permissions": "Permissions",
-    "views": "Views"
+    "views": "Views",
+    "schedules": "Schedules"
   },
   "filters": {
     "filterChats": "Filter Chats",
@@ -576,5 +577,58 @@
       "deny": "Deny"
     },
     "tip": "\"Always Allow\" remembers this command for the session"
+  },
+  "schedules": {
+    "empty": {
+      "title": "No scheduled tasks",
+      "description": "Create scheduled tasks to run prompts automatically at specified times."
+    },
+    "addTask": "Add Task",
+    "loading": "Loading...",
+    "updateFailed": "Failed to save task",
+    "saved": "Task saved",
+    "deleted": "Task deleted",
+    "everyDay": "Every day",
+    "weekdays": "Weekdays",
+    "weekends": "Weekends",
+    "at": "at",
+    "noScheduledTasks": "Select or create a scheduled task.",
+    "detail": {
+      "name": "Name",
+      "namePlaceholder": "Task name",
+      "prompt": "Prompt",
+      "promptPlaceholder": "Enter the prompt to run...",
+      "schedule": "Schedule",
+      "time": "Time",
+      "addTime": "Add Time",
+      "days": "Days",
+      "presetEveryDay": "Every day",
+      "presetWeekdays": "Weekdays",
+      "presetWeekends": "Weekends",
+      "workingDirectory": "Working Directory",
+      "workingDirectoryPlaceholder": "Use workspace default",
+      "browse": "Browse",
+      "permissionMode": "Permission Mode",
+      "timezone": "Timezone",
+      "timezonePlaceholder": "System default",
+      "labels": "Labels",
+      "labelsPlaceholder": "Add labels...",
+      "enabled": "Enabled",
+      "save": "Save",
+      "delete": "Delete",
+      "deleteConfirmTitle": "Delete Scheduled Task",
+      "deleteConfirmDescription": "Are you sure you want to delete this scheduled task? This cannot be undone.",
+      "unsupportedCron": "Complex schedule (raw cron)",
+      "rawCron": "Cron Expression",
+      "dayNames": {
+        "mon": "Mon",
+        "tue": "Tue",
+        "wed": "Wed",
+        "thu": "Thu",
+        "fri": "Fri",
+        "sat": "Sat",
+        "sun": "Sun"
+      }
+    }
   }
 }

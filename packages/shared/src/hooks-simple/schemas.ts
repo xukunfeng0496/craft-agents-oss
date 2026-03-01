@@ -20,7 +20,7 @@ export const CommandHookSchema = z.object({
 
 export const PromptHookSchema = z.object({
   type: z.literal('prompt'),
-  prompt: z.string().min(1, 'Prompt cannot be empty'),
+  prompt: z.string(),
 });
 
 export const HookDefinitionSchema = z.discriminatedUnion('type', [
@@ -29,12 +29,15 @@ export const HookDefinitionSchema = z.discriminatedUnion('type', [
 ]);
 
 export const HookMatcherSchema = z.object({
+  id: z.string().optional(),
+  name: z.string().optional(),
   matcher: z.string().optional(),
   cron: z.string().optional(),
   timezone: z.string().optional(),
   permissionMode: z.enum(['safe', 'ask', 'allow-all']).optional(),
   labels: z.array(z.string()).optional(),
   enabled: z.boolean().optional(),
+  workingDirectory: z.string().optional(),
   hooks: z.array(HookDefinitionSchema).min(1, 'At least one hook required'),
 });
 

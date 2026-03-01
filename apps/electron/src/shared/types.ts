@@ -836,23 +836,16 @@ export const IPC_CHANNELS = {
   SKILL_VARS_SET: 'skills:vars:set',
   SKILL_VARS_DELETE: 'skills:vars:delete',
 
+  // Scheduler hooks CRUD (workspace-scoped)
+  HOOKS_LIST: 'hooks:list',
+  HOOKS_CREATE: 'hooks:create',
+  HOOKS_UPDATE: 'hooks:update',
+  HOOKS_DELETE: 'hooks:delete',
+
   // Status management (workspace-scoped)
   STATUSES_LIST: 'statuses:list',
   STATUSES_REORDER: 'statuses:reorder',  // Reorder statuses (drag-and-drop)
   STATUSES_CHANGED: 'statuses:changed',  // Broadcast event
-
-  // Schedule management (workspace-scoped)
-  SCHEDULES_LIST: 'schedules:list',
-  SCHEDULES_LIST_HOOKS: 'schedules:listHooks',
-  SCHEDULES_UPDATE: 'schedules:update',
-  SCHEDULES_DELETE: 'schedules:delete',
-  SCHEDULES_CHANGED: 'schedules:changed',  // Broadcast event
-
-  // Hooks
-  HOOKS_LIST_SCHEDULER: 'hooks:list-scheduler',
-  HOOKS_CREATE_SCHEDULER: 'hooks:create-scheduler',
-  HOOKS_UPDATE_SCHEDULER: 'hooks:update-scheduler',
-  HOOKS_DELETE_SCHEDULER: 'hooks:delete-scheduler',
 
   // Label management (workspace-scoped)
   LABELS_LIST: 'labels:list',
@@ -1160,29 +1153,17 @@ export interface ElectronAPI {
   // Skills change listener (live updates when skills are added/removed/modified)
   onSkillsChanged(callback: (skills: LoadedSkill[]) => void): () => void
 
+  // Scheduler hooks CRUD
+  listSchedulerHooks(workspaceId: string): Promise<import('@work-agent/shared/hooks-simple/crud').SchedulerHookData[]>
+  createSchedulerHook(workspaceId: string, data: Omit<import('@work-agent/shared/hooks-simple/crud').SchedulerHookData, 'id'>): Promise<import('@work-agent/shared/hooks-simple/crud').SchedulerHookData>
+  updateSchedulerHook(workspaceId: string, data: import('@work-agent/shared/hooks-simple/crud').SchedulerHookData): Promise<void>
+  deleteSchedulerHook(workspaceId: string, hookId: string): Promise<void>
+
   // Statuses (workspace-scoped)
   listStatuses(workspaceId: string): Promise<import('@work-agent/shared/statuses').StatusConfig[]>
   reorderStatuses(workspaceId: string, orderedIds: string[]): Promise<void>
   // Statuses change listener (live updates when statuses config or icon files change)
   onStatusesChanged(callback: (workspaceId: string) => void): () => void
-
-  // Schedules (workspace-scoped)
-  listSchedules(workspaceId: string): Promise<import('@work-agent/shared/schedules').ScheduledPromptConfig[]>
-  listScheduleHooks(workspaceId: string): Promise<import('@work-agent/shared/schedules').ScheduledPromptConfig[]>
-  updateSchedule(
-    workspaceId: string,
-    scheduleId: string,
-    updates: Partial<Omit<import('@work-agent/shared/schedules').ScheduledPromptConfig, 'id' | 'createdAt'>>
-  ): Promise<import('@work-agent/shared/schedules').ScheduledPromptConfig | null>
-  deleteSchedule(workspaceId: string, scheduleId: string): Promise<boolean>
-  // Schedules change listener (live updates when schedules config changes)
-  onSchedulesChanged(callback: (workspaceId: string) => void): () => void
-
-  // Hooks
-  listSchedulerHooks(workspaceId: string): Promise<any[]>
-  createSchedulerHook(workspaceId: string, data: any): Promise<any>
-  updateSchedulerHook(workspaceId: string, data: any): Promise<void>
-  deleteSchedulerHook(workspaceId: string, id: string): Promise<void>
 
   // Labels (workspace-scoped)
   listLabels(workspaceId: string): Promise<import('@work-agent/shared/labels').LabelConfig[]>
@@ -1462,11 +1443,10 @@ export interface SkillsNavigationState {
   rightSidebar?: RightSidebarPanel
 }
 
-/**
- * Schedules navigation state - shows SchedulesPanel in navigator
- */
 export interface SchedulesNavigationState {
   navigator: 'schedules'
+  /** Selected hook details or null for empty state */
+  details: { type: 'hook'; hookId: string } | null
   /** Optional right sidebar panel state */
   rightSidebar?: RightSidebarPanel
 }
@@ -1546,11 +1526,14 @@ export const getNavigationStateKey = (state: NavigationState): string => {
     }
     return 'skills'
   }
-  if (state.navigator === 'schedules') {
-    return 'schedules'
-  }
   if (state.navigator === 'settings') {
     return `settings:${state.subpage}`
+  }
+  if (state.navigator === 'schedules') {
+    if (state.details?.type === 'hook') {
+      return `schedules/hook/${state.details.hookId}`
+    }
+    return 'schedules'
   }
   // Chats
   const f = state.filter
@@ -1589,9 +1572,6 @@ export const parseNavigationStateKey = (key: string): NavigationState | null => 
     }
     return { navigator: 'skills', details: null }
   }
-
-  // Handle schedules
-  if (key === 'schedules') return { navigator: 'schedules' }
 
   // Handle settings
   if (key === 'settings') return { navigator: 'settings', subpage: 'app' }

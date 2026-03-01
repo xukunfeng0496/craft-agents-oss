@@ -67,6 +67,10 @@ export interface PromptHookDefinition {
 export type HookDefinition = CommandHookDefinition | PromptHookDefinition;
 
 export interface HookMatcher {
+  /** Persistent UUID for this matcher */
+  id?: string;
+  /** Human-readable name for this hook */
+  name?: string;
   /** Regex pattern for matching event data (not used for SchedulerTick) */
   matcher?: string;
   /** Cron expression for SchedulerTick events (5-field format) */
@@ -79,6 +83,8 @@ export interface HookMatcher {
   labels?: string[];
   /** Whether this hook matcher is enabled. Defaults to true. Set to false to disable without removing. */
   enabled?: boolean;
+  /** Working directory override for sessions created by prompt hooks */
+  workingDirectory?: string;
   hooks: HookDefinition[];
   /** Schedule ID that generated this matcher (internal, set by HookSystem when merging schedules) */
   _scheduleId?: string;
@@ -141,6 +147,8 @@ export interface PendingPrompt {
   labels?: string[];
   /** Permission mode for the created session (from matcher config) */
   permissionMode?: 'safe' | 'ask' | 'allow-all';
+  /** Working directory override for the created session */
+  workingDirectory?: string;
   /** Automation trigger info - set when this prompt was generated from a schedule */
   triggeredBy?: {
     type: 'schedule';

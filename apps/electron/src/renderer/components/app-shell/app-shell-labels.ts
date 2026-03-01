@@ -28,5 +28,7 @@ export function getAppShellLabels(t: TFunction) {
     search: t('common:filters.search'),
     addSource: t('common:menu.addSource'),
     addSkill: t('common:menu.addSkill'),
+    schedules: t('common:navigation.schedules'),
+    addTask: t('common:schedules.addTask'),
   }
 }

@@ -3624,6 +3624,8 @@ export function registerIpcHandlers(sessionManager: SessionManager, windowManage
     ipcLog.info(`SKILL_VARS_SET: workspace=${workspaceId}, skill=${skillSlug}, vars=${Object.keys(vars).join(',')}`)
     const { setSkillVars } = await import('@work-agent/shared/skills')
     await setSkillVars(workspaceId, skillSlug, vars)
+    // Refresh overlay for all active sessions in this workspace
+    await sessionManager.refreshSkillVarsForWorkspace(workspaceId)
   })
 
   // Delete variable values for a skill
@@ -3631,6 +3633,8 @@ export function registerIpcHandlers(sessionManager: SessionManager, windowManage
     ipcLog.info(`SKILL_VARS_DELETE: workspace=${workspaceId}, skill=${skillSlug}, vars=${varNames.join(',')}`)
     const { deleteSkillVars } = await import('@work-agent/shared/skills')
     await deleteSkillVars(workspaceId, skillSlug, varNames)
+    // Refresh overlay for all active sessions in this workspace
+    await sessionManager.refreshSkillVarsForWorkspace(workspaceId)
   })
 
   // ============================================================
@@ -3655,139 +3659,6 @@ export function registerIpcHandlers(sessionManager: SessionManager, windowManage
     const { reorderStatuses } = await import('@work-agent/shared/statuses')
     reorderStatuses(workspace.rootPath, orderedIds)
   })
-
-  // ============================================================
-  // Schedule Management (Workspace-scoped)
-  // ============================================================
-
-  // List all scheduled prompts for a workspace
-  ipcMain.handle(IPC_CHANNELS.SCHEDULES_LIST, async (_event, workspaceId: string) => {
-    const workspace = getWorkspaceByNameOrId(workspaceId)
-    if (!workspace) throw new Error('Workspace not found')
-
-    const { listSchedules } = await import('@work-agent/shared/schedules/storage')
-    return listSchedules(workspace.rootPath)
-  })
-
-  // List SchedulerTick hooks from hooks.json (not schedule-derived)
-  ipcMain.handle(IPC_CHANNELS.SCHEDULES_LIST_HOOKS, async (_event, workspaceId: string) => {
-    const workspace = getWorkspaceByNameOrId(workspaceId)
-    if (!workspace) throw new Error('Workspace not found')
-
-    const hookSystem = sessionManager.getHookSystem(workspace.rootPath)
-    if (!hookSystem) return []
-
-    const matchers = hookSystem.getSchedulerTickHooks()
-    return matchers.map((m, i) => {
-      const promptHook = m.hooks.find(h => h.type === 'prompt')
-      const prompt = promptHook && 'prompt' in promptHook ? promptHook.prompt : ''
-      return {
-        id: `hook-${i}`,
-        name: m.matcher || `Hook ${i + 1}`,
-        prompt,
-        times: [],
-        enabled: m.enabled !== false,
-        createdAt: 0,
-        _fromHooks: true,
-        _cron: m.cron,
-      }
-    })
-  })
-
-  // Update a scheduled prompt
-  ipcMain.handle(
-    IPC_CHANNELS.SCHEDULES_UPDATE,
-    async (
-      _event,
-      workspaceId: string,
-      scheduleId: string,
-      updates: Partial<import('@work-agent/shared/schedules').ScheduledPromptConfig>
-    ) => {
-      const workspace = getWorkspaceByNameOrId(workspaceId)
-      if (!workspace) throw new Error('Workspace not found')
-
-      const { updateSchedule } = await import('@work-agent/shared/schedules/storage')
-      const result = updateSchedule(workspace.rootPath, scheduleId, updates)
-      windowManager.broadcastToAll(IPC_CHANNELS.SCHEDULES_CHANGED, workspaceId)
-      return result
-    }
-  )
-
-  // Delete a scheduled prompt
-  ipcMain.handle(IPC_CHANNELS.SCHEDULES_DELETE, async (_event, workspaceId: string, scheduleId: string) => {
-    const workspace = getWorkspaceByNameOrId(workspaceId)
-    if (!workspace) throw new Error('Workspace not found')
-
-    const { deleteSchedule } = await import('@work-agent/shared/schedules/storage')
-    const result = deleteSchedule(workspace.rootPath, scheduleId)
-    windowManager.broadcastToAll(IPC_CHANNELS.SCHEDULES_CHANGED, workspaceId)
-    return result
-  })
-
-  // ============================================================
-  // Hooks - SchedulerTick CRUD
-  // ============================================================
-
-  ipcMain.handle(IPC_CHANNELS.HOOKS_LIST_SCHEDULER, async (_event, workspaceId: string) => {
-    try {
-      const workspace = getWorkspaceByNameOrId(workspaceId)
-      if (!workspace) throw new Error('Workspace not found')
-
-      const { listSchedulerHooks } = await import('@work-agent/shared/hooks-simple')
-      return await listSchedulerHooks(workspace.rootPath)
-    } catch (error) {
-      logger.error('Failed to list scheduler hooks:', error)
-      throw error
-    }
-  })
-
-  ipcMain.handle(
-    IPC_CHANNELS.HOOKS_CREATE_SCHEDULER,
-    async (_event, workspaceId: string, data: any) => {
-      try {
-        const workspace = getWorkspaceByNameOrId(workspaceId)
-        if (!workspace) throw new Error('Workspace not found')
-
-        const { createSchedulerHook } = await import('@work-agent/shared/hooks-simple')
-        return await createSchedulerHook(workspace.rootPath, data)
-      } catch (error) {
-        logger.error('Failed to create scheduler hook:', error)
-        throw error
-      }
-    }
-  )
-
-  ipcMain.handle(
-    IPC_CHANNELS.HOOKS_UPDATE_SCHEDULER,
-    async (_event, workspaceId: string, data: any) => {
-      try {
-        const workspace = getWorkspaceByNameOrId(workspaceId)
-        if (!workspace) throw new Error('Workspace not found')
-
-        const { updateSchedulerHook } = await import('@work-agent/shared/hooks-simple')
-        await updateSchedulerHook(workspace.rootPath, data)
-      } catch (error) {
-        logger.error('Failed to update scheduler hook:', error)
-        throw error
-      }
-    }
-  )
-
-  ipcMain.handle(
-    IPC_CHANNELS.HOOKS_DELETE_SCHEDULER,
-    async (_event, workspaceId: string, id: string) => {
-      try {
-        const workspace = getWorkspaceByNameOrId(workspaceId)
-        if (!workspace) throw new Error('Workspace not found')
-
-        const { deleteSchedulerHook } = await import('@work-agent/shared/hooks-simple')
-        await deleteSchedulerHook(workspace.rootPath, id)
-      } catch (error) {
-        logger.error('Failed to delete scheduler hook:', error)
-        throw error
-      }
-    }
-  )
 
   // ============================================================
   // Label Management (Workspace-scoped)
@@ -4219,5 +4090,47 @@ export function registerIpcHandlers(sessionManager: SessionManager, windowManage
 
   // Note: Permission mode cycling settings (cyclablePermissionModes) are now workspace-level
   // and managed via WORKSPACE_SETTINGS_GET/UPDATE channels
+
+  // ============================================================================
+  // Scheduler Hooks CRUD
+  // ============================================================================
+
+  ipcMain.handle(IPC_CHANNELS.HOOKS_LIST, async (_event, workspaceId: string) => {
+    const workspace = getWorkspaceByNameOrId(workspaceId)
+    if (!workspace) { ipcLog.error(`HOOKS_LIST: Workspace not found: ${workspaceId}`); return [] }
+    const { listSchedulerHooks } = await import('@work-agent/shared/hooks-simple/crud')
+    return listSchedulerHooks(workspace.rootPath)
+  })
+
+  ipcMain.handle(IPC_CHANNELS.HOOKS_CREATE, async (_event, workspaceId: string, data: any) => {
+    const workspace = getWorkspaceByNameOrId(workspaceId)
+    if (!workspace) throw new Error('Workspace not found')
+    const { createSchedulerHook } = await import('@work-agent/shared/hooks-simple/crud')
+    const result = await createSchedulerHook(workspace.rootPath, data)
+    // Reload HookSystem so scheduler picks up the new hook
+    const hookSystem = sessionManager.getHookSystem(workspace.rootPath)
+    if (hookSystem) hookSystem.reloadConfig()
+    return result
+  })
+
+  ipcMain.handle(IPC_CHANNELS.HOOKS_UPDATE, async (_event, workspaceId: string, data: any) => {
+    const workspace = getWorkspaceByNameOrId(workspaceId)
+    if (!workspace) throw new Error('Workspace not found')
+    const { updateSchedulerHook } = await import('@work-agent/shared/hooks-simple/crud')
+    await updateSchedulerHook(workspace.rootPath, data)
+    // Reload HookSystem so scheduler picks up the change
+    const hookSystem = sessionManager.getHookSystem(workspace.rootPath)
+    if (hookSystem) hookSystem.reloadConfig()
+  })
+
+  ipcMain.handle(IPC_CHANNELS.HOOKS_DELETE, async (_event, workspaceId: string, hookId: string) => {
+    const workspace = getWorkspaceByNameOrId(workspaceId)
+    if (!workspace) throw new Error('Workspace not found')
+    const { deleteSchedulerHook } = await import('@work-agent/shared/hooks-simple/crud')
+    await deleteSchedulerHook(workspace.rootPath, hookId)
+    // Reload HookSystem so scheduler reflects the deletion
+    const hookSystem = sessionManager.getHookSystem(workspace.rootPath)
+    if (hookSystem) hookSystem.reloadConfig()
+  })
 
 }

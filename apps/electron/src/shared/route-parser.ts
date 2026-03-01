@@ -156,7 +156,19 @@ export function parseCompoundRoute(route: string): ParsedCompoundRoute | null {
 
   // Schedules navigator
   if (first === 'schedules') {
-    return { navigator: 'schedules', details: null }
+    if (segments.length === 1) {
+      return { navigator: 'schedules', details: null }
+    }
+
+    // schedules/hook/{hookId}
+    if (segments[1] === 'hook' && segments[2]) {
+      return {
+        navigator: 'schedules',
+        details: { type: 'hook', id: segments[2] },
+      }
+    }
+
+    return null
   }
 
   // Sessions navigator (allSessions, flagged, state)
@@ -239,10 +251,6 @@ export function buildCompoundRoute(parsed: ParsedCompoundRoute): string {
   if (parsed.navigator === 'skills') {
     if (!parsed.details) return 'skills'
     return `skills/skill/${parsed.details.id}`
-  }
-
-  if (parsed.navigator === 'schedules') {
-    return 'schedules'
   }
 
   // Sessions navigator
@@ -358,6 +366,14 @@ function convertCompoundToViewRoute(compound: ParsedCompoundRoute): ParsedRoute 
       return { type: 'view', name: 'skills', params: {} }
     }
     return { type: 'view', name: 'skill-info', id: compound.details.id, params: {} }
+  }
+
+  // Schedules
+  if (compound.navigator === 'schedules') {
+    if (!compound.details) {
+      return { type: 'view', name: 'schedules', params: {} }
+    }
+    return { type: 'view', name: 'hook-detail', id: compound.details.id, params: {} }
   }
 
   // Sessions
@@ -479,7 +495,13 @@ function convertCompoundToNavigationState(compound: ParsedCompoundRoute): Naviga
 
   // Schedules
   if (compound.navigator === 'schedules') {
-    return { navigator: 'schedules' }
+    if (!compound.details) {
+      return { navigator: 'schedules', details: null }
+    }
+    return {
+      navigator: 'schedules',
+      details: { type: 'hook', hookId: compound.details.id },
+    }
   }
 
   // Sessions
@@ -547,7 +569,18 @@ function convertParsedRouteToNavigationState(parsed: ParsedRoute): NavigationSta
       }
       return { navigator: 'skills', details: null }
     case 'schedules':
-      return { navigator: 'schedules' }
+      return { navigator: 'schedules', details: null }
+    case 'hook-detail':
+      if (parsed.id) {
+        return {
+          navigator: 'schedules',
+          details: {
+            type: 'hook',
+            hookId: parsed.id,
+          },
+        }
+      }
+      return { navigator: 'schedules', details: null }
     case 'session':
       if (parsed.id) {
         // Reconstruct filter from params
@@ -647,6 +680,9 @@ export function buildRouteFromNavigationState(state: NavigationState): string {
   }
 
   if (state.navigator === 'schedules') {
+    if (state.details?.type === 'hook') {
+      return `schedules/hook/${state.details.hookId}`
+    }
     return 'schedules'
   }
 

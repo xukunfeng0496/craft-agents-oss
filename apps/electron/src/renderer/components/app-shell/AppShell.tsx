@@ -25,7 +25,6 @@ import {
   FolderOpen,
   HelpCircle,
   ExternalLink,
-  Calendar,
   Clock,
   Pause,
 } from "lucide-react"
@@ -91,13 +90,11 @@ import { type SessionStatusId, type SessionStatus, statusConfigsToSessionStatuse
 import { useStatuses } from "@/hooks/useStatuses"
 import { useLabels } from "@/hooks/useLabels"
 import { useViews } from "@/hooks/useViews"
-import { useSchedules } from "@/hooks/useSchedules"
 import { LabelIcon, LabelValueTypeIcon } from "@/components/ui/label-icon"
 import { filterItems as filterLabelMenuItems, filterSessionStatuses as filterLabelMenuStates, type LabelMenuItem } from "@/components/ui/label-menu"
 import { buildLabelTree, getDescendantIds, getLabelDisplayName, flattenLabels, extractLabelId, findLabelById } from "@work-agent/shared/labels"
 import type { LabelConfig, LabelTreeNode } from "@work-agent/shared/labels"
 import { resolveEntityColor } from "@work-agent/shared/colors"
-import { formatTimes, getNextRunTime, formatRelativeTime } from "@work-agent/shared/schedules/utils"
 import * as storage from "@/lib/local-storage"
 import { toast } from "sonner"
 import { navigate, routes } from "@/lib/navigate"
@@ -115,7 +112,7 @@ import {
 import type { SettingsSubpage } from "../../../shared/types"
 import { SourcesListPanel } from "./SourcesListPanel"
 import { SkillsListPanel } from "./SkillsListPanel"
-import { SchedulesPanel } from "./SchedulesPanel"
+import { HooksListPanel } from "./HooksListPanel"
 import { PanelHeader } from "./PanelHeader"
 import { EditPopover, getEditConfig, type EditContextKey } from "@/components/ui/EditPopover"
 import { getDocUrl } from "@work-agent/shared/docs/doc-links"
@@ -904,8 +901,6 @@ function AppShellContent({
   // Load labels from workspace config
   const { labels: labelConfigs } = useLabels(activeWorkspace?.id || null)
 
-  // Load scheduled prompts from workspace config
-  const { schedules } = useSchedules(activeWorkspace?.id || null)
 
   // Views: compiled once on config load, evaluated per session in list/chat
   const { evaluateSession: evaluateViews, viewConfigs } = useViews(activeWorkspace?.id || null)
@@ -1582,6 +1577,25 @@ function AppShellContent({
     navigate(routes.view.schedules())
   }, [])
 
+  const handleHookSelect = useCallback((hookId: string) => {
+    navigate(routes.view.schedules(hookId))
+  }, [])
+
+  const handleAddHook = useCallback(async () => {
+    if (!activeWorkspaceId) return
+    try {
+      const result = await window.electronAPI.createSchedulerHook(activeWorkspaceId, {
+        prompt: '',
+        cron: '0 9 * * *',
+        enabled: true,
+      })
+      window.dispatchEvent(new CustomEvent('hooks:changed'))
+      navigate(routes.view.schedules(result.id))
+    } catch (error) {
+      console.error('Failed to create hook:', error)
+    }
+  }, [activeWorkspaceId])
+
   // Handler for settings view
   const handleSettingsClick = useCallback((subpage: SettingsSubpage = 'app') => {
     navigate(routes.view.settings(subpage))
@@ -1594,7 +1608,7 @@ function AppShellContent({
   // We use controlled popovers instead of deep links so the user can type
   // their request in the popover UI before opening a new chat window.
   // add-source variants: add-source (generic), add-source-api, add-source-mcp, add-source-local
-  const [editPopoverOpen, setEditPopoverOpen] = useState<'statuses' | 'labels' | 'views' | 'add-source' | 'add-source-api' | 'add-source-mcp' | 'add-source-local' | 'add-skill' | 'add-label' | 'add-schedule' | 'edit-schedules' | null>(null)
+  const [editPopoverOpen, setEditPopoverOpen] = useState<'statuses' | 'labels' | 'views' | 'add-source' | 'add-source-api' | 'add-source-mcp' | 'add-source-local' | 'add-skill' | 'add-label' | null>(null)
 
   // Stores the Y position of the last right-clicked sidebar item so the EditPopover
   // appears near it rather than at a fixed location. Updated synchronously before
@@ -1746,20 +1760,6 @@ function AppShellContent({
     }
   }, [activeWorkspace, t])
 
-  // Handler for "Add Schedule" context menu action
-  // Opens the EditPopover for adding a new scheduled prompt
-  const openAddSchedule = useCallback(() => {
-    captureContextMenuPosition()
-    setTimeout(() => setEditPopoverOpen('add-schedule'), 50)
-  }, [captureContextMenuPosition])
-
-  // Handler for "Edit Schedules" context menu action
-  // Opens the EditPopover for editing scheduled prompts
-  const openEditSchedules = useCallback(() => {
-    captureContextMenuPosition()
-    setTimeout(() => setEditPopoverOpen('edit-schedules'), 50)
-  }, [captureContextMenuPosition])
-
   // Respond to menu bar "New Chat" trigger
   const menuTriggerRef = useRef(menuNewChatTrigger)
   useEffect(() => {
@@ -1806,9 +1806,10 @@ function AppShellContent({
     // 3. Sources, Skills, Settings
     result.push({ id: 'nav:sources', type: 'nav', action: handleSourcesClick })
     result.push({ id: 'nav:skills', type: 'nav', action: handleSkillsClick })
+    result.push({ id: 'nav:schedules', type: 'nav', action: handleSchedulesClick })
     result.push({ id: 'nav:settings', type: 'nav', action: () => handleSettingsClick('app') })
     return result
-  }, [handleAllSessionsClick, handleFlaggedClick, handleArchivedClick, handleSessionStatusClick, effectiveSessionStatuses, handleLabelClick, labelConfigs, labelTree, viewConfigs, handleViewClick, handleSourcesClick, handleSkillsClick, handleSettingsClick])
+  }, [handleAllSessionsClick, handleFlaggedClick, handleArchivedClick, handleSessionStatusClick, effectiveSessionStatuses, handleLabelClick, labelConfigs, labelTree, viewConfigs, handleViewClick, handleSourcesClick, handleSkillsClick, handleSchedulesClick, handleSettingsClick])
 
   // Toggle folder expanded state
   const handleToggleFolder = React.useCallback((path: string) => {
@@ -1929,7 +1930,7 @@ function AppShellContent({
 
     // Schedules navigator
     if (isSchedulesNavigation(navState)) {
-      return 'Scheduled Prompts'
+      return i18nLabels.schedules
     }
 
     // Settings navigator
@@ -2200,21 +2201,6 @@ function AppShellContent({
                       variant: sessionFilter?.kind === 'archived' ? "default" : "ghost",
                       onClick: handleArchivedClick,
                     },
-                    // Scheduled prompts: hidden for now (not shipping this version)
-                    // {
-                    //   id: "nav:scheduled",
-                    //   title: "Scheduled",
-                    //   label: schedules.filter(s => s.enabled).length > 0 ? String(schedules.filter(s => s.enabled).length) : undefined,
-                    //   icon: Calendar,
-                    //   variant: isSchedulesNavigation(navState) ? "default" : "ghost",
-                    //   onClick: handleSchedulesClick,
-                    //   contextMenu: {
-                    //     type: 'scheduled' as const,
-                    //     workspaceRootPath: activeWorkspace?.rootPath,
-                    //     onAddSchedule: openAddSchedule,
-                    //     onEditSchedules: openEditSchedules,
-                    //   },
-                    // },
                     // --- Separator ---
                     { id: "separator:chats-sources", type: "separator" },
                     // --- Sources & Skills Section ---
@@ -2286,6 +2272,13 @@ function AppShellContent({
                         type: 'skills',
                         onAddSkill: openAddSkill,
                       },
+                    },
+                    {
+                      id: "nav:schedules",
+                      title: i18nLabels.schedules,
+                      icon: Clock,
+                      variant: isSchedulesNavigation(navState) ? "default" : "ghost",
+                      onClick: handleSchedulesClick,
                     },
                     // --- Separator ---
                     { id: "separator:skills-settings", type: "separator" },
@@ -2976,6 +2969,14 @@ function AppShellContent({
                       {...getEditConfig('add-skill', activeWorkspace.rootPath)}
                     />
                   )}
+                  {/* Add Task button (only for schedules mode) */}
+                  {isSchedulesNavigation(navState) && activeWorkspaceId && (
+                    <HeaderIconButton
+                      icon={<Plus className="h-4 w-4" />}
+                      tooltip={i18nLabels.addTask}
+                      onClick={handleAddHook}
+                    />
+                  )}
                 </>
               }
             />
@@ -3003,14 +3004,13 @@ function AppShellContent({
                 selectedSkillSlug={isSkillsNavigation(navState) && navState.details?.type === 'skill' ? navState.details.skillSlug : null}
               />
             )}
-            {isSchedulesNavigation(navState) && activeWorkspace?.id && (
-              /* Schedules Panel */
-              <SchedulesPanel
-                schedules={schedules}
-                workspaceId={activeWorkspace.id}
-                workspaceRootPath={activeWorkspace?.rootPath}
-                onAddSchedule={openAddSchedule}
-                onEditSchedules={openEditSchedules}
+            {isSchedulesNavigation(navState) && activeWorkspaceId && (
+              /* Hooks List */
+              <HooksListPanel
+                workspaceId={activeWorkspaceId}
+                onHookClick={handleHookSelect}
+                onAddHook={handleAddHook}
+                selectedHookId={isSchedulesNavigation(navState) && navState.details?.type === 'hook' ? navState.details.hookId : null}
               />
             )}
             {isSettingsNavigation(navState) && (
@@ -3359,46 +3359,6 @@ function AppShellContent({
                 },
               }
             })()}
-          />
-          {/* Add Schedule EditPopover - triggered from "Add Schedule" context menu on scheduled header */}
-          <EditPopover
-            open={editPopoverOpen === 'add-schedule'}
-            onOpenChange={(isOpen) => setEditPopoverOpen(isOpen ? 'add-schedule' : null)}
-            modal={true}
-            trigger={
-              <div
-                className="fixed w-0 h-0 pointer-events-none"
-                style={{ left: sidebarWidth + 20, top: editPopoverAnchorY.current }}
-                aria-hidden="true"
-              />
-            }
-            side="bottom"
-            align="start"
-            secondaryAction={{
-              label: 'Edit File',
-              filePath: `${activeWorkspace.rootPath}/schedules/config.json`,
-            }}
-            {...getEditConfig('add-schedule', activeWorkspace.rootPath)}
-          />
-          {/* Edit Schedules EditPopover - triggered from "Edit Schedules" context menu */}
-          <EditPopover
-            open={editPopoverOpen === 'edit-schedules'}
-            onOpenChange={(isOpen) => setEditPopoverOpen(isOpen ? 'edit-schedules' : null)}
-            modal={true}
-            trigger={
-              <div
-                className="fixed w-0 h-0 pointer-events-none"
-                style={{ left: sidebarWidth + 20, top: editPopoverAnchorY.current }}
-                aria-hidden="true"
-              />
-            }
-            side="bottom"
-            align="start"
-            secondaryAction={{
-              label: 'Edit File',
-              filePath: `${activeWorkspace.rootPath}/schedules/config.json`,
-            }}
-            {...getEditConfig('edit-schedules', activeWorkspace.rootPath)}
           />
         </>
       )}

@@ -158,6 +158,23 @@ export const PreferencesIcon = ({ className }: IconProps) => (
   </svg>
 )
 
+/** Webhook/Zap icon for hooks */
+export const HooksIcon = ({ className }: IconProps) => (
+  <svg
+    viewBox="0 0 24 24"
+    fill="none"
+    xmlns="http://www.w3.org/2000/svg"
+    className={className}
+  >
+    <path
+      fillRule="evenodd"
+      clipRule="evenodd"
+      d="M13.5 2C13.5 1.44772 13.0523 1 12.5 1C11.9477 1 11.5 1.44772 11.5 2V4.05493C9.51104 4.28278 7.78278 5.51104 6.80493 7.25H4C3.44772 7.25 3 7.69772 3 8.25C3 8.80228 3.44772 9.25 4 9.25H6.05493C6.01855 9.49384 6 9.74419 6 10C6 10.2558 6.01855 10.5062 6.05493 10.75H4C3.44772 10.75 3 11.1977 3 11.75C3 12.3023 3.44772 12.75 4 12.75H6.80493C7.78278 14.489 9.51104 15.7172 11.5 15.9451V18C11.5 18.5523 11.9477 19 12.5 19C13.0523 19 13.5 18.5523 13.5 18V15.9451C15.489 15.7172 17.2172 14.489 18.1951 12.75H21C21.5523 12.75 22 12.3023 22 11.75C22 11.1977 21.5523 10.75 21 10.75H18.9451C18.9814 10.5062 19 10.2558 19 10C19 9.74419 18.9814 9.49384 18.9451 9.25H21C21.5523 9.25 22 8.80228 22 8.25C22 7.69772 21.5523 7.25 21 7.25H18.1951C17.2172 5.51104 15.489 4.28278 13.5 4.05493V2ZM12.5 6C10.0147 6 8 8.01472 8 10.5C8 12.9853 10.0147 15 12.5 15C14.9853 15 17 12.9853 17 10.5C17 8.01472 14.9853 6 12.5 6Z"
+      fill="currentColor"
+    />
+  </svg>
+)
+
 /**
  * Map of settings subpage IDs to their icon components.
  * Used by both AppMenu and SettingsNavigator for consistent icons.
@@ -170,6 +187,7 @@ export const SETTINGS_ICONS: Record<SettingsSubpage, React.ComponentType<IconPro
   workspace: WorkspaceIcon,
   permissions: PermissionsIcon,
   labels: LabelsIcon,
+  hooks: HooksIcon,
   shortcuts: ShortcutsIcon,
   preferences: PreferencesIcon,
 }

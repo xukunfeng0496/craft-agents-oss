@@ -83,7 +83,7 @@
     },
     "apps/electron": {
       "name": "@work-agent/electron",
-      "version": "0.5.1",
+      "version": "0.5.4",
       "dependencies": {
         "@dnd-kit/core": "^6.3.1",
         "@dnd-kit/sortable": "^10.0.0",
@@ -120,10 +120,13 @@
         "unist-util-visit": "^5.0.0",
         "vaul": "^1.1.2",
       },
+      "devDependencies": {
+        "adm-zip": "^0.5.10",
+      },
     },
     "apps/viewer": {
       "name": "@work-agent/viewer",
-      "version": "0.5.1",
+      "version": "0.5.3",
       "dependencies": {
         "@work-agent/core": "workspace:*",
         "@work-agent/shared": "workspace:*",
@@ -151,7 +154,7 @@
     },
     "packages/bridge-mcp-server": {
       "name": "@work-agent/bridge-mcp-server",
-      "version": "0.5.1",
+      "version": "0.5.3",
       "bin": {
         "bridge-mcp-server": "./dist/index.js",
       },
@@ -164,11 +167,11 @@
     },
     "packages/codex-types": {
       "name": "@work-agent/codex-types",
-      "version": "0.5.1",
+      "version": "0.5.3",
     },
     "packages/core": {
       "name": "@work-agent/core",
-      "version": "0.5.1",
+      "version": "0.5.4",
       "devDependencies": {
         "@types/uuid": "^11.0.0",
       },
@@ -180,7 +183,7 @@
     },
     "packages/mermaid": {
       "name": "@work-agent/mermaid",
-      "version": "0.5.1",
+      "version": "0.5.3",
       "dependencies": {
         "elkjs": "^0.11.0",
       },
@@ -197,7 +200,7 @@
     },
     "packages/session-mcp-server": {
       "name": "@work-agent/session-mcp-server",
-      "version": "0.5.1",
+      "version": "0.5.3",
       "bin": {
         "session-mcp-server": "./dist/index.js",
       },
@@ -212,7 +215,7 @@
     },
     "packages/session-tools-core": {
       "name": "@work-agent/session-tools-core",
-      "version": "0.5.1",
+      "version": "0.5.3",
       "dependencies": {
         "@work-agent/mermaid": "workspace:*",
         "gray-matter": "^4.0.3",
@@ -224,7 +227,7 @@
     },
     "packages/shared": {
       "name": "@work-agent/shared",
-      "version": "0.5.1",
+      "version": "0.5.4",
       "dependencies": {
         "@isaacs/ttlcache": "^2.1.4",
         "@leeoniya/ufuzzy": "^1.0.19",
@@ -250,7 +253,7 @@
     },
     "packages/ui": {
       "name": "@work-agent/ui",
-      "version": "0.5.1",
+      "version": "0.5.3",
       "dependencies": {
         "@types/mdast": "^4.0.0",
         "@uiw/react-json-view": "^2.0.0-alpha.40",
@@ -1243,6 +1246,8 @@
     "acorn-jsx": ["acorn-jsx@5.3.2", "", { "peerDependencies": { "acorn": "^6.0.0 || ^7.0.0 || ^8.0.0" } }, "sha512-rq9s+JNhf0IChjtDXxllJ7g41oZk5SlXtp0LHwyA5cejwn7vKmKp4pPri6YEePv2PU65sAsegbXtIinmDFDXgQ=="],
 
     "adler-32": ["adler-32@1.3.1", "", {}, "sha512-ynZ4w/nUUv5rrsR8UUGoe1VC9hZj6V5hU9Qw1HlMDJGEJw5S7TfTErWTjMys6M7vr0YWcPqs3qAr4ss0nDfP+A=="],
+
+    "adm-zip": ["adm-zip@0.5.16", "https://registry.npmmirror.com/adm-zip/-/adm-zip-0.5.16.tgz", {}, "sha512-TGw5yVi4saajsSEgz25grObGHEUaDrniwvA2qwSC060KfqGPdglhvPMA2lPIoxs3PQIItj2iag35fONcQqgUaQ=="],
 
     "agent-base": ["agent-base@7.1.4", "", {}, "sha512-MnA+YT8fwfJPgBx3m60MNqakm30XOkyIoH1y6huTQvC0PwZG7ki8NacLBcrPbNoo8vEZy7Jpuk7+jMO+CUovTQ=="],
 

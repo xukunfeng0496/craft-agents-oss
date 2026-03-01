@@ -14,6 +14,7 @@
 const https = require('https');
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 const AdmZip = require('adm-zip');
 
 // Tool configurations
@@ -23,19 +24,22 @@ const TOOLS = {
     version: '2.44.0',
     url: 'https://github.com/git-for-windows/git/releases/download/v2.44.0.windows.1/MinGit-2.44.0-64-bit.zip',
     filename: 'MinGit-2.44.0-64-bit.zip',
-    extractTo: 'mingit'
+    extractTo: 'mingit',
+    sha256: null // TODO: Add checksum for verification
   },
   python: {
     name: 'Python',
     version: '3.12.8',
     url: 'https://www.python.org/ftp/python/3.12.8/python-3.12.8-embed-amd64.zip',
     filename: 'python-3.12.8-embed-amd64.zip',
-    extractTo: 'python'
+    extractTo: 'python',
+    sha256: null // TODO: Add checksum for verification
   }
 };
 
 const RESOURCES_DIR = path.join(__dirname, '..', 'resources');
 const TOOLS_DIR = path.join(RESOURCES_DIR, 'tools');
+const REQUEST_TIMEOUT = 60000; // 60 seconds
 
 /**
  * Download a file from a URL with redirect support
@@ -49,11 +53,14 @@ function downloadFile(url, dest) {
     const MAX_REDIRECTS = 5;
 
     function makeRequest(currentUrl) {
-      https.get(currentUrl, (response) => {
+      const request = https.get(currentUrl, (response) => {
         // Handle redirects
         if (response.statusCode === 301 || response.statusCode === 302 || response.statusCode === 307 || response.statusCode === 308) {
           redirectCount++;
           if (redirectCount > MAX_REDIRECTS) {
+            file.close(() => {
+              fs.unlink(dest, () => {});
+            });
             reject(new Error(`Too many redirects (${MAX_REDIRECTS})`));
             return;
           }
@@ -65,22 +72,30 @@ function downloadFile(url, dest) {
         }
 
         if (response.statusCode !== 200) {
+          file.close(() => {
+            fs.unlink(dest, () => {});
+          });
           reject(new Error(`Failed to download: HTTP ${response.statusCode}`));
           return;
         }
 
         const totalBytes = parseInt(response.headers['content-length'], 10);
+        if (isNaN(totalBytes) || totalBytes <= 0) {
+          console.log('  Download size unknown, progress unavailable');
+        }
         let downloadedBytes = 0;
         let lastProgress = 0;
 
         response.on('data', (chunk) => {
           downloadedBytes += chunk.length;
-          const progress = Math.floor((downloadedBytes / totalBytes) * 100);
+          if (!isNaN(totalBytes) && totalBytes > 0) {
+            const progress = Math.floor((downloadedBytes / totalBytes) * 100);
 
-          // Show progress every 10%
-          if (progress >= lastProgress + 10) {
-            console.log(`  Progress: ${progress}%`);
-            lastProgress = progress;
+            // Show progress every 10%
+            if (progress >= lastProgress + 10) {
+              console.log(`  Progress: ${progress}%`);
+              lastProgress = progress;
+            }
           }
         });
 
@@ -91,13 +106,60 @@ function downloadFile(url, dest) {
           console.log(`  Download complete: ${path.basename(dest)}`);
           resolve();
         });
-      }).on('error', (err) => {
-        fs.unlink(dest, () => {}); // Clean up partial download
+      });
+
+      // Set timeout
+      request.setTimeout(REQUEST_TIMEOUT, () => {
+        request.destroy();
+        file.close(() => {
+          fs.unlink(dest, () => {});
+        });
+        reject(new Error(`Request timeout after ${REQUEST_TIMEOUT / 1000} seconds`));
+      });
+
+      // Handle request errors
+      request.on('error', (err) => {
+        file.close(() => {
+          fs.unlink(dest, () => {}); // Clean up partial download
+        });
         reject(err);
       });
     }
 
     makeRequest(url);
+  });
+}
+
+/**
+ * Verify file checksum
+ */
+async function verifyChecksum(filePath, expectedSha256) {
+  if (!expectedSha256) {
+    console.log('  Checksum verification skipped (no checksum provided)');
+    return true;
+  }
+
+  return new Promise((resolve, reject) => {
+    const hash = crypto.createHash('sha256');
+    const stream = fs.createReadStream(filePath);
+
+    stream.on('data', (chunk) => {
+      hash.update(chunk);
+    });
+
+    stream.on('end', () => {
+      const actualSha256 = hash.digest('hex');
+      if (actualSha256 === expectedSha256) {
+        console.log('  Checksum verified successfully');
+        resolve(true);
+      } else {
+        reject(new Error(`Checksum mismatch: expected ${expectedSha256}, got ${actualSha256}`));
+      }
+    });
+
+    stream.on('error', (err) => {
+      reject(err);
+    });
   });
 }
 
@@ -138,21 +200,28 @@ async function downloadTool(toolKey, config) {
     // Download
     await downloadFile(config.url, zipPath);
 
+    // Verify checksum
+    await verifyChecksum(zipPath, config.sha256);
+
     // Extract
     await extractZip(zipPath, toolDir);
 
     // Clean up zip file
-    fs.unlinkSync(zipPath);
+    await fs.promises.unlink(zipPath);
     console.log(`  Cleaned up: ${config.filename}`);
 
     console.log(`✓ ${config.name} ${config.version} installed successfully`);
   } catch (err) {
     // Clean up on error
-    if (fs.existsSync(zipPath)) {
-      fs.unlinkSync(zipPath);
-    }
-    if (fs.existsSync(toolDir)) {
-      fs.rmSync(toolDir, { recursive: true, force: true });
+    try {
+      if (fs.existsSync(zipPath)) {
+        await fs.promises.unlink(zipPath);
+      }
+      if (fs.existsSync(toolDir)) {
+        await fs.promises.rm(toolDir, { recursive: true, force: true });
+      }
+    } catch (cleanupErr) {
+      console.error('  Warning: Failed to clean up after error:', cleanupErr.message);
     }
     throw err;
   }
@@ -194,4 +263,4 @@ if (require.main === module) {
   main();
 }
 
-module.exports = { downloadFile, extractZip, downloadTool };
+module.exports = { downloadFile, verifyChecksum, extractZip, downloadTool };

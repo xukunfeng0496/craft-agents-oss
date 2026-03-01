@@ -5,5 +5,9 @@
  * The Codex app-server handles tool execution internally.
  */
 
-// Placeholder for future tool implementations
-export {};
+export {
+  getBundledGitPath,
+  getBundledPythonPath,
+  getBundledToolPath,
+  type BundledToolName,
+} from './bundled-tools';

@@ -1,0 +1,38 @@
+name: Test Windows Bundled Tools
+
+on:
+  push:
+    branches:
+      - main
+      - feat/windows-bundled-tools
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  test-windows-bundled-tools:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Download bundled tools
+        run: cd apps/electron && bun run tools:download
+
+      - name: Verify bundled tools
+        run: cd apps/electron && node scripts/verify-bundled-tools.js
+
+      - name: Run tests
+        run: bun test
+
+      - name: Type check
+        run: bun run typecheck:all

@@ -364,6 +364,16 @@ const api: ElectronAPI = {
     }
   },
 
+  // Hooks
+  listSchedulerHooks: (workspaceId: string) =>
+    ipcRenderer.invoke(IPC_CHANNELS.HOOKS_LIST_SCHEDULER, workspaceId),
+  createSchedulerHook: (workspaceId: string, data: any) =>
+    ipcRenderer.invoke(IPC_CHANNELS.HOOKS_CREATE_SCHEDULER, workspaceId, data),
+  updateSchedulerHook: (workspaceId: string, data: any) =>
+    ipcRenderer.invoke(IPC_CHANNELS.HOOKS_UPDATE_SCHEDULER, workspaceId, data),
+  deleteSchedulerHook: (workspaceId: string, id: string) =>
+    ipcRenderer.invoke(IPC_CHANNELS.HOOKS_DELETE_SCHEDULER, workspaceId, id),
+
   // Label management
   listLabels: (workspaceId: string) =>
     ipcRenderer.invoke(IPC_CHANNELS.LABELS_LIST, workspaceId),

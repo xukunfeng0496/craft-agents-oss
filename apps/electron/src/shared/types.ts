@@ -835,6 +835,12 @@ export const IPC_CHANNELS = {
   SCHEDULES_DELETE: 'schedules:delete',
   SCHEDULES_CHANGED: 'schedules:changed',  // Broadcast event
 
+  // Hooks
+  HOOKS_LIST_SCHEDULER: 'hooks:list-scheduler',
+  HOOKS_CREATE_SCHEDULER: 'hooks:create-scheduler',
+  HOOKS_UPDATE_SCHEDULER: 'hooks:update-scheduler',
+  HOOKS_DELETE_SCHEDULER: 'hooks:delete-scheduler',
+
   // Label management (workspace-scoped)
   LABELS_LIST: 'labels:list',
   LABELS_CREATE: 'labels:create',
@@ -1158,6 +1164,12 @@ export interface ElectronAPI {
   deleteSchedule(workspaceId: string, scheduleId: string): Promise<boolean>
   // Schedules change listener (live updates when schedules config changes)
   onSchedulesChanged(callback: (workspaceId: string) => void): () => void
+
+  // Hooks
+  listSchedulerHooks(workspaceId: string): Promise<any[]>
+  createSchedulerHook(workspaceId: string, data: any): Promise<any>
+  updateSchedulerHook(workspaceId: string, data: any): Promise<void>
+  deleteSchedulerHook(workspaceId: string, id: string): Promise<void>
 
   // Labels (workspace-scoped)
   listLabels(workspaceId: string): Promise<import('@work-agent/shared/labels').LabelConfig[]>

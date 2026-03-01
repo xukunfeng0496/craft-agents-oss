@@ -3700,6 +3700,71 @@ export function registerIpcHandlers(sessionManager: SessionManager, windowManage
   })
 
   // ============================================================
+  // Hooks - SchedulerTick CRUD
+  // ============================================================
+
+  ipcMain.handle(IPC_CHANNELS.HOOKS_LIST_SCHEDULER, async (_event, workspaceId: string) => {
+    try {
+      const workspace = getWorkspaceByNameOrId(workspaceId)
+      if (!workspace) throw new Error('Workspace not found')
+
+      const { listSchedulerHooks } = await import('@work-agent/shared/hooks-simple')
+      return await listSchedulerHooks(workspace.rootPath)
+    } catch (error) {
+      logger.error('Failed to list scheduler hooks:', error)
+      throw error
+    }
+  })
+
+  ipcMain.handle(
+    IPC_CHANNELS.HOOKS_CREATE_SCHEDULER,
+    async (_event, workspaceId: string, data: any) => {
+      try {
+        const workspace = getWorkspaceByNameOrId(workspaceId)
+        if (!workspace) throw new Error('Workspace not found')
+
+        const { createSchedulerHook } = await import('@work-agent/shared/hooks-simple')
+        return await createSchedulerHook(workspace.rootPath, data)
+      } catch (error) {
+        logger.error('Failed to create scheduler hook:', error)
+        throw error
+      }
+    }
+  )
+
+  ipcMain.handle(
+    IPC_CHANNELS.HOOKS_UPDATE_SCHEDULER,
+    async (_event, workspaceId: string, data: any) => {
+      try {
+        const workspace = getWorkspaceByNameOrId(workspaceId)
+        if (!workspace) throw new Error('Workspace not found')
+
+        const { updateSchedulerHook } = await import('@work-agent/shared/hooks-simple')
+        await updateSchedulerHook(workspace.rootPath, data)
+      } catch (error) {
+        logger.error('Failed to update scheduler hook:', error)
+        throw error
+      }
+    }
+  )
+
+  ipcMain.handle(
+    IPC_CHANNELS.HOOKS_DELETE_SCHEDULER,
+    async (_event, workspaceId: string, id: string) => {
+      try {
+        const workspace = getWorkspaceByNameOrId(workspaceId)
+        if (!workspace) throw new Error('Workspace not found')
+
+        const { deleteSchedulerHook } = await import('@work-agent/shared/hooks-simple')
+        await deleteSchedulerHook(workspace.rootPath, id)
+      } catch (error) {
+        logger.error('Failed to delete scheduler hook:', error)
+        throw error
+      }
+    }
+  )
+
+  // ============================================================
   // Label Management (Workspace-scoped)
   // ============================================================
 

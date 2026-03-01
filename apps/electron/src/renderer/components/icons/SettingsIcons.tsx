@@ -187,7 +187,6 @@ export const SETTINGS_ICONS: Record<SettingsSubpage, React.ComponentType<IconPro
   workspace: WorkspaceIcon,
   permissions: PermissionsIcon,
   labels: LabelsIcon,
-  hooks: HooksIcon,
   shortcuts: ShortcutsIcon,
   preferences: PreferencesIcon,
 }

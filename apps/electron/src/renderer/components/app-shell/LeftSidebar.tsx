@@ -41,14 +41,8 @@ export interface SidebarContextMenuConfig {
   viewId?: string
   /** Handler for "Delete View" action */
   onDeleteView?: (id: string) => void
-  /** Workspace root path for EditPopover contexts (used by scheduled prompts) */
+  /** Workspace root path for EditPopover contexts */
   workspaceRootPath?: string
-  /** Schedule ID for individual schedule items */
-  scheduleId?: string
-  /** Handler for "Add Schedule" action - for scheduled type */
-  onAddSchedule?: () => void
-  /** Handler for "Edit Schedules" action - for scheduled/schedule types */
-  onEditSchedules?: () => void
 }
 
 /**
@@ -251,9 +245,6 @@ export function LeftSidebar({ links, isCollapsed, getItemProps, focusedItemId, i
                         viewId={link.contextMenu.viewId}
                         onDeleteView={link.contextMenu.onDeleteView}
                         workspaceRootPath={link.contextMenu.workspaceRootPath}
-                        scheduleId={link.contextMenu.scheduleId}
-                        onAddSchedule={link.contextMenu.onAddSchedule}
-                        onEditSchedules={link.contextMenu.onEditSchedules}
                       />
                     </ContextMenuProvider>
                   </StyledContextMenuContent>

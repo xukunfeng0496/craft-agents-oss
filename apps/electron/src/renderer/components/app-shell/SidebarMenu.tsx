@@ -26,7 +26,7 @@ import { useMenuComponents } from '@/components/ui/menu-context'
 import { useTranslation } from 'react-i18next'
 import { getDocUrl, type DocFeature } from '@work-agent/shared/docs/doc-links'
 
-export type SidebarMenuType = 'allSessions' | 'flagged' | 'status' | 'sources' | 'skills' | 'labels' | 'views' | 'newSession' | 'scheduled' | 'schedule'
+export type SidebarMenuType = 'allSessions' | 'flagged' | 'status' | 'sources' | 'skills' | 'labels' | 'views' | 'newSession'
 
 export interface SidebarMenuProps {
   /** Type of sidebar item (determines available menu items) */
@@ -57,12 +57,6 @@ export interface SidebarMenuProps {
   onDeleteView?: (id: string) => void
   /** Workspace root path for EditPopover contexts */
   workspaceRootPath?: string
-  /** Schedule ID for individual schedule items */
-  scheduleId?: string
-  /** Handler for "Add Schedule" action - for scheduled type */
-  onAddSchedule?: () => void
-  /** Handler for "Edit Schedules" action - for scheduled/schedule types */
-  onEditSchedules?: () => void
 }
 
 /**
@@ -84,9 +78,6 @@ export function SidebarMenu({
   viewId,
   onDeleteView,
   workspaceRootPath,
-  scheduleId,
-  onAddSchedule,
-  onEditSchedules,
 }: SidebarMenuProps) {
   // Get menu components from context (works with both DropdownMenu and ContextMenu)
   const { MenuItem, Separator } = useMenuComponents()
@@ -205,32 +196,6 @@ export function SidebarMenu({
       <MenuItem onClick={onAddSkill}>
         <Plus className="h-3.5 w-3.5" />
         <span className="flex-1">{t('common:menu.addSkill')}</span>
-      </MenuItem>
-    )
-  }
-
-  // Scheduled prompts header: show "Add Schedule" and "Edit Schedules"
-  if (type === 'scheduled' && onAddSchedule && onEditSchedules) {
-    return (
-      <>
-        <MenuItem onClick={onAddSchedule}>
-          <Plus className="h-3.5 w-3.5" />
-          <span className="flex-1">Add Schedule</span>
-        </MenuItem>
-        <MenuItem onClick={onEditSchedules}>
-          <Settings2 className="h-3.5 w-3.5" />
-          <span className="flex-1">Edit Schedules</span>
-        </MenuItem>
-      </>
-    )
-  }
-
-  // Individual schedule item: show "Edit Schedules" (opens config for that schedule)
-  if (type === 'schedule' && onEditSchedules) {
-    return (
-      <MenuItem onClick={onEditSchedules}>
-        <Settings2 className="h-3.5 w-3.5" />
-        <span className="flex-1">Edit Schedules</span>
       </MenuItem>
     )
   }

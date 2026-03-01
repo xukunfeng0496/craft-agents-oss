@@ -102,6 +102,14 @@ describe('cronToSchedule', () => {
       days: ['sat']
     })
   })
+
+  test('handles mixed specific days correctly', () => {
+    const result = cronToSchedule('30 14 * * 1,3,5')
+    expect(result).toEqual({
+      times: [{ hour: 14, minute: 30 }],
+      days: ['mon', 'wed', 'fri'],
+    })
+  })
 })
 
 describe('scheduleToCron and cronToSchedule roundtrip', () => {

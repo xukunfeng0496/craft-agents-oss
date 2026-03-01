@@ -229,3 +229,44 @@ const setValue = useSetAtom(atom)            // write only
 | Agent backends | `packages/shared/src/agent/backend/craft-agent.ts` |
 | MCP/sources | `packages/shared/src/sources/`, `packages/shared/src/mcp/` |
 | Localization | `packages/shared/locales/en/`, `packages/shared/locales/zh-CN/` |
+
+## Development Workflow
+
+### Worktree for Every Plan
+
+Every implementation plan **must** be executed in a dedicated git worktree. Never implement a plan directly on `cvte/main` or any shared branch.
+
+```bash
+# Before starting implementation
+git worktree add .worktrees/feat/<feature-name> -b feat/<feature-name>
+```
+
+Use the `superpowers:using-git-worktrees` skill to set this up. The worktree should be created before writing the first line of implementation code.
+
+**Why:** Keeps `cvte/main` clean, enables parallel development across features, and makes it easy to discard or pause work without affecting others.
+
+## Planning Standards
+
+### Engineering Complexity Evaluation
+
+Every implementation plan (`docs/plans/*.md`) **must** include an engineering complexity assessment. Place it in the plan header, after the Architecture section:
+
+```markdown
+**Engineering Assessment:** [Over-engineered | Under-engineered | Just right]
+**Reason:** [1-2 sentences explaining why]
+```
+
+**Criteria:**
+
+| Verdict | Signs |
+|---------|-------|
+| Over-engineered | Abstractions for hypothetical future use cases; configurable options nobody asked for; generic frameworks for one-time use; more than 2 layers of indirection for simple logic |
+| Under-engineered | No error handling at system boundaries; missing tests for critical paths; skipping type safety; ignoring known edge cases that will definitely occur |
+| Just right | Solves exactly the stated problem; tests cover real failure modes; no unused flexibility; can explain every line's purpose |
+
+**Examples:**
+
+- Adding a retry mechanism for a download script → Just right (network is unreliable)
+- Adding a plugin system for a feature used in one place → Over-engineered
+- Skipping error handling for IPC calls that can fail → Under-engineered
+- Writing a generic "tool manager" abstraction for two tools → Over-engineered; just handle git and python directly

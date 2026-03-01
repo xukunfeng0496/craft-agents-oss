@@ -1203,6 +1203,7 @@ export class SessionManager {
                 pending.permissionMode,
                 pending.mentions,
                 pending.triggeredBy,
+                pending.workingDirectory,
               )
             )
           )
@@ -5904,6 +5905,7 @@ To view this task's output:
     permissionMode?: 'safe' | 'ask' | 'allow-all',
     mentions?: string[],
     triggeredBy?: { type: 'schedule'; scheduleId: string; scheduleName: string },
+    workingDirectory?: string,
   ): Promise<{ sessionId: string }> {
     // Resolve @mentions to source/skill slugs
     const resolved = mentions ? this.resolveHookMentions(workspaceRootPath, mentions) : undefined
@@ -5927,6 +5929,7 @@ To view this task's output:
       permissionMode: permissionMode || 'safe',
       enabledSourceSlugs: resolved?.sourceSlugs,
       triggeredBy,
+      workingDirectory: workingDirectory || undefined,
     })
 
     // Send the prompt
@@ -5967,6 +5970,27 @@ To view this task's output:
     }
 
     return (sourceSlugs.length > 0 || skillSlugs.length > 0) ? { sourceSlugs, skillSlugs } : undefined
+  }
+
+  /**
+   * Refresh skill variables overlay for all active sessions in a workspace.
+   * Called when skill variable values change via IPC.
+   */
+  async refreshSkillVarsForWorkspace(workspaceId: string): Promise<void> {
+    const refreshPromises: Promise<void>[] = []
+    for (const [sessionId, managed] of this.sessions.entries()) {
+      if (managed.workspace.id === workspaceId && managed.agent) {
+        if ('refreshSkillVarsOverlay' in managed.agent && typeof managed.agent.refreshSkillVarsOverlay === 'function') {
+          refreshPromises.push(
+            (managed.agent.refreshSkillVarsOverlay as () => Promise<void>)()
+              .catch(err => {
+                sessionLog.error(`Failed to refresh skill vars for session ${sessionId}: ${err}`)
+              })
+          )
+        }
+      }
+    }
+    await Promise.all(refreshPromises)
   }
 
   /**

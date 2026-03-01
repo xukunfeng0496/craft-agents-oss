@@ -57,7 +57,8 @@
     "./tools": "./src/tools/index.ts",
     "./codex": "./src/codex/index.ts",
     "./mentions": "./src/mentions/index.ts",
-    "./skills/types": "./src/skills/types.ts"
+    "./skills/types": "./src/skills/types.ts",
+    "./hooks-simple/crud": "./src/hooks-simple/crud.ts"
   },
   "dependencies": {
     "@work-agent/codex-types": "workspace:*",

@@ -697,6 +697,16 @@ export class ClaudeAgent extends BaseAgent {
       // Clear stderr buffer at start of each query
       this.lastStderrOutput = [];
 
+      // Prepare skill variables overlay (creates temp dir with substituted SKILL.md files)
+      // Only for non-mini agents and when workspace has an ID
+      if (!this.isMiniAgent() && this.config.workspace?.id && !this.skillVarsOverlay) {
+        const allSkills = loadAllSkills(this.workspaceRootPath, this.config.session?.workingDirectory);
+        this.skillVarsOverlay = await prepareSkillVarsOverlay(allSkills, this.config.workspace.id, this.workspaceRootPath);
+        if (this.skillVarsOverlay) {
+          debug(`[chat] Skill vars overlay created at: ${this.skillVarsOverlay.overlayPath}`);
+        }
+      }
+
       // Detect if resolved model is Claude — non-Claude models (via OpenRouter/Ollama) don't
       // support Anthropic-specific betas or extended thinking parameters
       const isClaude = isClaudeModel(model);
@@ -1301,6 +1311,10 @@ export class ClaudeAgent extends BaseAgent {
         // Load skill directories as SDK plugins (enables skills from all 3 tiers)
         // Only register directories that exist to avoid SDK warnings/errors
         plugins: [
+          // Skill vars overlay (highest priority — substituted SKILL.md files override originals)
+          ...(this.skillVarsOverlay
+            ? [{ type: 'local' as const, path: this.skillVarsOverlay.overlayPath }]
+            : []),
           { type: 'local' as const, path: this.workspaceRootPath },
           // Project-level skills: {workingDir}/.agents/
           ...(this.config.session?.workingDirectory &&
@@ -2349,6 +2363,26 @@ export class ClaudeAgent extends BaseAgent {
     return { servers: filtered, skipped };
   }
 
+  /**
+   * Refresh the skill variables overlay directory.
+   * Called when skill variable values change (via IPC save/delete).
+   * The updated overlay takes effect on the next chat() call.
+   */
+  async refreshSkillVarsOverlay(): Promise<void> {
+    if (!this.config.workspace?.id) return;
+
+    // Clean up existing overlay
+    this.skillVarsOverlay?.cleanup();
+    this.skillVarsOverlay = null;
+
+    // Recreate with fresh variable values
+    const allSkills = loadAllSkills(this.workspaceRootPath, this.config.session?.workingDirectory);
+    this.skillVarsOverlay = await prepareSkillVarsOverlay(allSkills, this.config.workspace.id, this.workspaceRootPath);
+    if (this.skillVarsOverlay) {
+      debug(`[refreshSkillVarsOverlay] Overlay refreshed: ${this.skillVarsOverlay.overlayPath}`);
+    }
+  }
+
   async close(): Promise<void> {
     this.forceAbort();
   }
@@ -2377,6 +2411,10 @@ export class ClaudeAgent extends BaseAgent {
     // Clear pinned system prompt state
     this.pinnedPreferencesPrompt = null;
     this.preferencesDriftNotified = false;
+
+    // Clean up skill vars overlay temp directory
+    this.skillVarsOverlay?.cleanup();
+    this.skillVarsOverlay = null;
 
     // Clear Claude-specific callbacks (not handled by BaseAgent)
     this.onSourcesListChange = null;

@@ -15,23 +15,37 @@ export async function getSkillVariablesContext(
   projectRoot?: string
 ): Promise<string> {
   try {
-    const { loadAllSkills, processAllSkillVariables, generateVariableWarning } = await import('../skills/index.ts');
+    const { loadAllSkills, getSkillVars, getUnsetRequiredVars } = await import('../skills/index.ts');
 
     // Load all skills
     const skills = loadAllSkills(workspaceRoot, projectRoot);
 
     // Filter skills with variables
-    const skillsWithVars = skills.filter(s => s.metadata.vars && s.metadata.vars.length > 0);
+    const skillsWithVars = skills.filter(
+      (s: { metadata: { vars?: { name: string; required?: boolean }[] } }) =>
+        s.metadata.vars && s.metadata.vars.length > 0
+    );
 
     if (skillsWithVars.length === 0) {
       return ''; // No skills with variables
     }
 
-    // Process variables
-    const processed = await processAllSkillVariables(skillsWithVars, workspaceId);
+    // Check each skill for unset required variables
+    const skillsNeedingConfig: { slug: string; name: string; unsetVars: string[] }[] = [];
 
-    // Find skills with unset required variables
-    const skillsNeedingConfig = processed.filter(s => s.unsetRequired && s.unsetRequired.length > 0);
+    for (const skill of skillsWithVars) {
+      const varNames = skill.metadata.vars!.map((v: { name: string }) => v.name);
+      const varValues = await getSkillVars(workspaceId, skill.slug, varNames);
+      const unsetRequired = getUnsetRequiredVars(skill.metadata.vars!, varValues);
+
+      if (unsetRequired.length > 0) {
+        skillsNeedingConfig.push({
+          slug: skill.slug,
+          name: skill.metadata.name,
+          unsetVars: unsetRequired,
+        });
+      }
+    }
 
     if (skillsNeedingConfig.length === 0) {
       return ''; // All variables configured
@@ -39,19 +53,19 @@ export async function getSkillVariablesContext(
 
     // Generate warning list
     const warnings = skillsNeedingConfig.map(skill => {
-      const varList = skill.unsetRequired!.map(v => `\`${v}\``).join(', ');
-      return `- **${skill.metadata.name}** (\`${skill.slug}\`): requires ${varList}`;
+      const varList = skill.unsetVars.map(v => `\`${v}\``).join(', ');
+      return `- **${skill.name}** (\`${skill.slug}\`): requires ${varList}`;
     }).join('\n');
 
     return `
 
 ## Skill Variables Configuration
 
-⚠️ The following skills require variable configuration before use:
+The following skills require variable configuration before use:
 
 ${warnings}
 
-**Important:** When a user tries to invoke these skills, inform them that variables need to be configured first. Direct them to Settings → Skills → [Skill Name] → Variables section to configure the required values.`;
+**Important:** When a user tries to invoke these skills, inform them that variables need to be configured first. Direct them to Settings > Skills > [Skill Name] > Variables section to configure the required values.`;
   } catch (err) {
     debug('[getSkillVariablesContext] Error loading skill variables:', err);
     return ''; // Fail silently to not break system prompt generation

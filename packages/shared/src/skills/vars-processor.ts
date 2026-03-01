@@ -14,7 +14,7 @@
  * are still loaded from their original locations via the workspace plugin.
  */
 
-import { existsSync, mkdirSync, writeFileSync, rmSync } from 'fs';
+import { existsSync, mkdirSync, writeFileSync, readFileSync, rmSync } from 'fs';
 import { join } from 'path';
 import { tmpdir } from 'os';
 import { getSkillVars } from './vars-storage.ts';
@@ -94,18 +94,44 @@ export interface SkillVarsOverlayResult {
 }
 
 /**
+ * Read the plugin name from a workspace's .claude-plugin/plugin.json.
+ * This must match so overlay skills get the same qualified name as workspace skills.
+ */
+function readWorkspacePluginName(workspaceRootPath: string): string {
+  try {
+    const manifestPath = join(workspaceRootPath, '.claude-plugin', 'plugin.json');
+    if (existsSync(manifestPath)) {
+      const manifest = JSON.parse(readFileSync(manifestPath, 'utf-8'));
+      if (manifest.name) return manifest.name;
+    }
+  } catch {
+    // Fall through to default
+  }
+  return 'skill-vars-overlay';
+}
+
+/**
  * Prepare a temporary overlay directory containing substituted skill files.
  *
  * Call this once per agent session, then register `result.overlayPath` as the
  * **first** (highest-priority) entry in the SDK `plugins` array.
  *
+ * IMPORTANT: The overlay's plugin.json name MUST match the workspace plugin name.
+ * The SDK qualifies skills as `{pluginName}:{skillSlug}`. PreToolUse qualifies
+ * user input using the workspace plugin name. If the overlay uses a different name,
+ * the SDK's `.find()` will skip the overlay and use the original (unsubstituted) skill.
+ * By using the same name and placing the overlay first in the plugins array,
+ * `.find()` returns the substituted version.
+ *
  * @param skills - All loaded skills (from loadAllSkills)
  * @param workspaceId - Workspace ID used to look up variable values
+ * @param workspaceRootPath - Workspace root path to read plugin name from
  * @returns Overlay result, or null if no skills have variables
  */
 export async function prepareSkillVarsOverlay(
   skills: LoadedSkill[],
-  workspaceId: string
+  workspaceId: string,
+  workspaceRootPath: string
 ): Promise<SkillVarsOverlayResult | null> {
   const skillsWithVars = skills.filter(
     (s) => s.metadata.vars && s.metadata.vars.length > 0
@@ -121,7 +147,20 @@ export async function prepareSkillVarsOverlay(
   const overlaySkillsDir = join(tempBase, 'skills');
   mkdirSync(overlaySkillsDir, { recursive: true });
 
-  debug(`[SkillVarsProcessor] Creating overlay at ${tempBase} for ${skillsWithVars.length} skills`);
+  // SDK requires .claude-plugin/plugin.json for inline plugin discovery (--plugin-dir).
+  // The plugin name MUST match the workspace plugin name so that skill qualified names
+  // (e.g., "craft-workspace-my-workspace:test-vars") are identical between overlay and
+  // workspace. This ensures SDK's .find() returns the overlay (substituted) version first.
+  const workspacePluginName = readWorkspacePluginName(workspaceRootPath);
+  const pluginDir = join(tempBase, '.claude-plugin');
+  mkdirSync(pluginDir, { recursive: true });
+  writeFileSync(
+    join(pluginDir, 'plugin.json'),
+    JSON.stringify({ name: workspacePluginName, version: '1.0.0' }),
+    'utf-8'
+  );
+
+  debug(`[SkillVarsProcessor] Creating overlay at ${tempBase} for ${skillsWithVars.length} skills (pluginName: ${workspacePluginName})`);
 
   const unsetBySkill: Record<string, string[]> = {};
 

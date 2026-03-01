@@ -58,14 +58,14 @@ export class PromptHandler implements HookHandler {
     if (matchers.length === 0) return;
 
     // Find matching prompt hooks
-    const promptHooks: Array<{ prompt: PromptHookDefinition; labels?: string[]; permissionMode?: 'safe' | 'ask' | 'allow-all'; _scheduleId?: string; _scheduleName?: string }> = [];
+    const promptHooks: Array<{ prompt: PromptHookDefinition; labels?: string[]; permissionMode?: 'safe' | 'ask' | 'allow-all'; workingDirectory?: string; _scheduleId?: string; _scheduleName?: string }> = [];
 
     for (const matcher of matchers) {
       if (!matcherMatches(matcher, event, payload as unknown as Record<string, unknown>)) continue;
 
       for (const hook of matcher.hooks) {
         if (hook.type === 'prompt') {
-          promptHooks.push({ prompt: hook, labels: matcher.labels, permissionMode: matcher.permissionMode, _scheduleId: matcher._scheduleId, _scheduleName: matcher._scheduleName });
+          promptHooks.push({ prompt: hook, labels: matcher.labels, permissionMode: matcher.permissionMode, workingDirectory: matcher.workingDirectory, _scheduleId: matcher._scheduleId, _scheduleName: matcher._scheduleName });
         }
       }
     }
@@ -80,7 +80,7 @@ export class PromptHandler implements HookHandler {
     // Process prompts
     const pendingPrompts: PendingPrompt[] = [];
 
-    for (const { prompt, labels, permissionMode, _scheduleId, _scheduleName } of promptHooks) {
+    for (const { prompt, labels, permissionMode, workingDirectory, _scheduleId, _scheduleName } of promptHooks) {
       // Expand environment variables in the prompt
       const expandedPrompt = expandEnvVars(prompt.prompt, env);
 
@@ -96,6 +96,7 @@ export class PromptHandler implements HookHandler {
         mentions: references.mentions,
         labels: expandedLabels,
         permissionMode,
+        workingDirectory,
         triggeredBy: _scheduleId ? {
           type: 'schedule',
           scheduleId: _scheduleId,

@@ -100,6 +100,18 @@ try {
     Pop-Location
 }
 
+# 2.5. Download bundled tools (Python, MinGit)
+Write-Host "Downloading bundled tools (Python, MinGit)..."
+Push-Location $ElectronDir
+try {
+    node scripts/download-tools.cjs
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "WARNING: Tool download failed, continuing anyway..." -ForegroundColor Yellow
+    }
+} finally {
+    Pop-Location
+}
+
 # 3. Download Bun binary for Windows
 # Use baseline build - works on all x64 CPUs (no AVX2 requirement)
 Write-Host "Downloading Bun $BunVersion for Windows x64 (baseline)..."

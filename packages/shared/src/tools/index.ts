@@ -9,5 +9,6 @@ export {
   getBundledGitPath,
   getBundledPythonPath,
   getBundledToolPath,
+  getBundledToolExtraPaths,
   type BundledToolName,
 } from './bundled-tools';

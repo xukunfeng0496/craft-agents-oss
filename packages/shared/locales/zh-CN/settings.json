@@ -346,6 +346,10 @@
         "bedrock": "AWS Bedrock",
         "vertex": "Google Vertex",
         "unknown": "未知"
+      },
+      "errors": {
+        "endpointRequired": "请填写 Endpoint 地址",
+        "apiKeyRequired": "请填写 API Key"
       }
     },
     "model": {
@@ -361,6 +365,7 @@
       "remove": "移除",
       "recommended": "推荐",
       "presetAuto": "自动选择最适合任务的模型",
+      "presetSecret": "用于处理机密数据的安全模型",
       "presetGlm": "国内可用，兼容 OpenAI API 格式，成本低"
     },
     "thinking": {

@@ -147,10 +147,13 @@ export function ApiKeyInput({
   const [activePreset, setActivePreset] = useState<PresetKey>(defaultPreset.key)
   const [connectionDefaultModel, setConnectionDefaultModel] = useState('')
   const [modelError, setModelError] = useState<string | null>(null)
+  const [apiKeyError, setApiKeyError] = useState<string | null>(null)
+  const [endpointError, setEndpointError] = useState<string | null>(null)
 
   // ModelSelector state for compat endpoints (multi-select)
   const presetModelDefs = useMemo((): PresetModel[] => [
     { id: 'CVTE-AUTO', label: 'CVTE-AUTO', description: t('settings:ai.model.presetAuto') },
+    { id: 'CVTE-SECRET', label: 'CVTE-SECRET', description: t('settings:ai.model.presetSecret') },
     { id: 'glm-5', label: 'glm-5', description: t('settings:ai.model.presetGlm') },
   ], [t])
   const [selectedModels, setSelectedModels] = useState<Set<string>>(() => new Set([presetModelDefs[0].id]))
@@ -189,6 +192,8 @@ export function ApiKeyInput({
       setBaseUrl(preset.url)
     }
     setModelError(null)
+    setApiKeyError(null)
+    setEndpointError(null)
     // Pre-fill recommended model for Ollama; for compat presets reset to ModelSelector defaults
     if (preset.key === 'ollama') {
       setConnectionDefaultModel('qwen3-coder')
@@ -210,6 +215,7 @@ export function ApiKeyInput({
 
   const handleBaseUrlChange = (value: string) => {
     setBaseUrl(value)
+    setEndpointError(null)
     const presetKey = getPresetForUrl(value, presets)
     setActivePreset(presetKey)
     setModelError(null)
@@ -230,9 +236,32 @@ export function ApiKeyInput({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    // Always call onSubmit — the hook decides whether an empty key is valid
-    // (custom endpoints like Ollama don't require API keys)
+    setApiKeyError(null)
+    setEndpointError(null)
+    setModelError(null)
+
     const effectiveBaseUrl = baseUrl.trim()
+    const trimmedKey = apiKey.trim()
+
+    // For non-default presets (custom endpoint configuration), validate required fields
+    if (!isDefaultProviderPreset) {
+      let hasError = false
+
+      // Endpoint is required for custom preset (others have pre-filled URLs)
+      if (!effectiveBaseUrl) {
+        setEndpointError(t('settings:ai.connection.errors.endpointRequired', 'Endpoint is required'))
+        hasError = true
+      }
+
+      // API key is required for non-Ollama custom endpoints
+      if (activePreset !== 'ollama' && !trimmedKey) {
+        setApiKeyError(t('settings:ai.connection.errors.apiKeyRequired', 'API Key is required'))
+        hasError = true
+      }
+
+      if (hasError) return
+    }
+
     const parsedModels = parseModelList(connectionDefaultModel)
     const requiresModel = !isDefaultProviderPreset && !!effectiveBaseUrl
     if (requiresModel && parsedModels.length === 0) {
@@ -242,7 +271,7 @@ export function ApiKeyInput({
     // For default provider presets, don't pass a baseUrl (use provider's default)
     const isDefault = isDefaultProviderPreset || !effectiveBaseUrl
     onSubmit({
-      apiKey: apiKey.trim(),
+      apiKey: trimmedKey,
       baseUrl: isDefault ? undefined : effectiveBaseUrl,
       connectionDefaultModel: parsedModels[0],
       models: parsedModels.length > 0 ? parsedModels : undefined,
@@ -253,20 +282,26 @@ export function ApiKeyInput({
     <form id={formId} onSubmit={handleSubmit} className="space-y-6">
       {/* API Key */}
       <div className="space-y-2">
-        <Label htmlFor="api-key">API Key</Label>
+        <Label htmlFor="api-key">
+          API Key
+          {!isDefaultProviderPreset && activePreset !== 'ollama' && (
+            <span className="text-destructive ml-1">*</span>
+          )}
+        </Label>
         <div className={cn(
           "relative rounded-md shadow-minimal transition-colors",
-          "bg-foreground-2 focus-within:bg-background"
+          "bg-foreground-2 focus-within:bg-background",
+          apiKeyError && "ring-1 ring-destructive/40"
         )}>
           <Input
             id="api-key"
             type={showValue ? 'text' : 'password'}
             value={apiKey}
-            onChange={(e) => setApiKey(e.target.value)}
+            onChange={(e) => { setApiKey(e.target.value); setApiKeyError(null) }}
             placeholder={apiKeyPlaceholder}
             className={cn(
               "pr-10 border-0 bg-transparent shadow-none",
-              status === 'error' && "focus-visible:ring-destructive"
+              (status === 'error' || apiKeyError) && "focus-visible:ring-destructive"
             )}
             disabled={isDisabled}
             autoFocus
@@ -284,13 +319,21 @@ export function ApiKeyInput({
             )}
           </button>
         </div>
+        {apiKeyError && (
+          <p className="text-xs text-destructive">{apiKeyError}</p>
+        )}
       </div>
 
       {/* Endpoint Preset Selector - hidden when only one preset (e.g. Codex/OpenAI direct) */}
       {presets.length > 1 && (
       <div className="space-y-2">
         <div className="flex items-center justify-between">
-          <Label htmlFor="base-url">Endpoint</Label>
+          <Label htmlFor="base-url">
+            Endpoint
+            {!isDefaultProviderPreset && (
+              <span className="text-destructive ml-1">*</span>
+            )}
+          </Label>
           <DropdownMenu>
             <DropdownMenuTrigger
               disabled={isDisabled}
@@ -315,20 +358,26 @@ export function ApiKeyInput({
         </div>
         {/* Base URL input - hidden for default provider presets (Anthropic/OpenAI) */}
         {!isDefaultProviderPreset && (
-          <div className={cn(
-            "rounded-md shadow-minimal transition-colors",
-            "bg-foreground-2 focus-within:bg-background"
-          )}>
-            <Input
-              id="base-url"
-              type="text"
-              value={baseUrl}
-              onChange={(e) => handleBaseUrlChange(e.target.value)}
-              placeholder="https://your-api-endpoint.com"
-              className="border-0 bg-transparent shadow-none"
-              disabled={isDisabled}
-            />
-          </div>
+          <>
+            <div className={cn(
+              "rounded-md shadow-minimal transition-colors",
+              "bg-foreground-2 focus-within:bg-background",
+              endpointError && "ring-1 ring-destructive/40"
+            )}>
+              <Input
+                id="base-url"
+                type="text"
+                value={baseUrl}
+                onChange={(e) => handleBaseUrlChange(e.target.value)}
+                placeholder="https://your-api-endpoint.com"
+                className="border-0 bg-transparent shadow-none"
+                disabled={isDisabled}
+              />
+            </div>
+            {endpointError && (
+              <p className="text-xs text-destructive">{endpointError}</p>
+            )}
+          </>
         )}
       </div>
       )}

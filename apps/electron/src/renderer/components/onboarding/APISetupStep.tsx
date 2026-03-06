@@ -1,6 +1,6 @@
 import { useState } from "react"
 import { cn } from "@/lib/utils"
-import { Check, CreditCard, Key, Cpu } from "lucide-react"
+import { Check, Key, Cpu } from "lucide-react"
 import { StepFormLayout, BackButton, ContinueButton } from "./primitives"
 import type { LlmAuthType, LlmProviderType } from "@work-agent/shared/config/llm-connections"
 import type { TFunction } from "i18next"
@@ -77,13 +77,6 @@ interface ApiSetupOption {
 
 const API_SETUP_OPTIONS: ApiSetupOption[] = [
   {
-    id: 'claude_oauth',
-    name: 'Claude Pro/Max',
-    description: 'Use your Claude subscription for unlimited access.',
-    icon: <CreditCard className="size-4" />,
-    providerType: 'anthropic',
-  },
-  {
     id: 'anthropic_api_key',
     name: 'Anthropic API Key',
     description: 'Pay-as-you-go via Anthropic, OpenRouter, or compatible APIs.',
@@ -116,19 +109,12 @@ const API_SETUP_OPTIONS: ApiSetupOption[] = [
 function getApiSetupOptions(t: TFunction): ApiSetupOption[] {
   return [
     {
-      id: 'claude_oauth',
-      name: t('onboarding:apiSetup.options.claude.name'),
-      description: t('onboarding:apiSetup.options.claude.description'),
-      icon: <CreditCard className="size-4" />,
-      providerType: 'anthropic',
-      recommended: true,
-    },
-    {
       id: 'anthropic_api_key',
       name: t('onboarding:apiSetup.options.apiKey.name'),
       description: t('onboarding:apiSetup.options.apiKey.description'),
       icon: <Key className="size-4" />,
       providerType: 'anthropic',
+      recommended: true,
     },
     {
       id: 'chatgpt_oauth',

@@ -713,6 +713,7 @@ export default function AiSettingsPage() {
   const presetModels = useMemo((): PresetModel[] => {
     return [
       { id: 'CVTE-AUTO', label: 'CVTE-AUTO', description: t('settings:ai.model.presetAuto') },
+      { id: 'CVTE-SECRET', label: 'CVTE-SECRET', description: t('settings:ai.model.presetSecret') },
       { id: 'glm-5', label: 'glm-5', description: t('settings:ai.model.presetGlm') },
     ]
   }, [t])

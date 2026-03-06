@@ -346,6 +346,10 @@
         "bedrock": "AWS Bedrock",
         "vertex": "Google Vertex",
         "unknown": "Unknown"
+      },
+      "errors": {
+        "endpointRequired": "Endpoint is required",
+        "apiKeyRequired": "API Key is required"
       }
     },
     "model": {
@@ -361,6 +365,7 @@
       "remove": "Remove",
       "recommended": "Recommended",
       "presetAuto": "Automatically selects the best model for the task",
+      "presetSecret": "Secure model for confidential data tasks",
       "presetGlm": "China-accessible, OpenAI API compatible, low cost"
     },
     "thinking": {

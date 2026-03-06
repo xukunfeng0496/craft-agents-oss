@@ -2475,9 +2475,10 @@ export function registerIpcHandlers(sessionManager: SessionManager, windowManage
         const isCustomUrl = !!baseUrl
 
         // Determine auth header type:
-        // - Bearer token: explicit bearer_token auth type OR custom URL (OpenAI-compatible endpoints)
-        // - x-api-key: standard Anthropic API
-        const useBearerAuth = useBearer || isCustomUrl
+        // - bearer_token authType: explicit Bearer (OpenRouter, some proxies)
+        // - api_key_with_endpoint: x-api-key (standard Anthropic-compatible custom endpoint)
+        // - api_key (no custom URL): x-api-key for Anthropic direct
+        const useBearerAuth = useBearer
 
         const client = new Anthropic({
           ...(isCustomUrl ? { baseURL: baseUrl } : {}),
@@ -2665,7 +2666,7 @@ export function registerIpcHandlers(sessionManager: SessionManager, windowManage
 
         const baseUrl = connection.baseUrl
         const isCustomUrl = !!baseUrl
-        const useBearerAuth = useBearer || isCustomUrl
+        const useBearerAuth = useBearer
 
         const client = new Anthropic({
           ...(isCustomUrl ? { baseURL: baseUrl } : {}),

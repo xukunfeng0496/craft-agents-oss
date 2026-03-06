@@ -24,6 +24,7 @@ export interface ConfigDefaults {
     thinkingLevel: ThinkingLevel;
     permissionMode: PermissionMode;
     cyclablePermissionModes: PermissionMode[];
+    isolateSessionDirectory?: boolean;
     localMcpServers: {
       enabled: boolean;
     };

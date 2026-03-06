@@ -1150,6 +1150,11 @@ export interface ElectronAPI {
   openSkillInEditor(workspaceId: string, skillSlug: string): Promise<void>
   openSkillInFinder(workspaceId: string, skillSlug: string): Promise<void>
 
+  // Skill Variables
+  getSkillVars(workspaceId: string, skillSlug: string, varNames: string[]): Promise<Record<string, string>>
+  setSkillVars(workspaceId: string, skillSlug: string, vars: Record<string, string>): Promise<void>
+  deleteSkillVars(workspaceId: string, skillSlug: string, varNames: string[]): Promise<void>
+
   // Skills change listener (live updates when skills are added/removed/modified)
   onSkillsChanged(callback: (skills: LoadedSkill[]) => void): () => void
 

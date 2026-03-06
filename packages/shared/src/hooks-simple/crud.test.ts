@@ -57,7 +57,7 @@ describe('Hooks CRUD Operations', () => {
     const hooks = await listSchedulerHooks(testDir)
     expect(hooks).toHaveLength(1)
     expect(hooks[0]).toMatchObject({
-      id: 'scheduler-0',
+      id: expect.any(String),
       cron: '0 9 * * *',
       timezone: 'America/New_York',
       permissionMode: 'ask',
@@ -82,7 +82,8 @@ describe('Hooks CRUD Operations', () => {
       prompt: 'Start work',
     })
 
-    expect(created.id).toBe('scheduler-0')
+    expect(created.id).toEqual(expect.any(String))
+    expect(created.id.length).toBeGreaterThan(0)
     expect(created.cron).toBe('0 9 * * 1-5')
 
     // Verify file was written
@@ -95,21 +96,17 @@ describe('Hooks CRUD Operations', () => {
   test('updateSchedulerHook updates existing hook', async () => {
     await writeFile(
       join(testDir, 'hooks.json'),
-      JSON.stringify({
-        version: 1,
-        hooks: {
-          SchedulerTick: [
-            {
-              cron: '0 9 * * *',
-              hooks: [{ type: 'prompt', prompt: 'Old prompt' }],
-            },
-          ],
-        },
-      })
+      JSON.stringify({ version: 1, hooks: {} })
     )
 
+    // Create a hook first to get a real ID
+    const created = await createSchedulerHook(testDir, {
+      cron: '0 9 * * *',
+      prompt: 'Old prompt',
+    })
+
     await updateSchedulerHook(testDir, {
-      id: 'scheduler-0',
+      id: created.id,
       cron: '0 10 * * *',
       prompt: 'New prompt',
       labels: ['updated'],
@@ -123,7 +120,7 @@ describe('Hooks CRUD Operations', () => {
     })
   })
 
-  test('updateSchedulerHook throws on invalid ID', async () => {
+  test('updateSchedulerHook throws when no hooks exist', async () => {
     await writeFile(
       join(testDir, 'hooks.json'),
       JSON.stringify({ version: 1, hooks: {} })
@@ -131,7 +128,7 @@ describe('Hooks CRUD Operations', () => {
 
     await expect(
       updateSchedulerHook(testDir, {
-        id: 'scheduler-999',
+        id: 'some-nonexistent-uuid',
         cron: '0 9 * * *',
         prompt: 'Test',
       })
@@ -141,35 +138,31 @@ describe('Hooks CRUD Operations', () => {
   test('deleteSchedulerHook deletes hook', async () => {
     await writeFile(
       join(testDir, 'hooks.json'),
-      JSON.stringify({
-        version: 1,
-        hooks: {
-          SchedulerTick: [
-            {
-              cron: '0 9 * * *',
-              hooks: [{ type: 'prompt', prompt: 'Test' }],
-            },
-          ],
-        },
-      })
+      JSON.stringify({ version: 1, hooks: {} })
     )
 
-    await deleteSchedulerHook(testDir, 'scheduler-0')
+    // Create a hook first to get a real ID
+    const created = await createSchedulerHook(testDir, {
+      cron: '0 9 * * *',
+      prompt: 'Test',
+    })
+
+    await deleteSchedulerHook(testDir, created.id)
 
     const hooks = await listSchedulerHooks(testDir)
     expect(hooks).toHaveLength(0)
   })
 
-  test('deleteSchedulerHook throws on invalid ID', async () => {
+  test('deleteSchedulerHook throws when no hooks exist', async () => {
     await writeFile(
       join(testDir, 'hooks.json'),
       JSON.stringify({ version: 1, hooks: {} })
     )
 
-    await expect(deleteSchedulerHook(testDir, 'scheduler-999')).rejects.toThrow()
+    await expect(deleteSchedulerHook(testDir, 'some-nonexistent-uuid')).rejects.toThrow()
   })
 
-  test('creates multiple hooks with incrementing IDs', async () => {
+  test('creates multiple hooks with unique IDs', async () => {
     await writeFile(
       join(testDir, 'hooks.json'),
       JSON.stringify({ version: 1, hooks: {} })
@@ -188,9 +181,15 @@ describe('Hooks CRUD Operations', () => {
       prompt: 'Third hook',
     })
 
-    expect(hook1.id).toBe('scheduler-0')
-    expect(hook2.id).toBe('scheduler-1')
-    expect(hook3.id).toBe('scheduler-2')
+    // All IDs should be strings
+    expect(hook1.id).toEqual(expect.any(String))
+    expect(hook2.id).toEqual(expect.any(String))
+    expect(hook3.id).toEqual(expect.any(String))
+
+    // All IDs should be unique
+    expect(hook1.id).not.toBe(hook2.id)
+    expect(hook2.id).not.toBe(hook3.id)
+    expect(hook1.id).not.toBe(hook3.id)
 
     const hooks = await listSchedulerHooks(testDir)
     expect(hooks).toHaveLength(3)
@@ -212,7 +211,7 @@ describe('Hooks CRUD Operations', () => {
     })
 
     expect(created).toMatchObject({
-      id: 'scheduler-0',
+      id: expect.any(String),
       cron: '0 9 * * 1-5',
       timezone: 'America/New_York',
       permissionMode: 'safe',

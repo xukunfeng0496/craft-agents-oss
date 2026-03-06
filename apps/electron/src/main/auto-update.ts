@@ -72,7 +72,7 @@ function getUpdateCacheDir(): string {
 // Module state — keeps track of update info for IPC queries
 let updateInfo: UpdateInfo = {
   available: false,
-  currentVersion: getAppVersion(),
+  currentVersion: app.getVersion(),
   latestVersion: null,
   downloadState: 'idle',
   downloadProgress: 0,

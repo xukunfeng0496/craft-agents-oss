@@ -85,7 +85,7 @@ import { setPerfEnabled, enableDebug } from '@work-agent/shared/utils'
 import { initNotificationService, clearBadgeCount, initBadgeIcon, initInstanceBadge } from './notifications'
 import { checkForUpdatesOnLaunch, setWindowManager as setAutoUpdateWindowManager, isUpdating } from './auto-update'
 import { validateGitBashPath } from './git-bash'
-import { initializeBundledSkills } from './bundled-skills'
+import { initializeBundledSkills, initializeBundledSkillsForExistingWorkspaces } from './bundled-skills'
 
 // Initialize electron-log for renderer process support
 log.initialize()
@@ -186,7 +186,14 @@ async function createInitialWindows(): Promise<void> {
     addWorkspace({ rootPath: defaultPath, name: 'My Workspace' })
     workspaces = getWorkspaces() // Refresh after creation
     mainLog.info('Created default workspace on first run')
+
+    // Initialize bundled skills for the default workspace
+    initializeBundledSkills(defaultPath)
   }
+
+  // Initialize bundled skills for existing workspaces that don't have them
+  // This ensures users who upgrade the app get bundled skills in their existing workspaces
+  initializeBundledSkillsForExistingWorkspaces(workspaces)
 
   const validWorkspaceIds = workspaces.map(ws => ws.id)
 
@@ -245,9 +252,6 @@ app.whenReady().then(async () => {
 
   // Seed preset themes to ~/.workagent/themes/ (copies bundled theme JSONs on first run)
   ensurePresetThemes()
-
-  // Initialize bundled skills to ~/.workagent/skills/ (copies bundled skills on first run)
-  initializeBundledSkills()
 
   // Register thumbnail:// protocol handler (scheme was registered earlier, before app.whenReady)
   registerThumbnailHandler()

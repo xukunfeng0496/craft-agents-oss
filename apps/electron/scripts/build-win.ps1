@@ -108,6 +108,13 @@ try {
     if ($LASTEXITCODE -ne 0) {
         Write-Host "WARNING: Tool download failed, continuing anyway..." -ForegroundColor Yellow
     }
+
+    # Setup pip for embedded Python
+    Write-Host "Setting up pip for embedded Python..."
+    node scripts/setup-embedded-pip.cjs
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "WARNING: pip setup failed, continuing anyway..." -ForegroundColor Yellow
+    }
 } finally {
     Pop-Location
 }

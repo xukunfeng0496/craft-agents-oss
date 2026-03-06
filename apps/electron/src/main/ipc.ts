@@ -23,6 +23,7 @@ import type { ModelDefinition } from '@work-agent/shared/config'
 import { isUsableGitBashPath, validateGitBashPath } from './git-bash'
 import { detectMissingTools } from './tool-detection'
 import { installTool } from './tool-installer'
+import { initializeBundledSkills } from './bundled-skills'
 import { getMainI18n } from './i18n'
 import {
   buildDeleteSessionDialogOptions,
@@ -547,6 +548,10 @@ export function registerIpcHandlers(sessionManager: SessionManager, windowManage
     // Make it active
     setActiveWorkspace(workspace.id)
     ipcLog.info(`Created workspace "${name}" at ${rootPath}`)
+
+    // Initialize bundled skills for the new workspace
+    initializeBundledSkills(rootPath)
+
     return workspace
   })
 

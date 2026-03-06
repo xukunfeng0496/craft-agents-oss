@@ -35,6 +35,7 @@
     "lint": "eslint src/",
     "lint:fix": "eslint src/ --fix",
     "tools:download": "node scripts/download-tools.cjs",
+    "tools:setup-pip": "node scripts/setup-embedded-pip.cjs",
     "tools:clean": "rm -rf resources/tools"
   },
   "dependencies": {

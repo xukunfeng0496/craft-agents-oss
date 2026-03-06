@@ -1,22 +1,15 @@
 /**
  * Bundled Skills Initialization
  *
- * Copies pre-installed skills from app resources to global skills directory
- * on first launch. This ensures users have a set of default skills available
- * without manual installation.
+ * Copies pre-installed skills from app resources to workspace skills directory
+ * when a new workspace is created. This ensures users have a set of default
+ * skills available without manual installation.
  */
 
 import { app } from 'electron';
 import { join } from 'path';
-import { existsSync, mkdirSync, cpSync, readdirSync, statSync } from 'fs';
-import { homedir } from 'os';
+import { existsSync, mkdirSync, cpSync, readdirSync } from 'fs';
 import log from './logger';
-
-/** Global agent skills directory: ~/.workagent/skills/ */
-const GLOBAL_SKILLS_DIR = join(homedir(), '.workagent', 'skills');
-
-/** Marker file to track if bundled skills have been installed */
-const INSTALLED_MARKER = join(GLOBAL_SKILLS_DIR, '.bundled-skills-installed');
 
 /**
  * Get the path to bundled skills in the app resources.
@@ -33,28 +26,28 @@ function getBundledSkillsPath(): string {
 }
 
 /**
- * Check if a skill already exists in the global skills directory.
+ * Check if a skill already exists in the workspace skills directory.
  * This prevents overwriting user-modified skills.
  */
-function skillExists(slug: string): boolean {
-  const skillDir = join(GLOBAL_SKILLS_DIR, slug);
+function skillExists(workspaceSkillsDir: string, slug: string): boolean {
+  const skillDir = join(workspaceSkillsDir, slug);
   const skillFile = join(skillDir, 'SKILL.md');
   return existsSync(skillDir) && existsSync(skillFile);
 }
 
 /**
- * Copy a single skill from bundled resources to global skills directory.
+ * Copy a single skill from bundled resources to workspace skills directory.
  * Skips if the skill already exists to preserve user modifications.
  */
-function copySkill(slug: string, sourcePath: string): boolean {
+function copySkill(slug: string, sourcePath: string, workspaceSkillsDir: string): boolean {
   try {
     // Skip if skill already exists (preserve user modifications)
-    if (skillExists(slug)) {
+    if (skillExists(workspaceSkillsDir, slug)) {
       log.info(`[BundledSkills] Skill '${slug}' already exists, skipping`);
       return false;
     }
 
-    const destPath = join(GLOBAL_SKILLS_DIR, slug);
+    const destPath = join(workspaceSkillsDir, slug);
 
     // Copy the entire skill directory
     cpSync(sourcePath, destPath, { recursive: true });
@@ -68,44 +61,46 @@ function copySkill(slug: string, sourcePath: string): boolean {
 }
 
 /**
- * Initialize bundled skills on first launch.
- * Copies all skills from app resources to ~/.workagent/skills/
+ * Initialize bundled skills for a workspace.
+ * Copies all skills from app resources to {workspaceRoot}/skills/
  *
- * This function is idempotent - it only runs once per installation.
- * If skills are already installed, it skips the process.
+ * This function is called when a new workspace is created.
+ * It skips skills that already exist to preserve user modifications.
+ *
+ * @param workspaceRoot - Absolute path to workspace root (e.g., ~/.workagent/workspaces/my-workspace)
+ * @returns Number of skills installed
  */
-export function initializeBundledSkills(): void {
+export function initializeBundledSkills(workspaceRoot: string): number {
   try {
-    // Check if bundled skills have already been installed
-    if (existsSync(INSTALLED_MARKER)) {
-      log.info('[BundledSkills] Already initialized, skipping');
-      return;
-    }
-
     const bundledSkillsPath = getBundledSkillsPath();
 
     // Check if bundled skills directory exists
     if (!existsSync(bundledSkillsPath)) {
       log.warn('[BundledSkills] Bundled skills directory not found:', bundledSkillsPath);
-      return;
+      return 0;
     }
 
-    // Ensure global skills directory exists
-    if (!existsSync(GLOBAL_SKILLS_DIR)) {
-      mkdirSync(GLOBAL_SKILLS_DIR, { recursive: true });
-      log.info('[BundledSkills] Created global skills directory:', GLOBAL_SKILLS_DIR);
+    // Workspace skills directory: {workspaceRoot}/skills/
+    const workspaceSkillsDir = join(workspaceRoot, 'skills');
+
+    // Ensure workspace skills directory exists
+    if (!existsSync(workspaceSkillsDir)) {
+      mkdirSync(workspaceSkillsDir, { recursive: true });
+      log.info('[BundledSkills] Created workspace skills directory:', workspaceSkillsDir);
     }
 
     // Read all skill directories
     const entries = readdirSync(bundledSkillsPath, { withFileTypes: true });
-    const skillDirs = entries.filter(entry => entry.isDirectory());
+    const skillDirs = entries.filter(entry =>
+      entry.isDirectory() && !entry.name.startsWith('.')
+    );
 
     if (skillDirs.length === 0) {
       log.warn('[BundledSkills] No skills found in bundled directory');
-      return;
+      return 0;
     }
 
-    log.info(`[BundledSkills] Found ${skillDirs.length} bundled skills, installing...`);
+    log.info(`[BundledSkills] Found ${skillDirs.length} bundled skills, installing to workspace...`);
 
     let installedCount = 0;
     let skippedCount = 0;
@@ -113,7 +108,7 @@ export function initializeBundledSkills(): void {
     // Copy each skill
     for (const entry of skillDirs) {
       const sourcePath = join(bundledSkillsPath, entry.name);
-      const copied = copySkill(entry.name, sourcePath);
+      const copied = copySkill(entry.name, sourcePath, workspaceSkillsDir);
 
       if (copied) {
         installedCount++;
@@ -122,33 +117,81 @@ export function initializeBundledSkills(): void {
       }
     }
 
-    // Create marker file to indicate installation is complete
-    try {
-      const markerContent = JSON.stringify({
-        installedAt: new Date().toISOString(),
-        appVersion: app.getVersion(),
-        installedCount,
-        skippedCount,
-      }, null, 2);
-
-      require('fs').writeFileSync(INSTALLED_MARKER, markerContent, 'utf-8');
-
-      log.info(`[BundledSkills] Installation complete: ${installedCount} installed, ${skippedCount} skipped`);
-    } catch (error) {
-      log.error('[BundledSkills] Failed to create marker file:', error);
-    }
+    log.info(`[BundledSkills] Installation complete: ${installedCount} installed, ${skippedCount} skipped`);
+    return installedCount;
   } catch (error) {
     log.error('[BundledSkills] Initialization failed:', error);
+    return 0;
   }
 }
 
 /**
- * Force reinstall all bundled skills.
+ * Check if a workspace needs bundled skills initialization.
+ * Returns true if the workspace has no skills or very few skills.
+ *
+ * @param workspaceRoot - Absolute path to workspace root
+ * @returns true if bundled skills should be installed
+ */
+export function shouldInitializeBundledSkills(workspaceRoot: string): boolean {
+  const workspaceSkillsDir = join(workspaceRoot, 'skills');
+
+  // If skills directory doesn't exist, needs initialization
+  if (!existsSync(workspaceSkillsDir)) {
+    return true;
+  }
+
+  try {
+    // Check if directory is empty or has very few skills
+    const entries = readdirSync(workspaceSkillsDir, { withFileTypes: true });
+    const skillDirs = entries.filter(entry =>
+      entry.isDirectory() && !entry.name.startsWith('.')
+    );
+
+    // If less than 3 skills, probably needs initialization
+    // (assumes bundled skills has more than 3 skills)
+    return skillDirs.length < 3;
+  } catch {
+    return true;
+  }
+}
+
+/**
+ * Initialize bundled skills for all existing workspaces that need them.
+ * This is called on app startup to ensure all workspaces have bundled skills.
+ *
+ * @param workspaces - Array of workspace configurations
+ * @returns Number of workspaces that received bundled skills
+ */
+export function initializeBundledSkillsForExistingWorkspaces(
+  workspaces: Array<{ id: string; rootPath: string; name: string }>
+): number {
+  let initializedCount = 0;
+
+  for (const workspace of workspaces) {
+    if (shouldInitializeBundledSkills(workspace.rootPath)) {
+      log.info(`[BundledSkills] Initializing bundled skills for existing workspace: ${workspace.name}`);
+      const installed = initializeBundledSkills(workspace.rootPath);
+      if (installed > 0) {
+        initializedCount++;
+      }
+    }
+  }
+
+  if (initializedCount > 0) {
+    log.info(`[BundledSkills] Initialized bundled skills for ${initializedCount} existing workspace(s)`);
+  }
+
+  return initializedCount;
+}
+
+/**
+ * Reinstall all bundled skills for a workspace.
  * This will overwrite existing skills, so use with caution.
  *
+ * @param workspaceRoot - Absolute path to workspace root
  * @returns Number of skills reinstalled
  */
-export function reinstallBundledSkills(): number {
+export function reinstallBundledSkills(workspaceRoot: string): number {
   try {
     const bundledSkillsPath = getBundledSkillsPath();
 
@@ -157,19 +200,23 @@ export function reinstallBundledSkills(): number {
       return 0;
     }
 
-    // Ensure global skills directory exists
-    if (!existsSync(GLOBAL_SKILLS_DIR)) {
-      mkdirSync(GLOBAL_SKILLS_DIR, { recursive: true });
+    const workspaceSkillsDir = join(workspaceRoot, 'skills');
+
+    // Ensure workspace skills directory exists
+    if (!existsSync(workspaceSkillsDir)) {
+      mkdirSync(workspaceSkillsDir, { recursive: true });
     }
 
     const entries = readdirSync(bundledSkillsPath, { withFileTypes: true });
-    const skillDirs = entries.filter(entry => entry.isDirectory());
+    const skillDirs = entries.filter(entry =>
+      entry.isDirectory() && !entry.name.startsWith('.')
+    );
 
     let count = 0;
 
     for (const entry of skillDirs) {
       const sourcePath = join(bundledSkillsPath, entry.name);
-      const destPath = join(GLOBAL_SKILLS_DIR, entry.name);
+      const destPath = join(workspaceSkillsDir, entry.name);
 
       try {
         // Remove existing skill if present
@@ -186,20 +233,6 @@ export function reinstallBundledSkills(): number {
         log.error(`[BundledSkills] Failed to reinstall skill '${entry.name}':`, error);
       }
     }
-
-    // Update marker file
-    if (existsSync(INSTALLED_MARKER)) {
-      require('fs').unlinkSync(INSTALLED_MARKER);
-    }
-
-    const markerContent = JSON.stringify({
-      installedAt: new Date().toISOString(),
-      appVersion: app.getVersion(),
-      reinstalled: true,
-      count,
-    }, null, 2);
-
-    require('fs').writeFileSync(INSTALLED_MARKER, markerContent, 'utf-8');
 
     log.info(`[BundledSkills] Reinstalled ${count} skills`);
     return count;

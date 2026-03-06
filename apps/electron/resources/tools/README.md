@@ -19,6 +19,10 @@ This directory contains portable tools bundled with the Windows distribution to 
 - **Size:** ~50MB
 - **Source:** https://www.python.org/ftp/python/3.12.8/python-3.12.8-embed-amd64.zip
 - **Usage:** Automatically detected and used by agent sessions on Windows
+- **pip support:** Automatically installed via `setup-embedded-pip.cjs` during build
+  - Modifies `python312._pth` to enable site-packages
+  - Downloads and runs `get-pip.py`
+  - Installs pip to `python/Scripts/pip.exe`
 
 ## Detection Priority
 

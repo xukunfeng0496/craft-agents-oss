@@ -1,0 +1,54 @@
+name: Build Windows
+
+on:
+  workflow_dispatch:  # Manual trigger
+  push:
+    branches:
+      - cvte/main
+    paths:
+      - 'apps/electron/**'
+      - 'packages/**'
+      - '.github/workflows/build-windows.yml'
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Download bundled tools
+        run: |
+          cd apps/electron
+          bun run tools:download
+
+      - name: Verify bundled tools
+        run: |
+          cd apps/electron
+          node scripts/verify-bundled-tools.js
+
+      - name: Build Windows installer
+        run: |
+          cd apps/electron
+          powershell -ExecutionPolicy Bypass -File scripts/build-win.ps1
+
+      - name: Upload Windows installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-installer
+          path: apps/electron/release/*.exe
+          retention-days: 7
+
+      - name: Show build info
+        run: |
+          cd apps/electron/release
+          dir *.exe

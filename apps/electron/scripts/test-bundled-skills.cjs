@@ -11,9 +11,9 @@ const { join } = require('path');
 const { existsSync, mkdirSync, cpSync, readdirSync, rmSync } = require('fs');
 const { homedir } = require('os');
 
-const GLOBAL_SKILLS_DIR = join(homedir(), '.agents', 'skills');
-const TEST_MARKER = join(GLOBAL_SKILLS_DIR, '.bundled-skills-test');
 const BUNDLED_SKILLS_PATH = join(__dirname, '../resources/bundled-skills');
+const TEST_WORKSPACE_DIR = join(homedir(), '.workagent', 'workspaces', '.test-workspace');
+const TEST_SKILLS_DIR = join(TEST_WORKSPACE_DIR, 'skills');
 
 console.log('🧪 Testing Bundled Skills Functionality\n');
 
@@ -68,16 +68,15 @@ if (invalidCount > 0) {
 console.log('🔍 Testing installation process (dry run)...\n');
 
 // Ensure test directory exists
-const testDir = join(GLOBAL_SKILLS_DIR, '.test-install');
-if (existsSync(testDir)) {
-  rmSync(testDir, { recursive: true });
+if (existsSync(TEST_WORKSPACE_DIR)) {
+  rmSync(TEST_WORKSPACE_DIR, { recursive: true });
 }
-mkdirSync(testDir, { recursive: true });
+mkdirSync(TEST_SKILLS_DIR, { recursive: true });
 
 // Try copying one skill as a test
 const testSkill = skillDirs[0];
 const sourcePath = join(BUNDLED_SKILLS_PATH, testSkill.name);
-const destPath = join(testDir, testSkill.name);
+const destPath = join(TEST_SKILLS_DIR, testSkill.name);
 
 try {
   cpSync(sourcePath, destPath, { recursive: true });
@@ -93,7 +92,7 @@ try {
   }
 
   // Clean up test directory
-  rmSync(testDir, { recursive: true });
+  rmSync(TEST_WORKSPACE_DIR, { recursive: true });
   console.log('✅ Test directory cleaned up\n');
 } catch (error) {
   console.error('❌ Failed to copy test skill:', error.message);
@@ -157,4 +156,5 @@ console.log(`\n📦 Ready to bundle ${validCount} skills into the app\n`);
 console.log('Next steps:');
 console.log('  1. Run: bun run electron:build');
 console.log('  2. Install the app');
-console.log('  3. Check ~/.agents/skills/ for bundled skills\n');
+console.log('  3. Create a workspace');
+console.log('  4. Check {workspace}/skills/ for bundled skills\n');

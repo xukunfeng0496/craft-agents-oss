@@ -29,8 +29,8 @@ import {
 // Agent Skills Paths (Issue #171)
 // ============================================================
 
-/** Global agent skills directory: ~/.agents/skills/ */
-export const GLOBAL_AGENT_SKILLS_DIR = join(homedir(), '.agents', 'skills');
+/** Global agent skills directory: ~/.workagent/skills/ */
+export const GLOBAL_AGENT_SKILLS_DIR = join(homedir(), '.workagent', 'skills');
 
 /** Project-level agent skills relative directory name */
 export const PROJECT_AGENT_SKILLS_DIR = '.agents/skills';

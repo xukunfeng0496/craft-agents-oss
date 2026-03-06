@@ -106,6 +106,13 @@ try {
 
    The agent should report `Python 3.12.8` (not system Python like 2.7.12 or 3.8.8).
 
+7. **Test shell availability**:
+   ```
+   User: "Run: sh --version"
+   ```
+
+   Should execute successfully using bundled `sh.exe` from MinGit.
+
 ## Technical Details
 
 ### Tool Detection Flow
@@ -116,6 +123,7 @@ try {
 
 2. **Agent environment setup** (`apps/electron/src/main/agent-env.ts`):
    - Prepends bundled tool directories to PATH
+   - Includes `mingit/cmd/` (for git.exe) and `mingit/usr/bin/` (for sh.exe)
    - Passes modified PATH to SDK subprocess
 
 3. **SDK subprocess**:
@@ -131,7 +139,8 @@ try {
 ### Important Notes
 
 - **`py.exe` launcher:** The Windows Python launcher (`py`) is NOT replaced by bundled Python. If the agent uses `py --version`, it will still show system Python. This is expected and correct.
-- **PATH priority:** Bundled tools are prepended to PATH, so `python` and `python3` commands hit bundled Python first.
+- **PATH priority:** Bundled tools are prepended to PATH, so `python`, `python3`, `git`, and `sh` commands hit bundled tools first.
+- **Shell support:** MinGit includes `sh.exe` (POSIX shell) in `usr/bin/`, which is automatically added to PATH.
 - **Idempotent downloads:** The download script skips downloads if tools already exist, making it safe to run multiple times.
 
 ## Related Files

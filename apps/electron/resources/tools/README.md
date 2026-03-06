@@ -5,11 +5,13 @@ This directory contains portable tools bundled with the Windows distribution to 
 ## Contents
 
 ### MinGit 2.44.0
-- **Location:** `mingit/cmd/git.exe`
-- **Purpose:** Portable Git for Windows (minimal distribution)
+- **Location:** `mingit/cmd/git.exe` (Git command)
+- **Additional tools:** `mingit/usr/bin/` (sh.exe, dash.exe, Unix utilities)
+- **Purpose:** Portable Git for Windows (minimal distribution) with POSIX shell
 - **Size:** ~50MB
 - **Source:** https://github.com/git-for-windows/git/releases/tag/v2.44.0.windows.1
 - **Usage:** Automatically detected and used by agent sessions on Windows
+- **Shell support:** Includes `sh.exe` for running shell scripts
 
 ### Python 3.12.8 Embedded
 - **Location:** `python/python.exe`

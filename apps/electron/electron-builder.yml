@@ -21,6 +21,8 @@ files:
   - resources/session-mcp-server/**/*
   # Include bundled tools directory (Windows only, contains git, gh, etc.)
   - resources/tools/**/*
+  # Include bundled skills (pre-installed skills for first launch)
+  - resources/bundled-skills/**/*
   # Note: Bundled assets (docs, themes, permissions, tool-icons) are in resources/
   # and copied to dist/resources/ by build:copy. They're included via dist/**/* above.
   # Include network interceptor for API error capture and MCP schema injection

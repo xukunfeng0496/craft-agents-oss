@@ -50,6 +50,24 @@ export function getBundledGitPath(): string | null {
 }
 
 /**
+ * Get additional PATH directories for bundled tools.
+ * For MinGit, this includes usr/bin which contains sh.exe and other Unix tools.
+ * Only available on Windows.
+ * @returns Array of additional directories to add to PATH
+ */
+export function getBundledToolExtraPaths(): string[] {
+  const toolsDir = getBundledToolsDir();
+  if (!toolsDir) {
+    return [];
+  }
+
+  // MinGit usr/bin contains sh.exe, dash.exe, and other Unix utilities
+  const mingitUsrBin = path.join(toolsDir, 'mingit', 'usr', 'bin');
+
+  return [mingitUsrBin];
+}
+
+/**
  * Get the path to bundled Python executable.
  * Only available on Windows.
  * @returns Path to python.exe, or null if not available

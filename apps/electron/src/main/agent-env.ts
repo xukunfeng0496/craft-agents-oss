@@ -1,5 +1,6 @@
 // apps/electron/src/main/agent-env.ts
 import { dirname } from 'path'
+import { getBundledToolExtraPaths } from '@work-agent/shared/tools'
 import type { ToolInfo } from '../shared/types'
 
 /**
@@ -25,6 +26,15 @@ export function buildAgentEnv(
         seenDirs.add(dir)
         bundledDirs.push(dir)
       }
+    }
+  }
+
+  // Add extra paths for bundled tools (e.g., MinGit usr/bin for sh.exe)
+  const extraPaths = getBundledToolExtraPaths()
+  for (const extraPath of extraPaths) {
+    if (!seenDirs.has(extraPath)) {
+      seenDirs.add(extraPath)
+      bundledDirs.push(extraPath)
     }
   }
 

@@ -85,6 +85,7 @@ import { setPerfEnabled, enableDebug } from '@work-agent/shared/utils'
 import { initNotificationService, clearBadgeCount, initBadgeIcon, initInstanceBadge } from './notifications'
 import { checkForUpdatesOnLaunch, setWindowManager as setAutoUpdateWindowManager, isUpdating } from './auto-update'
 import { validateGitBashPath } from './git-bash'
+import { initializeBundledSkills } from './bundled-skills'
 
 // Initialize electron-log for renderer process support
 log.initialize()
@@ -244,6 +245,9 @@ app.whenReady().then(async () => {
 
   // Seed preset themes to ~/.workagent/themes/ (copies bundled theme JSONs on first run)
   ensurePresetThemes()
+
+  // Initialize bundled skills to ~/.workagent/skills/ (copies bundled skills on first run)
+  initializeBundledSkills()
 
   // Register thumbnail:// protocol handler (scheme was registered earlier, before app.whenReady)
   registerThumbnailHandler()

@@ -27,8 +27,16 @@ function getBundledToolsDir(): string | null {
     }
 
     // Get app path and construct tools directory
+    // In packaged app: tools are in resources/tools (sibling to resources/app)
+    // In dev: tools are in resources/tools relative to project root
     const appPath = app.getAppPath();
-    return path.join(appPath, 'resources', 'tools');
+    if (app.isPackaged) {
+      // Packaged: appPath is resources/app, tools are in resources/tools
+      return path.join(path.dirname(appPath), 'tools');
+    } else {
+      // Dev: appPath is project root, tools are in resources/tools
+      return path.join(appPath, 'resources', 'tools');
+    }
   } catch {
     // Not in Electron environment (e.g., tests)
     return null;

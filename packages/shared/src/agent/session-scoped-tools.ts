@@ -557,7 +557,11 @@ async function handleTransformData(
 
   try {
     // Build command
-    const cmd = args.language === 'python3' ? 'python3' : args.language;
+    // On Windows, use 'python' (bundled and system Python use python.exe)
+    // On Unix, use 'python3' (standard on modern macOS/Linux)
+    const cmd = args.language === 'python3'
+      ? (process.platform === 'win32' ? 'python' : 'python3')
+      : args.language;
     const spawnArgs = [tempScript, ...resolvedInputs, resolvedOutput];
 
     // Strip sensitive env vars

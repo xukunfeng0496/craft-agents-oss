@@ -115,6 +115,13 @@ try {
     if ($LASTEXITCODE -ne 0) {
         Write-Host "WARNING: pip setup failed, continuing anyway..." -ForegroundColor Yellow
     }
+
+    # Pre-install common packages
+    Write-Host "Pre-installing common Python packages (openpyxl, pandas, etc.)..."
+    node scripts/preinstall-packages.cjs
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "WARNING: Package pre-installation failed, continuing anyway..." -ForegroundColor Yellow
+    }
 } finally {
     Pop-Location
 }

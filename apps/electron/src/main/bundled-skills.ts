@@ -8,8 +8,11 @@
 
 import { app } from 'electron';
 import { join } from 'path';
-import { existsSync, mkdirSync, cpSync, readdirSync } from 'fs';
+import { existsSync, mkdirSync, cpSync, readdirSync, writeFileSync, readFileSync } from 'fs';
 import log from './logger';
+
+/** Marker file to track bundled skills installation */
+const BUNDLED_SKILLS_MARKER = '.bundled-skills-installed';
 
 /**
  * Get the path to bundled skills in the app resources.
@@ -22,6 +25,33 @@ function getBundledSkillsPath(): string {
   } else {
     // Development: resources are in the source tree
     return join(app.getAppPath(), 'resources', 'bundled-skills');
+  }
+}
+
+/**
+ * Check if bundled skills have already been installed in a workspace.
+ * Uses a marker file to track installation status.
+ */
+function hasBundledSkillsMarker(workspaceRoot: string): boolean {
+  const markerPath = join(workspaceRoot, 'skills', BUNDLED_SKILLS_MARKER);
+  return existsSync(markerPath);
+}
+
+/**
+ * Create a marker file to indicate bundled skills have been installed.
+ */
+function createBundledSkillsMarker(workspaceRoot: string, installedCount: number): void {
+  const markerPath = join(workspaceRoot, 'skills', BUNDLED_SKILLS_MARKER);
+  const markerContent = JSON.stringify({
+    installedAt: new Date().toISOString(),
+    appVersion: app.getVersion(),
+    installedCount,
+  }, null, 2);
+
+  try {
+    writeFileSync(markerPath, markerContent, 'utf-8');
+  } catch (error) {
+    log.error('[BundledSkills] Failed to create marker file:', error);
   }
 }
 
@@ -117,6 +147,11 @@ export function initializeBundledSkills(workspaceRoot: string): number {
       }
     }
 
+    // Create marker file to prevent re-installation
+    if (installedCount > 0) {
+      createBundledSkillsMarker(workspaceRoot, installedCount);
+    }
+
     log.info(`[BundledSkills] Installation complete: ${installedCount} installed, ${skippedCount} skipped`);
     return installedCount;
   } catch (error) {
@@ -127,12 +162,17 @@ export function initializeBundledSkills(workspaceRoot: string): number {
 
 /**
  * Check if a workspace needs bundled skills initialization.
- * Returns true if the workspace has no skills or very few skills.
+ * Uses a marker file to track installation status instead of counting skills.
  *
  * @param workspaceRoot - Absolute path to workspace root
  * @returns true if bundled skills should be installed
  */
 export function shouldInitializeBundledSkills(workspaceRoot: string): boolean {
+  // If marker file exists, bundled skills have already been installed
+  if (hasBundledSkillsMarker(workspaceRoot)) {
+    return false;
+  }
+
   const workspaceSkillsDir = join(workspaceRoot, 'skills');
 
   // If skills directory doesn't exist, needs initialization
@@ -140,19 +180,11 @@ export function shouldInitializeBundledSkills(workspaceRoot: string): boolean {
     return true;
   }
 
-  try {
-    // Check if directory is empty or has very few skills
-    const entries = readdirSync(workspaceSkillsDir, { withFileTypes: true });
-    const skillDirs = entries.filter(entry =>
-      entry.isDirectory() && !entry.name.startsWith('.')
-    );
-
-    // If less than 3 skills, probably needs initialization
-    // (assumes bundled skills has more than 3 skills)
-    return skillDirs.length < 3;
-  } catch {
-    return true;
-  }
+  // If skills directory exists but no marker, it might be:
+  // 1. An old workspace created before bundled skills feature
+  // 2. A workspace with user-added skills only
+  // We should initialize to give users the bundled skills
+  return true;
 }
 
 /**

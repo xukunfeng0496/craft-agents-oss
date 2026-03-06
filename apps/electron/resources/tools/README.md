@@ -16,13 +16,23 @@ This directory contains portable tools bundled with the Windows distribution to 
 ### Python 3.12.8 Embedded
 - **Location:** `python/python.exe`
 - **Purpose:** Minimal Python runtime for agent tools
-- **Size:** ~50MB
+- **Size:** ~50MB (base) + ~100MB (with pre-installed packages)
 - **Source:** https://www.python.org/ftp/python/3.12.8/python-3.12.8-embed-amd64.zip
 - **Usage:** Automatically detected and used by agent sessions on Windows
 - **pip support:** Automatically installed via `setup-embedded-pip.cjs` during build
   - Modifies `python312._pth` to enable site-packages
   - Downloads and runs `get-pip.py`
   - Installs pip to `python/Scripts/pip.exe`
+- **Pre-installed packages:** Common data processing and utility packages
+  - `openpyxl` - Excel file handling
+  - `pandas` - Data analysis (includes numpy, python-dateutil, tzdata)
+  - `requests` - HTTP library
+  - `beautifulsoup4` - HTML/XML parsing
+  - `lxml` - Fast XML/HTML parser
+  - `pillow` - Image processing
+  - `python-dotenv` - Environment variables
+  - `pyyaml` - YAML parsing
+  - `jsonschema` - JSON schema validation
 
 ## Detection Priority
 

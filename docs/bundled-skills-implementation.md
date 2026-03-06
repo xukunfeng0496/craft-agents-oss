@@ -146,9 +146,16 @@ node apps/electron/scripts/test-bundled-skills.cjs
 - 如需更新，用户需要手动删除 `{workspace}/skills/{skill-slug}/` 并重启应用
 
 **判断逻辑：**
-- 如果 workspace 的 skills 目录不存在 → 自动安装
-- 如果 workspace 的 skills 少于 3 个 → 自动安装
-- 如果 workspace 已有 3 个或更多 skills → 不自动安装（保护用户修改）
+- 使用标记文件 `.bundled-skills-installed` 追踪安装状态
+- 如果标记文件存在 → 已安装，跳过
+- 如果标记文件不存在 → 未安装，执行安装
+- 标记文件内容：JSON 格式，包含安装时间、版本、数量
+
+**优点：**
+- 准确追踪安装状态
+- 用户删除 skills 后不会被重新安装
+- 性能好（只需检查文件是否存在）
+- 可以追踪版本信息
 
 ### 8. 日志
 

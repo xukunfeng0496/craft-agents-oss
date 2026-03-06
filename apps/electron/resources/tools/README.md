@@ -23,16 +23,20 @@ This directory contains portable tools bundled with the Windows distribution to 
   - Modifies `python312._pth` to enable site-packages
   - Downloads and runs `get-pip.py`
   - Installs pip to `python/Scripts/pip.exe`
-- **Pre-installed packages:** Common data processing and utility packages
-  - `openpyxl` - Excel file handling
-  - `pandas` - Data analysis (includes numpy, python-dateutil, tzdata)
-  - `requests` - HTTP library
-  - `beautifulsoup4` - HTML/XML parsing
-  - `lxml` - Fast XML/HTML parser
-  - `pillow` - Image processing
-  - `python-dotenv` - Environment variables
-  - `pyyaml` - YAML parsing
-  - `jsonschema` - JSON schema validation
+- **PyPI mirror:** Configured to use Aliyun mirror (https://mirrors.aliyun.com/pypi/simple/)
+  - Faster downloads in China
+  - Applies to both build-time and runtime pip installations
+  - Configuration stored in `python/pip.ini`
+- **Pre-installed packages:** Common data processing and utility packages (with locked versions)
+  - `openpyxl==3.1.5` - Excel file handling
+  - `pandas==3.0.1` - Data analysis (includes numpy, python-dateutil, tzdata)
+  - `requests==2.32.5` - HTTP library
+  - `beautifulsoup4==4.12.3` - HTML/XML parsing
+  - `lxml==5.3.0` - Fast XML/HTML parser
+  - `pillow==11.1.0` - Image processing
+  - `python-dotenv==1.0.1` - Environment variables
+  - `pyyaml==6.0.2` - YAML parsing
+  - `jsonschema==4.23.0` - JSON schema validation
 
 ## Detection Priority
 

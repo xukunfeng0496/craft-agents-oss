@@ -20,17 +20,20 @@ const fs = require('fs');
 const PYTHON_DIR = path.join(__dirname, '..', 'resources', 'tools', 'python');
 const PYTHON_EXE = path.join(PYTHON_DIR, 'python.exe');
 
-// Packages to pre-install
+// Aliyun PyPI mirror for faster downloads in China
+const PYPI_MIRROR = 'https://mirrors.aliyun.com/pypi/simple/';
+
+// Packages to pre-install with locked versions
 const PACKAGES = [
-  'openpyxl',      // Excel file handling
-  'pandas',        // Data analysis (includes numpy, python-dateutil, tzdata)
-  'requests',      // HTTP library
-  'beautifulsoup4', // HTML/XML parsing
-  'lxml',          // XML/HTML parser (faster than built-in)
-  'pillow',        // Image processing
-  'python-dotenv', // Environment variables
-  'pyyaml',        // YAML parsing
-  'jsonschema',    // JSON schema validation
+  'openpyxl==3.1.5',      // Excel file handling
+  'pandas==3.0.1',        // Data analysis (includes numpy, python-dateutil, tzdata)
+  'requests==2.32.5',     // HTTP library
+  'beautifulsoup4==4.12.3', // HTML/XML parsing
+  'lxml==5.3.0',          // XML/HTML parser (faster than built-in)
+  'pillow==11.1.0',       // Image processing
+  'python-dotenv==1.0.1', // Environment variables
+  'pyyaml==6.0.2',        // YAML parsing
+  'jsonschema==4.23.0',   // JSON schema validation
 ];
 
 /**
@@ -42,7 +45,13 @@ function installPackage(packageName) {
 
     const proc = spawn(
       PYTHON_EXE,
-      ['-m', 'pip', 'install', '--no-warn-script-location', packageName],
+      [
+        '-m', 'pip', 'install',
+        '--index-url', PYPI_MIRROR,
+        '--trusted-host', 'mirrors.aliyun.com',
+        '--no-warn-script-location',
+        packageName
+      ],
       {
         cwd: PYTHON_DIR,
         stdio: 'inherit'

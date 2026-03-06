@@ -116,6 +116,13 @@ try {
         Write-Host "WARNING: pip setup failed, continuing anyway..." -ForegroundColor Yellow
     }
 
+    # Configure pip to use Aliyun mirror
+    Write-Host "Configuring pip to use Aliyun mirror..."
+    node scripts/configure-pip-mirror.cjs
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "WARNING: pip mirror configuration failed, continuing anyway..." -ForegroundColor Yellow
+    }
+
     # Pre-install common packages
     Write-Host "Pre-installing common Python packages (openpyxl, pandas, etc.)..."
     node scripts/preinstall-packages.cjs

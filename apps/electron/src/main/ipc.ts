@@ -4184,7 +4184,8 @@ export function registerIpcHandlers(sessionManager: SessionManager, windowManage
     })
 
     ipcMain.handle(IPC_CHANNELS.BROWSER_PANE_GO_FORWARD, async (_event, id: string) => {
-      try {\n        return await browserPaneManager.goForward(id)
+      try {
+        return await browserPaneManager.goForward(id)
       } catch (err) {
         ipcLog.error(`[browser-pane] goForward failed for ${id}:`, err)
         throw err

@@ -21,3 +21,6 @@ export { ImagePreviewOverlay, type ImagePreviewOverlayProps } from './ImagePrevi
 export { PDFPreviewOverlay, type PDFPreviewOverlayProps } from './PDFPreviewOverlay'
 export { MermaidPreviewOverlay, type MermaidPreviewOverlayProps } from './MermaidPreviewOverlay'
 export { HTMLPreviewOverlay, type HTMLPreviewOverlayProps } from './HTMLPreviewOverlay'
+
+// Zoom controls
+export { ZoomControls, type ZoomControlsProps } from './ZoomControls'

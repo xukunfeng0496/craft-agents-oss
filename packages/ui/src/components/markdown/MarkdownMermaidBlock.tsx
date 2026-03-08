@@ -158,7 +158,11 @@ export function MarkdownMermaidBlock({ code, className, showExpandButton = true 
 
   // Show loading state while rendering
   if (isLoading) {
-    return <CodeBlock code={code} language="mermaid" mode="full" className={className} />
+    return (
+      <div className={cn('py-8 text-center', className)}>
+        <div className="text-sm text-muted-foreground">Rendering diagram...</div>
+      </div>
+    )
   }
 
   // On error, fall back to a plain code block showing the mermaid source

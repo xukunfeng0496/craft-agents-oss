@@ -24,6 +24,7 @@ import { getSessionTitle } from '@/utils/session'
 // Model resolution: connection.defaultModel (no hardcoded defaults)
 import { resolveEffectiveConnectionSlug, isSessionConnectionUnavailable } from '@config/llm-connections'
 import { useTranslation } from 'react-i18next'
+import { BrowserTabStrip } from '@/components/browser/BrowserTabStrip'
 
 export interface ChatPageProps {
   sessionId: string
@@ -498,7 +499,18 @@ const ChatPage = React.memo(function ChatPage({ sessionId }: ChatPageProps) {
       return (
         <>
           <div className="h-full flex flex-col">
-            <PanelHeader  title={displayTitle} titleMenu={titleMenu} actions={shareButton} rightSidebarButton={rightSidebarButton} isRegeneratingTitle={isAsyncOperationOngoing} />
+            <PanelHeader
+              title={displayTitle}
+              titleMenu={titleMenu}
+              actions={
+                <div className="flex items-center gap-2">
+                  <BrowserTabStrip activeSessionId={sessionId} />
+                  {shareButton}
+                </div>
+              }
+              rightSidebarButton={rightSidebarButton}
+              isRegeneratingTitle={isAsyncOperationOngoing}
+            />
             <div className="flex-1 flex flex-col min-h-0">
               <ChatDisplay
                 ref={chatDisplayRef}
@@ -569,7 +581,18 @@ const ChatPage = React.memo(function ChatPage({ sessionId }: ChatPageProps) {
   return (
     <>
       <div className="h-full flex flex-col">
-        <PanelHeader  title={displayTitle} titleMenu={titleMenu} actions={shareButton} rightSidebarButton={rightSidebarButton} isRegeneratingTitle={isAsyncOperationOngoing} />
+        <PanelHeader
+          title={displayTitle}
+          titleMenu={titleMenu}
+          actions={
+            <div className="flex items-center gap-2">
+              <BrowserTabStrip activeSessionId={sessionId} />
+              {shareButton}
+            </div>
+          }
+          rightSidebarButton={rightSidebarButton}
+          isRegeneratingTitle={isAsyncOperationOngoing}
+        />
         <div className="flex-1 flex flex-col min-h-0">
           <ChatDisplay
             ref={chatDisplayRef}

@@ -7,6 +7,7 @@ import { randomUUID } from 'crypto'
 import { execSync } from 'child_process'
 import { Worker } from 'worker_threads'
 import { SessionManager } from './sessions'
+import { BrowserPaneManager } from './browser-pane-manager'
 import { ipcLog, windowLog, searchLog } from './logger'
 import { WindowManager } from './window-manager'
 import { registerOnboardingHandlers } from './onboarding'
@@ -512,7 +513,7 @@ function convertOfficeInWorker(filePath: string, timeoutMs = 30000): Promise<str
   })
 }
 
-export function registerIpcHandlers(sessionManager: SessionManager, windowManager: WindowManager): void {
+export function registerIpcHandlers(sessionManager: SessionManager, windowManager: WindowManager, browserPaneManager: BrowserPaneManager | null): void {
   // Get all sessions for the calling window's workspace
   // Waits for initialization to complete so sessions are never returned empty during startup
   ipcMain.handle(IPC_CHANNELS.GET_SESSIONS, async (event) => {

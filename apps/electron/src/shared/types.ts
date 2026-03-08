@@ -947,6 +947,29 @@ export const IPC_CHANNELS = {
   MENU_COPY: 'menu:copy',
   MENU_PASTE: 'menu:paste',
   MENU_SELECT_ALL: 'menu:selectAll',
+
+  // Browser pane management
+  BROWSER_PANE_CREATE: 'browser-pane:create',
+  BROWSER_PANE_DESTROY: 'browser-pane:destroy',
+  BROWSER_PANE_LIST: 'browser-pane:list',
+  BROWSER_PANE_NAVIGATE: 'browser-pane:navigate',
+  BROWSER_PANE_GO_BACK: 'browser-pane:go-back',
+  BROWSER_PANE_GO_FORWARD: 'browser-pane:go-forward',
+  BROWSER_PANE_RELOAD: 'browser-pane:reload',
+  BROWSER_PANE_STOP: 'browser-pane:stop',
+  BROWSER_PANE_FOCUS: 'browser-pane:focus',
+  BROWSER_PANE_SNAPSHOT: 'browser-pane:snapshot',
+  BROWSER_PANE_CLICK: 'browser-pane:click',
+  BROWSER_PANE_FILL: 'browser-pane:fill',
+  BROWSER_PANE_SELECT: 'browser-pane:select',
+  BROWSER_PANE_SCREENSHOT: 'browser-pane:screenshot',
+  BROWSER_PANE_EVALUATE: 'browser-pane:evaluate',
+  BROWSER_PANE_SCROLL: 'browser-pane:scroll',
+  BROWSER_EMPTY_STATE_LAUNCH: 'browser-empty-state:launch',
+  // Browser pane events (main → renderer)
+  BROWSER_PANE_STATE_CHANGED: 'browser-pane:state-changed',
+  BROWSER_PANE_REMOVED: 'browser-pane:removed',
+  BROWSER_PANE_INTERACTED: 'browser-pane:interacted',
 } as const
 
 // Re-import types for ElectronAPI
@@ -1286,6 +1309,23 @@ export interface ElectronAPI {
   testLlmConnectionModel(slug: string, modelId: string): Promise<{ success: boolean; error?: string }>
   setDefaultLlmConnection(slug: string): Promise<{ success: boolean; error?: string }>
   setWorkspaceDefaultLlmConnection(workspaceId: string, slug: string | null): Promise<{ success: boolean; error?: string }>
+
+  // Browser pane management
+  browserPane: {
+    create(input?: string | BrowserPaneCreateOptions): Promise<string>
+    destroy(id: string): Promise<void>
+    list(): Promise<BrowserInstanceInfo[]>
+    navigate(id: string, url: string): Promise<{ url: string; title: string }>
+    goBack(id: string): Promise<void>
+    goForward(id: string): Promise<void>
+    reload(id: string): Promise<void>
+    stop(id: string): Promise<void>
+    focus(id: string): Promise<void>
+    emptyStateLaunch(payload: BrowserEmptyStateLaunchPayload): Promise<BrowserEmptyStateLaunchResult>
+    onStateChanged(callback: (info: BrowserInstanceInfo) => void): () => void
+    onRemoved(callback: (id: string) => void): () => void
+    onInteracted(callback: (id: string) => void): () => void
+  }
 }
 
 /**
@@ -1623,6 +1663,55 @@ export const parseNavigationStateKey = (key: string): NavigationState | null => 
 
   // Simple filter key
   return parseSessionsKey(key)
+}
+
+/**
+ * Browser pane creation options
+ */
+export interface BrowserPaneCreateOptions {
+  id?: string
+  show?: boolean
+  bindToSessionId?: string
+}
+
+/**
+ * Browser instance information
+ */
+export interface BrowserInstanceInfo {
+  id: string
+  url: string
+  title: string
+  favicon: string | null
+  isLoading: boolean
+  canGoBack: boolean
+  canGoForward: boolean
+  bindToSessionId?: string
+}
+
+/**
+ * Browser screenshot options
+ */
+export interface BrowserScreenshotOptions {
+  format?: 'png' | 'jpeg'
+  quality?: number
+  region?: { x: number; y: number; width: number; height: number }
+}
+
+/**
+ * Empty-state launch request from the browser empty-state renderer
+ */
+export interface BrowserEmptyStateLaunchPayload {
+  route: string
+  token?: string
+}
+
+/**
+ * Result of browser empty-state launch handling
+ */
+export interface BrowserEmptyStateLaunchResult {
+  ok: boolean
+  instanceId?: string
+  error?: string
 }
 
 declare global {

@@ -1,13 +1,13 @@
 /**
  * Mermaid Validate Handler
  *
- * Validates Mermaid diagram syntax using @work-agent/mermaid parser.
+ * Validates Mermaid diagram syntax using beautiful-mermaid renderer.
  * No DOM required - works identically in Claude and Codex.
  */
 
 import type { SessionToolContext } from '../context.ts';
 import type { ToolResult } from '../types.ts';
-import { parseMermaid } from '@work-agent/mermaid';
+import { renderMermaid } from 'beautiful-mermaid';
 
 export interface MermaidValidateArgs {
   code: string;
@@ -16,9 +16,9 @@ export interface MermaidValidateArgs {
 /**
  * Handle the mermaid_validate tool call.
  *
- * Uses parseMermaid from @work-agent/mermaid to validate syntax.
- * If parsing succeeds, the diagram is valid.
- * If parsing throws, returns the error message.
+ * Uses renderMermaid from beautiful-mermaid to validate syntax.
+ * If rendering succeeds, the diagram is valid.
+ * If rendering throws, returns the error message.
  */
 export async function handleMermaidValidate(
   _ctx: SessionToolContext,
@@ -27,8 +27,8 @@ export async function handleMermaidValidate(
   const { code } = args;
 
   try {
-    // parseMermaid throws if syntax is invalid
-    parseMermaid(code);
+    // renderMermaid throws if syntax is invalid
+    await renderMermaid(code);
 
     return {
       content: [{

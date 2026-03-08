@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { renderMermaidSync } from '@work-agent/mermaid'
+import { renderMermaid } from 'beautiful-mermaid'
 import { Maximize2 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { CodeBlock } from './CodeBlock'
@@ -9,7 +9,7 @@ import { useScrollFade } from './useScrollFade'
 // ============================================================================
 // MarkdownMermaidBlock — renders mermaid code fences as SVG diagrams.
 //
-// Uses @work-agent/mermaid to parse flowchart text and produce an SVG string.
+// Uses beautiful-mermaid to parse flowchart text and produce an SVG string.
 // Falls back to a plain code block if rendering fails (invalid syntax, etc).
 //
 // Theming: Colors are passed as CSS variable references (var(--background),
@@ -52,26 +52,43 @@ interface MarkdownMermaidBlockProps {
 }
 
 export function MarkdownMermaidBlock({ code, className, showExpandButton = true }: MarkdownMermaidBlockProps) {
-  // Render synchronously — no flash between CodeBlock and SVG.
+  // Render asynchronously using beautiful-mermaid
   // Colors are CSS variable references so the SVG inherits from the app's theme
   // via CSS cascade. Theme switches apply automatically without re-rendering.
-  const { svg, error } = React.useMemo(() => {
-    try {
-      return {
-        svg: renderMermaidSync(code, {
-          bg: 'var(--background)',
-          fg: 'var(--foreground)',
-          accent: 'var(--accent)',
-          line: 'var(--foreground-30)',
-          muted: 'var(--muted-foreground)',
-          surface: 'var(--foreground-3)',
-          border: 'var(--foreground-20)',
-          transparent: true,
-        }),
-        error: null,
-      }
-    } catch (err) {
-      return { svg: null, error: err instanceof Error ? err : new Error(String(err)) }
+  const [svg, setSvg] = React.useState<string | null>(null)
+  const [error, setError] = React.useState<Error | null>(null)
+  const [isLoading, setIsLoading] = React.useState(true)
+
+  React.useEffect(() => {
+    let cancelled = false
+    setIsLoading(true)
+    setError(null)
+
+    renderMermaid(code, {
+      bg: 'var(--background)',
+      fg: 'var(--foreground)',
+      accent: 'var(--accent)',
+      line: 'var(--foreground-30)',
+      muted: 'var(--muted-foreground)',
+      surface: 'var(--foreground-3)',
+      border: 'var(--foreground-20)',
+      transparent: true,
+    })
+      .then((result) => {
+        if (!cancelled) {
+          setSvg(result)
+          setIsLoading(false)
+        }
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setError(err instanceof Error ? err : new Error(String(err)))
+          setIsLoading(false)
+        }
+      })
+
+    return () => {
+      cancelled = true
     }
   }, [code])
 
@@ -138,6 +155,11 @@ export function MarkdownMermaidBlock({ code, className, showExpandButton = true 
       needsScroll: scaledOverflow > 0,
     }
   }, [svg])
+
+  // Show loading state while rendering
+  if (isLoading) {
+    return <CodeBlock code={code} language="mermaid" mode="full" className={className} />
+  }
 
   // On error, fall back to a plain code block showing the mermaid source
   if (error) {

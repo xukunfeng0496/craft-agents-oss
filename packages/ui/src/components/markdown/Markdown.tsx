@@ -1,7 +1,10 @@
 import * as React from 'react'
 import ReactMarkdown, { type Components } from 'react-markdown'
+import rehypeKatex from 'rehype-katex'
 import rehypeRaw from 'rehype-raw'
 import remarkGfm from 'remark-gfm'
+import remarkMath from 'remark-math'
+import 'katex/dist/katex.min.css'
 import { cn } from '../../lib/utils'
 import { FILE_EXTENSIONS_PATTERN } from '../../lib/file-classification'
 import { CodeBlock, InlineCode } from './CodeBlock'
@@ -11,12 +14,16 @@ import { MarkdownMermaidBlock } from './MarkdownMermaidBlock'
 import { MarkdownDatatableBlock } from './MarkdownDatatableBlock'
 import { MarkdownSpreadsheetBlock } from './MarkdownSpreadsheetBlock'
 import { MarkdownHtmlBlock } from './MarkdownHtmlBlock'
+import { MarkdownImageBlock } from './MarkdownImageBlock'
+import { MarkdownLatexBlock } from './MarkdownLatexBlock'
 import { MarkdownPdfBlock } from './MarkdownPdfBlock'
 import { preprocessLinks } from './linkify'
+import { classifyMarkdownLinkTarget } from './link-target'
 import remarkCollapsibleSections from './remarkCollapsibleSections'
 import { CollapsibleSection } from './CollapsibleSection'
 import { useCollapsibleMarkdown } from './CollapsibleMarkdownContext'
 import { wrapWithSafeProxy } from './safe-components'
+import { MARKDOWN_MATH_OPTIONS } from './math-options'
 
 /**
  * Render modes for markdown content:
@@ -307,6 +314,14 @@ function createComponents(
         if (match?.[1] === 'pdf-preview') {
           return <MarkdownPdfBlock code={code} className="my-2" />
         }
+        // LaTeX code blocks → KaTeX rendering
+        if (match?.[1] === 'latex') {
+          return <MarkdownLatexBlock code={code} className="my-2" />
+        }
+        // Image preview blocks → inline image with zoom controls
+        if (match?.[1] === 'image-preview') {
+          return <MarkdownImageBlock code={code} className="my-2" />
+        }
         // Mermaid code blocks → zinc-styled SVG diagram.
         // (Same first-block detection as minimal mode — see comment above.)
         if (match?.[1] === 'mermaid') {
@@ -444,7 +459,7 @@ export function Markdown({
 
   // Conditionally include the collapsible sections plugin
   const remarkPlugins = React.useMemo(
-    () => collapsible ? [remarkGfm, remarkCollapsibleSections] : [remarkGfm],
+    () => collapsible ? [remarkGfm, remarkMath, remarkCollapsibleSections] : [remarkGfm, remarkMath],
     [collapsible]
   )
 
@@ -452,7 +467,7 @@ export function Markdown({
     <div className={cn('markdown-content', className)}>
       <ReactMarkdown
         remarkPlugins={remarkPlugins}
-        rehypePlugins={[rehypeRaw]}
+        rehypePlugins={[rehypeRaw, [rehypeKatex, MARKDOWN_MATH_OPTIONS]]}
         components={components}
       >
         {processedContent}

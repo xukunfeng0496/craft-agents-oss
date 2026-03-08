@@ -215,3 +215,12 @@ export function preprocessLinks(text: string): string {
 export function hasLinks(text: string): boolean {
   return linkify.pretest(text) || /[~/.]\/[\w]/.test(text)
 }
+
+/**
+ * Check if a target string is a file path
+ * Used by link-target.ts to classify markdown link targets
+ */
+export function isFilePathTarget(target: string): boolean {
+  // Match paths starting with /, ~/, or ./
+  return /^(?:\/|~\/|\.\/)/.test(target)
+}

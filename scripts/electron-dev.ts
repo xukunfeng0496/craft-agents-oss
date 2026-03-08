@@ -175,15 +175,17 @@ async function buildMcpServers(): Promise<void> {
 
   if (!sessionResult.success) {
     console.error("❌ Session MCP server build failed:", sessionResult.error);
-    process.exit(1);
+    console.log("⚠️  Continuing without Session MCP server...");
+  } else {
+    console.log("✅ Session MCP server built");
   }
-  console.log("✅ Session MCP server built");
 
   if (!bridgeResult.success) {
     console.error("❌ Bridge MCP server build failed:", bridgeResult.error);
-    process.exit(1);
+    console.log("⚠️  Continuing without Bridge MCP server...");
+  } else {
+    console.log("✅ Bridge MCP server built");
   }
-  console.log("✅ Bridge MCP server built");
 }
 
 // Get OAuth defines for esbuild API

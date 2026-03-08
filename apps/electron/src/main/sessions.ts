@@ -27,6 +27,7 @@ import { sessionLog, isDebugMode, getLogFilePath } from './logger'
 import { InitGate } from './init-gate'
 import { createSdkMcpServer } from '@anthropic-ai/claude-agent-sdk'
 import type { WindowManager } from './window-manager'
+import type { BrowserPaneManager } from './browser-pane-manager'
 import {
   loadStoredConfig,
   getWorkspaces,
@@ -942,6 +943,7 @@ interface PendingDelta {
 export class SessionManager {
   private sessions: Map<string, ManagedSession> = new Map()
   private windowManager: WindowManager | null = null
+  private browserPaneManager: BrowserPaneManager | null = null
   // Delta batching for performance - reduces IPC events from 50+/sec to ~20/sec
   private pendingDeltas: Map<string, PendingDelta> = new Map()
   private deltaFlushTimers: Map<string, NodeJS.Timeout> = new Map()
@@ -981,6 +983,10 @@ export class SessionManager {
 
   setWindowManager(wm: WindowManager): void {
     this.windowManager = wm
+  }
+
+  setBrowserPaneManager(bpm: BrowserPaneManager): void {
+    this.browserPaneManager = bpm
   }
 
   /** Returns a strictly increasing timestamp (ms). When Date.now() collides with

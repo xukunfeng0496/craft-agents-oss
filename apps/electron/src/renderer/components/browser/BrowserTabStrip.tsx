@@ -246,7 +246,37 @@ export function BrowserTabStrip({
     )
   }, [instancesOverride, focusBrowserWindow, openSessionUsingWindow, terminateBrowserWindow])
 
-  if (orderedInstances.length === 0) return null
+  const handleOpenBrowser = useCallback(async () => {
+    if (instancesOverride) return
+
+    const browserPaneApi = window.electronAPI?.browserPane
+    if (!browserPaneApi) {
+      console.warn('[BrowserTabStrip] browserPane API unavailable')
+      return
+    }
+
+    try {
+      const result = await browserPaneApi.create()
+      console.log('[BrowserTabStrip] Browser instance created:', result)
+    } catch (error) {
+      console.error('[BrowserTabStrip] Failed to create browser instance:', error)
+    }
+  }, [instancesOverride])
+
+  // Show "Open Browser" button when no instances exist
+  if (orderedInstances.length === 0) {
+    return (
+      <button
+        type="button"
+        onClick={handleOpenBrowser}
+        className="h-[26px] px-2 rounded-lg text-[11px] text-foreground/70 bg-background shadow-minimal hover:bg-foreground/[0.05] transition-colors cursor-pointer titlebar-no-drag flex items-center gap-1.5"
+        title="Open Browser"
+      >
+        <Icons.Globe className="h-3.5 w-3.5" />
+        <span>Browser</span>
+      </button>
+    )
+  }
 
   const visibleBadgeCount = Math.max(1, maxVisibleBadges)
   const visible = orderedInstances.slice(0, visibleBadgeCount)

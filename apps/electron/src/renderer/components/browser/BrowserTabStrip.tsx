@@ -256,7 +256,7 @@ export function BrowserTabStrip({
     }
 
     try {
-      const result = await browserPaneApi.create()
+      const result = await browserPaneApi.create({ show: true })
       console.log('[BrowserTabStrip] Browser instance created:', result)
     } catch (error) {
       console.error('[BrowserTabStrip] Failed to create browser instance:', error)

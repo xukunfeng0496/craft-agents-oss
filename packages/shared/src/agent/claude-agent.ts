@@ -3,6 +3,7 @@ import { getDefaultOptions, resetClaudeConfigCheck } from './options.ts';
 import type { ContentBlockParam } from '@anthropic-ai/sdk/resources';
 import { z } from 'zod';
 import { getSystemPrompt } from '../prompts/system.ts';
+import { createBrowserTools } from './browser-tools.ts';
 import { BaseAgent, type MiniAgentConfig, MINI_AGENT_TOOLS, MINI_AGENT_MCP_KEYS } from './base-agent.ts';
 import type { BackendConfig, PermissionRequestType } from './backend/types.ts';
 // Plan types are used by UI components; not needed in craft-agent.ts since Safe Mode is user-controlled
@@ -770,11 +771,23 @@ export class ClaudeAgent extends BaseAgent {
         // - Mini agents: minimal set for quick config edits (reduces token count ~70%)
         // - Regular agents: full Claude Code toolset
         tools: (() => {
-          const toolsValue = miniConfig.enabled
-            ? [...miniConfig.tools]  // Use centralized tool list
-            : { type: 'preset' as const, preset: 'claude_code' as const };
-          debug('[ClaudeAgent] 🔧 Tools configuration:', JSON.stringify(toolsValue));
-          return toolsValue;
+          if (miniConfig.enabled) {
+            debug('[ClaudeAgent] 🔧 Tools configuration (mini):', JSON.stringify(miniConfig.tools));
+            return [...miniConfig.tools];
+          }
+          // Build tools list: Claude Code preset + browser tools (if available)
+          const toolsList: any[] = [
+            { type: 'preset' as const, preset: 'claude_code' as const },
+          ];
+          if (this.config.getBrowserPaneFns) {
+            const browserTools = createBrowserTools({
+              getBrowserPaneFns: this.config.getBrowserPaneFns,
+              sessionId,
+            });
+            toolsList.push(...browserTools);
+          }
+          debug('[ClaudeAgent] 🔧 Tools configuration:', toolsList.length, 'items (preset + browser:', !!this.config.getBrowserPaneFns, ')');
+          return toolsList;
         })(),
         // Bypass SDK's built-in permission system - we handle all permissions via PreToolUse hook
         // This allows Safe Mode to properly allow read-only bash commands without SDK interference

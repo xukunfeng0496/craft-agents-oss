@@ -104,6 +104,7 @@ export {
   type PreviewBadgeVariant,
   type BrowserControlsProps,
   type BrowserEmptyStateCardProps,
+  type BrowserEmptyPromptSample,
 } from './components/ui'
 
 // Tooltip

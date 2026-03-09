@@ -1015,7 +1015,7 @@ export class SessionManager {
         await browserMgr.clickElement(sessionId, ref)
       },
       clickAt: async (x: number, y: number) => {
-        await browserMgr.clickAt(sessionId, x, y)
+        await browserMgr.clickAtCoordinates(sessionId, x, y)
       },
       drag: async (x1: number, y1: number, x2: number, y2: number) => {
         await browserMgr.drag(sessionId, x1, y1, x2, y2)
@@ -1024,7 +1024,7 @@ export class SessionManager {
         await browserMgr.fillElement(sessionId, ref, value)
       },
       type: async (text: string) => {
-        await browserMgr.type(sessionId, text)
+        await browserMgr.typeText(sessionId, text)
       },
       select: async (ref: string, value: string) => {
         await browserMgr.selectOption(sessionId, ref, value)
@@ -1045,7 +1045,7 @@ export class SessionManager {
         return await browserMgr.getConsoleLogs(sessionId, args)
       },
       windowResize: async (args: any) => {
-        return await browserMgr.windowResize(sessionId, args)
+        return await browserMgr.windowResize(sessionId, args.width, args.height)
       },
       getNetworkLogs: async (args?: any) => {
         return await browserMgr.getNetworkLogs(sessionId, args)
@@ -1060,7 +1060,7 @@ export class SessionManager {
         return await browserMgr.getDownloads(sessionId, args)
       },
       upload: async (ref: string, filePaths: string[]) => {
-        await browserMgr.upload(sessionId, ref, filePaths)
+        await browserMgr.uploadFile(sessionId, ref, filePaths)
       },
       scroll: async (direction: 'up' | 'down' | 'left' | 'right', amount?: number) => {
         await browserMgr.scroll(sessionId, direction, amount)
@@ -2944,7 +2944,13 @@ export class SessionManager {
         // These are passed explicitly to getDefaultOptions() and spread AFTER process.env,
         // so they survive even if another session's reinitializeAuth() clobbers process.env.
         // Also merge in bundled tool paths from agentEnv.
-        const envOverrides: Record<string, string> = { ...agentEnv }
+        const envOverrides: Record<string, string> = {}
+        // Filter out undefined values from agentEnv
+        for (const [key, value] of Object.entries(agentEnv)) {
+          if (value !== undefined) {
+            envOverrides[key] = value
+          }
+        }
         if (connection?.baseUrl) {
           envOverrides.ANTHROPIC_BASE_URL = connection.baseUrl
         }
@@ -3621,8 +3627,8 @@ export class SessionManager {
       ws = new WebSocket(wsUrl, wsOptions as never)
 
       await new Promise<void>((resolve, reject) => {
-        ws.onopen = () => resolve()
-        ws.onerror = () => reject(new Error('WebSocket connection failed'))
+        ws!.onopen = () => resolve()
+        ws!.onerror = () => reject(new Error('WebSocket connection failed'))
         setTimeout(() => reject(new Error('WebSocket timeout')), 5000)
       })
 

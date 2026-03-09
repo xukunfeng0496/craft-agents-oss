@@ -2972,4 +2972,66 @@ export class BrowserPaneManager {
     }
     this.stateChangeCallback?.(this.toInfo(instance))
   }
+
+  /**
+   * Session-based window management methods
+   * These methods find the browser instance for a session and perform actions on it
+   */
+
+  async focusWindow(sessionId: string, instanceId?: string): Promise<{ instanceId: string; title: string; url: string }> {
+    const id = instanceId ?? this.findInstanceIdForSession(sessionId)
+    if (!id) throw new Error(`No browser instance found for session ${sessionId}`)
+    this.focus(id)
+    const instance = this.instances.get(id)
+    if (!instance) throw new Error(`Browser instance not found: ${id}`)
+    return { instanceId: id, title: instance.title, url: instance.currentUrl }
+  }
+
+  async releaseControl(sessionId: string, instanceId?: string): Promise<{ action: 'released'; requestedInstanceId?: string; resolvedInstanceId?: string; affectedIds: string[]; reason?: string }> {
+    const id = instanceId ?? this.findInstanceIdForSession(sessionId)
+    if (!id) throw new Error(`No browser instance found for session ${sessionId}`)
+    this.unbindSession(id)
+    return { action: 'released', requestedInstanceId: instanceId, resolvedInstanceId: id, affectedIds: [id] }
+  }
+
+  async closeWindow(sessionId: string, instanceId?: string): Promise<{ action: 'closed'; requestedInstanceId?: string; resolvedInstanceId?: string; affectedIds: string[]; reason?: string }> {
+    const id = instanceId ?? this.findInstanceIdForSession(sessionId)
+    if (!id) throw new Error(`No browser instance found for session ${sessionId}`)
+    this.destroyInstance(id)
+    return { action: 'closed', requestedInstanceId: instanceId, resolvedInstanceId: id, affectedIds: [id] }
+  }
+
+  async hideWindow(sessionId: string, instanceId?: string): Promise<{ action: 'hidden'; requestedInstanceId?: string; resolvedInstanceId?: string; affectedIds: string[]; reason?: string }> {
+    const id = instanceId ?? this.findInstanceIdForSession(sessionId)
+    if (!id) throw new Error(`No browser instance found for session ${sessionId}`)
+    this.hide(id)
+    return { action: 'hidden', requestedInstanceId: instanceId, resolvedInstanceId: id, affectedIds: [id] }
+  }
+
+  async listWindows(sessionId: string): Promise<Array<{ id: string; title: string; url: string; isVisible: boolean; ownerType: 'session' | 'manual'; ownerSessionId: string | null; boundSessionId: string | null; agentControlActive?: boolean }>> {
+    return Array.from(this.instances.values())
+      .filter(i => i.boundSessionId === sessionId || i.ownerSessionId === sessionId)
+      .map(i => ({
+        id: i.id,
+        title: i.title,
+        url: i.currentUrl,
+        isVisible: i.isVisible,
+        ownerType: i.ownerType,
+        ownerSessionId: i.ownerSessionId,
+        boundSessionId: i.boundSessionId,
+        agentControlActive: !!i.agentControl?.active,
+      }))
+  }
+
+  private findInstanceIdForSession(sessionId: string): string | null {
+    // First try to find a bound instance
+    for (const [id, instance] of this.instances) {
+      if (instance.boundSessionId === sessionId) return id
+    }
+    // Fall back to owner session
+    for (const [id, instance] of this.instances) {
+      if (instance.ownerSessionId === sessionId) return id
+    }
+    return null
+  }
 }

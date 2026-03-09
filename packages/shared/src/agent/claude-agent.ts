@@ -141,6 +141,8 @@ export interface ClaudeAgentConfig {
   envOverrides?: Record<string, string>;
   /** Mini/utility model for summarization, title generation, and mini completions. */
   miniModel?: string;
+  /** Browser automation functions (session-scoped) */
+  getBrowserPaneFns?: () => any;
 }
 
 // Permission request tracking

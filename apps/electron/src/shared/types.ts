@@ -841,6 +841,7 @@ export const IPC_CHANNELS = {
   HOOKS_CREATE: 'hooks:create',
   HOOKS_UPDATE: 'hooks:update',
   HOOKS_DELETE: 'hooks:delete',
+  SCHEDULES_CHANGED: 'schedules:changed',  // Broadcast event
 
   // Status management (workspace-scoped)
   STATUSES_LIST: 'statuses:list',
@@ -1686,6 +1687,12 @@ export interface BrowserInstanceInfo {
   canGoBack: boolean
   canGoForward: boolean
   bindToSessionId?: string
+  boundSessionId?: string | null
+  ownerType?: 'session' | 'manual'
+  ownerSessionId?: string | null
+  agentControlActive?: boolean
+  isVisible?: boolean
+  themeColor?: string | null
 }
 
 /**
@@ -1710,6 +1717,8 @@ export interface BrowserEmptyStateLaunchPayload {
  */
 export interface BrowserEmptyStateLaunchResult {
   ok: boolean
+  handled?: boolean
+  reason?: string
   instanceId?: string
   error?: string
 }

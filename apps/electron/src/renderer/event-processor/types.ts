@@ -358,6 +358,20 @@ export interface TaskProgressEvent {
 }
 
 /**
+ * Task completed event - background task finished execution
+ * Updates the tool message status and result when a background task completes.
+ */
+export interface TaskCompletedEvent {
+  type: 'task_completed'
+  sessionId: string
+  taskId: string
+  status: 'completed' | 'failed' | 'stopped'
+  outputFile?: string
+  summary?: string
+  turnId?: string
+}
+
+/**
  * User message event - backend confirmation of optimistic user message
  * Used for optimistic UI: frontend shows message immediately,
  * backend confirms/updates status via this event
@@ -481,6 +495,7 @@ export type AgentEvent =
   | TaskBackgroundedEvent
   | ShellBackgroundedEvent
   | TaskProgressEvent
+  | TaskCompletedEvent
   | UserMessageEvent
   | MessageAnnotationsUpdatedEvent
   | SessionSharedEvent

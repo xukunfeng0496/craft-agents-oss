@@ -1,6 +1,6 @@
 {
   "name": "craft-agent",
-  "version": "0.7.2",
+  "version": "0.7.3",
   "description": "Claude Code-like agent for Craft documents",
   "type": "module",
   "private": true,
@@ -10,7 +10,7 @@
     "!apps/online-docs"
   ],
   "scripts": {
-    "test": "bun test",
+    "test": "bun test && for f in $(find . -name '*.isolated.ts' -not -path './node_modules/*'); do bun test \"$f\" || exit 1; done",
     "typecheck": "bun run typecheck:shared",
     "typecheck:shared": "cd packages/shared && bun run tsc --noEmit",
     "typecheck:staged": "bash scripts/typecheck-staged.sh",
@@ -112,7 +112,7 @@
     "vite": "^6.2.4"
   },
   "dependencies": {
-    "@anthropic-ai/claude-agent-sdk": "^0.2.37",
+    "@anthropic-ai/claude-agent-sdk": "^0.2.72",
     "@dnd-kit/dom": "^0.4.0-beta-20260227032529",
     "@dnd-kit/helpers": "^0.4.0-beta-20260227032529",
     "@github/copilot-sdk": "^0.1.23",

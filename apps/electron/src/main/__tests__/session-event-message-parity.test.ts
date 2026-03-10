@@ -77,6 +77,14 @@ interface TaskProgressEvent {
   turnId?: string
 }
 
+interface TaskCompletedEvent {
+  taskId: string
+  status: 'completed' | 'failed' | 'stopped'
+  outputFile?: string
+  summary?: string
+  turnId?: string
+}
+
 // ============================================================================
 // Helpers
 // ============================================================================
@@ -438,6 +446,74 @@ describe('background task events field parity', () => {
     const rendererUpdate = { elapsedSeconds: event.elapsedSeconds }
 
     expect(mainUpdate).toEqual(rendererUpdate)
+  })
+
+  it('task_completed sets same completion fields on both sides', () => {
+    const event: TaskCompletedEvent = {
+      taskId: 'agent-abc',
+      status: 'completed',
+      summary: 'Found 3 files',
+      turnId: 'turn-7',
+    }
+
+    // Both sides update the tool message (found by taskId) with:
+    // Only 'failed' maps to 'error'; 'completed' and 'stopped' map to 'completed'
+    const mainUpdate = {
+      toolStatus: event.status === 'failed' ? 'error' as const : 'completed' as const,
+      toolResult: event.summary || `Background task ${event.status}`,
+    }
+
+    const rendererUpdate = {
+      toolStatus: event.status === 'failed' ? 'error' as const : 'completed' as const,
+      toolResult: event.summary || `Background task ${event.status}`,
+    }
+
+    expect(mainUpdate).toEqual(rendererUpdate)
+  })
+
+  it('task_completed with failed status sets error on both sides', () => {
+    const event: TaskCompletedEvent = {
+      taskId: 'agent-xyz',
+      status: 'failed',
+      summary: 'Task encountered an error',
+      turnId: 'turn-8',
+    }
+
+    const mainUpdate = {
+      toolStatus: 'error' as const,
+      toolResult: event.summary || `Background task ${event.status}`,
+    }
+
+    const rendererUpdate = {
+      toolStatus: 'error' as const,
+      toolResult: event.summary || `Background task ${event.status}`,
+    }
+
+    expect(mainUpdate).toEqual(rendererUpdate)
+  })
+
+  it('task_completed with stopped status maps to completed (not error)', () => {
+    const event: TaskCompletedEvent = {
+      taskId: 'agent-stopped',
+      status: 'stopped',
+      summary: '',
+      turnId: 'turn-9',
+    }
+
+    // User-initiated stop should NOT show as an error
+    const mainUpdate = {
+      toolStatus: 'completed' as const,
+      toolResult: event.summary || `Background task ${event.status}`,
+    }
+
+    const rendererUpdate = {
+      toolStatus: 'completed' as const,
+      toolResult: event.summary || `Background task ${event.status}`,
+    }
+
+    expect(mainUpdate).toEqual(rendererUpdate)
+    expect(mainUpdate.toolStatus).toBe('completed')
+    expect(mainUpdate.toolResult).toBe('Background task stopped')
   })
 })
 

@@ -119,6 +119,10 @@ function handleBackgroundTaskEvent(
         ? { ...t, elapsedSeconds: evt.elapsedSeconds as number }
         : t
     ))
+  } else if (event.type === 'task_completed' && 'taskId' in evt) {
+    // Remove task when background task completes
+    const currentTasks = store.get(backgroundTasksAtom)
+    store.set(backgroundTasksAtom, currentTasks.filter(t => t.id !== evt.taskId))
   } else if (event.type === 'shell_killed' && 'shellId' in evt) {
     // Remove shell task when KillShell succeeds
     const currentTasks = store.get(backgroundTasksAtom)
@@ -141,8 +145,9 @@ function handleBackgroundTaskEvent(
   // Note: We do NOT clear background tasks on complete/error/interrupted
   // Background tasks should persist and keep running after the turn ends
   // They are only removed when:
-  // 1. Their tool_result comes back (task finished)
-  // 2. KillShell succeeds (shell_killed event)
+  // 1. task_completed event arrives (background task finished)
+  // 2. Their tool_result comes back (foreground task finished)
+  // 3. KillShell succeeds (shell_killed event)
 }
 
 export default function App() {

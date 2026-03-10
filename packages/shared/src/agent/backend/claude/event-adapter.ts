@@ -16,7 +16,7 @@ import type { SDKMessage, SDKAssistantMessageError } from '@anthropic-ai/claude-
 import type { AgentEvent } from '@craft-agent/core/types';
 import type { AgentError } from '../../errors.ts';
 import { BaseEventAdapter } from '../base-event-adapter.ts';
-import { ToolIndex, extractToolStarts, extractToolResults, type ContentBlock } from '../../tool-matching.ts';
+import { ToolIndex, extractToolStarts, extractToolResults, isParentTaskTool, type ContentBlock } from '../../tool-matching.ts';
 
 /**
  * Callbacks injected by ClaudeAgent for operations that depend on agent state.
@@ -68,6 +68,25 @@ interface AssistantUsage {
   cache_read_input_tokens: number;
   cache_creation_input_tokens: number;
 }
+
+/**
+ * Shape of the SDK's `task_notification` system message.
+ * The SDK doesn't export a type for this, so we define it locally
+ * and validate fields before use to catch silent breakage.
+ */
+interface TaskNotificationMessage {
+  type: 'system';
+  subtype: 'task_notification';
+  task_id: string;
+  status?: string;
+  output_file?: string;
+  summary?: string;
+  session_id?: string;
+}
+
+/** Valid terminal statuses for background tasks */
+const VALID_TASK_STATUSES = ['completed', 'failed', 'stopped'] as const;
+type TaskStatus = typeof VALID_TASK_STATUSES[number];
 
 export class ClaudeEventAdapter extends BaseEventAdapter {
   // Per-turn state (reset on each startTurn)
@@ -273,7 +292,7 @@ export class ClaudeEventAdapter extends BaseEventAdapter {
 
     // Track active Task tools for fallback parent assignment
     for (const event of toolStartEvents) {
-      if (event.type === 'tool_start' && event.toolName === 'Task') {
+      if (event.type === 'tool_start' && isParentTaskTool(event.toolName)) {
         this.activeParentTools.add(event.toolUseId);
       }
     }
@@ -347,9 +366,9 @@ export class ClaudeEventAdapter extends BaseEventAdapter {
         this.callbacks.sessionDir,
       );
 
-      // Track active Task tools for fallback parent assignment
+      // Track active Task/Agent tools for fallback parent assignment
       for (const evt of streamEvents) {
-        if (evt.type === 'tool_start' && evt.toolName === 'Task') {
+        if (evt.type === 'tool_start' && isParentTaskTool(evt.toolName)) {
           this.activeParentTools.add(evt.toolUseId);
         }
       }
@@ -382,9 +401,9 @@ export class ClaudeEventAdapter extends BaseEventAdapter {
         this.currentTurnId || undefined,
       );
 
-      // Remove completed Task tools from activeParentTools
+      // Remove completed Task/Agent tools from activeParentTools
       for (const event of resultEvents) {
-        if (event.type === 'tool_result' && event.toolName === 'Task') {
+        if (event.type === 'tool_result' && isParentTaskTool(event.toolName ?? '')) {
           this.activeParentTools.delete(event.toolUseId);
         }
       }
@@ -429,9 +448,9 @@ export class ClaudeEventAdapter extends BaseEventAdapter {
         this.callbacks.sessionDir,
       );
 
-      // Track active Task tools discovered via progress events
+      // Track active Task/Agent tools discovered via progress events
       for (const evt of progressEvents) {
-        if (evt.type === 'tool_start' && evt.toolName === 'Task') {
+        if (evt.type === 'tool_start' && isParentTaskTool(evt.toolName)) {
           this.activeParentTools.add(evt.toolUseId);
         }
       }
@@ -513,6 +532,23 @@ export class ClaudeEventAdapter extends BaseEventAdapter {
       });
     } else if (msg.subtype === 'status' && msg.status === 'compacting') {
       events.push({ type: 'status', message: 'Compacting conversation...' });
+    } else if (msg.subtype === 'task_notification') {
+      const notification = msg as TaskNotificationMessage;
+      if (!notification.task_id) {
+        this.callbacks.onDebug?.('[EventAdapter] task_notification missing task_id, skipping');
+        return;
+      }
+      const status: TaskStatus = VALID_TASK_STATUSES.includes(notification.status as TaskStatus)
+        ? (notification.status as TaskStatus)
+        : 'completed';
+      events.push({
+        type: 'task_completed',
+        taskId: notification.task_id,
+        status,
+        outputFile: notification.output_file,
+        summary: notification.summary,
+        turnId: this.currentTurnId || undefined,
+      });
     }
   }
 

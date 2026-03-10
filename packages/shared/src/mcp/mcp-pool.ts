@@ -75,9 +75,33 @@ function sdkConfigToClientConfig(config: SdkMcpServerConfig): McpClientConfig | 
   return null;
 }
 
+/**
+ * Check if an MCP source's config has changed in a way that requires reconnection.
+ * Compares auth headers (token refresh) and URL changes.
+ * Ignores stdio sources since they don't use OAuth tokens.
+ */
+function mcpConfigChanged(oldConfig: SdkMcpServerConfig, newConfig: SdkMcpServerConfig): boolean {
+  if (oldConfig.type !== newConfig.type) return true;
+
+  if (
+    (oldConfig.type === 'http' || oldConfig.type === 'sse') &&
+    (newConfig.type === 'http' || newConfig.type === 'sse')
+  ) {
+    if (oldConfig.url !== newConfig.url) return true;
+    const oldAuth = oldConfig.headers?.['Authorization'];
+    const newAuth = newConfig.headers?.['Authorization'];
+    if (oldAuth !== newAuth) return true;
+  }
+
+  return false;
+}
+
 export class McpClientPool {
   /** Active MCP clients keyed by source slug */
   private clients = new Map<string, PoolClient>();
+
+  /** Configs used for active MCP connections (for change detection during sync) */
+  protected activeConfigs = new Map<string, SdkMcpServerConfig>();
 
   /** Cached tool lists keyed by source slug */
   private toolCache = new Map<string, Tool[]>();
@@ -126,7 +150,7 @@ export class McpClientPool {
    * Register a client: connect, cache tools, build proxy mappings.
    * Shared logic for both remote MCP and in-process API sources.
    */
-  private async registerClient(slug: string, client: PoolClient): Promise<void> {
+  protected async registerClient(slug: string, client: PoolClient): Promise<void> {
     // listTools() triggers connect() internally for both CraftMcpClient and ApiSourcePoolClient
     const tools = await client.listTools();
     this.clients.set(slug, client);
@@ -152,6 +176,7 @@ export class McpClientPool {
       return;
     }
     await this.registerClient(slug, new CraftMcpClient(clientConfig));
+    this.activeConfigs.set(slug, config);
   }
 
   /**
@@ -177,6 +202,7 @@ export class McpClientPool {
       if (info.slug === slug) this.proxyTools.delete(proxyName);
     }
     this.toolCache.delete(slug);
+    this.activeConfigs.delete(slug);
     this.debug(`Disconnected source: ${slug}`);
   }
 
@@ -189,6 +215,7 @@ export class McpClientPool {
     this.clients.clear();
     this.toolCache.clear();
     this.proxyTools.clear();
+    this.activeConfigs.clear();
     this.debug('Disconnected all MCP clients');
   }
 
@@ -238,7 +265,7 @@ export class McpClientPool {
       }
     }
 
-    // Connect new MCP sources
+    // Connect new MCP sources + reconnect existing ones whose config changed (e.g. refreshed token)
     for (const [slug, config] of Object.entries(filteredMcp)) {
       if (!currentSlugs.has(slug)) {
         try {
@@ -246,6 +273,18 @@ export class McpClientPool {
         } catch (err) {
           this.debug(`Failed to connect MCP source ${slug}: ${err instanceof Error ? err.message : String(err)}`);
           failures.push(slug);
+        }
+      } else {
+        const oldConfig = this.activeConfigs.get(slug);
+        if (oldConfig && mcpConfigChanged(oldConfig, config)) {
+          this.debug(`Config changed for ${slug}, reconnecting with fresh credentials`);
+          await this.disconnect(slug);
+          try {
+            await this.connect(slug, config);
+          } catch (err) {
+            this.debug(`Failed to reconnect MCP source ${slug}: ${err instanceof Error ? err.message : String(err)}`);
+            failures.push(slug);
+          }
         }
       }
     }

@@ -37,6 +37,7 @@ import { TopBar } from "./TopBar"
 import { SquarePenRounded } from "../icons/SquarePenRounded"
 import { McpIcon } from "../icons/McpIcon"
 import { cn } from "@/lib/utils"
+import { isMac } from "@/lib/platform"
 import { Button } from "@/components/ui/button"
 import { HeaderIconButton } from "@/components/ui/HeaderIconButton"
 import { Separator } from "@/components/ui/separator"
@@ -157,6 +158,19 @@ interface AppShellProps {
 
 /** Filter mode for tri-state filtering: include shows only matching, exclude hides matching */
 type FilterMode = 'include' | 'exclude'
+
+const altClickTooltipLabel = isMac ? '⌥ click to exclude' : 'Alt click to exclude'
+
+/** Wraps children in a Tooltip that shows instantly on hover — only rendered when `show` is true. */
+function AltExcludeTooltip({ show, children }: { show: boolean; children: React.ReactNode }) {
+  if (!show) return children
+  return (
+    <Tooltip delayDuration={0}>
+      <TooltipTrigger asChild>{children}</TooltipTrigger>
+      <TooltipContent side="right" className="text-xs">{altClickTooltipLabel}</TooltipContent>
+    </Tooltip>
+  )
+}
 
 /**
  * FilterModeBadge - Display-only badge showing the current filter mode.
@@ -282,19 +296,21 @@ function FilterLabelItems({
   labelFilter,
   setLabelFilter,
   pinnedLabelId,
+  altHeld,
 }: {
   labels: LabelConfig[]
   labelFilter: Map<string, FilterMode>
   setLabelFilter: (updater: Map<string, FilterMode> | ((prev: Map<string, FilterMode>) => Map<string, FilterMode>)) => void
   /** Label ID pinned by the current route (non-removable, shown as checked+disabled) */
   pinnedLabelId?: string | null
+  altHeld?: boolean
 }) {
-  /** Toggle a label filter: if active → remove, if inactive → add as 'include' */
-  const toggleLabel = (id: string) => {
+  /** Toggle a label filter: if active → remove, if inactive → add as 'include' (or 'exclude' with Alt) */
+  const toggleLabel = (id: string, altKey = false) => {
     setLabelFilter(prev => {
       const next = new Map(prev)
       if (next.has(id)) next.delete(id)
-      else next.set(id, 'include')
+      else next.set(id, altKey ? 'exclude' : 'include')
       return next
     })
   }
@@ -347,7 +363,7 @@ function FilterLabelItems({
                   <>
                     <DropdownMenuSub>
                       {/* Click the group title to clear, hover to open mode submenu */}
-                      <StyledDropdownMenuSubTrigger onClick={(e) => { e.preventDefault(); toggleLabel(label.id) }}>
+                      <StyledDropdownMenuSubTrigger onClick={(e) => { e.preventDefault(); toggleLabel(label.id, e.altKey) }}>
                         <FilterMenuRow
                           icon={<LabelIcon label={label} size="lg" hasChildren />}
                           label={label.name}
@@ -364,31 +380,35 @@ function FilterLabelItems({
                       labelFilter={labelFilter}
                       setLabelFilter={setLabelFilter}
                       pinnedLabelId={pinnedLabelId}
+                      altHeld={altHeld}
                     />
                   </>
                 ) : (
                   // Inactive group: self-toggle item, then children
                   <>
-                    <StyledDropdownMenuItem
-                      disabled={isPinned}
-                      onClick={(e) => {
-                        if (isPinned) return
-                        e.preventDefault()
-                        toggleLabel(label.id)
-                      }}
-                    >
-                      <FilterMenuRow
-                        icon={<LabelIcon label={label} size="lg" hasChildren />}
-                        label={label.name}
-                        accessory={isPinned ? <Check className="h-3 w-3 text-muted-foreground" /> : undefined}
-                      />
-                    </StyledDropdownMenuItem>
+                    <AltExcludeTooltip show={!!altHeld && !isPinned}>
+                      <StyledDropdownMenuItem
+                        disabled={isPinned}
+                        onClick={(e) => {
+                          if (isPinned) return
+                          e.preventDefault()
+                          toggleLabel(label.id, e.altKey)
+                        }}
+                      >
+                        <FilterMenuRow
+                          icon={<LabelIcon label={label} size="lg" hasChildren />}
+                          label={label.name}
+                          accessory={isPinned ? <Check className="h-3 w-3 text-muted-foreground" /> : undefined}
+                        />
+                      </StyledDropdownMenuItem>
+                    </AltExcludeTooltip>
                     <StyledDropdownMenuSeparator />
                     <FilterLabelItems
                       labels={label.children!}
                       labelFilter={labelFilter}
                       setLabelFilter={setLabelFilter}
                       pinnedLabelId={pinnedLabelId}
+                      altHeld={altHeld}
                     />
                   </>
                 )}
@@ -402,7 +422,7 @@ function FilterLabelItems({
           return (
             <DropdownMenuSub key={label.id}>
               {/* Click the item itself to clear, hover to open mode submenu */}
-              <StyledDropdownMenuSubTrigger onClick={(e) => { e.preventDefault(); toggleLabel(label.id) }}>
+              <StyledDropdownMenuSubTrigger onClick={(e) => { e.preventDefault(); toggleLabel(label.id, e.altKey) }}>
                 <FilterMenuRow
                   icon={<LabelIcon label={label} size="lg" />}
                   label={label.name}
@@ -418,21 +438,22 @@ function FilterLabelItems({
 
         // --- Inactive / pinned leaf label → simple toggleable item ---
         return (
-          <StyledDropdownMenuItem
-            key={label.id}
-            disabled={isPinned}
-            onClick={(e) => {
-              if (isPinned) return
-              e.preventDefault()
-              toggleLabel(label.id)
-            }}
-          >
-            <FilterMenuRow
-              icon={<LabelIcon label={label} size="lg" />}
-              label={label.name}
-              accessory={isPinned ? <Check className="h-3 w-3 text-muted-foreground" /> : undefined}
-            />
-          </StyledDropdownMenuItem>
+          <AltExcludeTooltip key={label.id} show={!!altHeld && !isPinned}>
+            <StyledDropdownMenuItem
+              disabled={isPinned}
+              onClick={(e) => {
+                if (isPinned) return
+                e.preventDefault()
+                toggleLabel(label.id, e.altKey)
+              }}
+            >
+              <FilterMenuRow
+                icon={<LabelIcon label={label} size="lg" />}
+                label={label.name}
+                accessory={isPinned ? <Check className="h-3 w-3 text-muted-foreground" /> : undefined}
+              />
+            </StyledDropdownMenuItem>
+          </AltExcludeTooltip>
         )
       })}
     </>
@@ -720,6 +741,7 @@ function AppShellContent({
   // Filter dropdown: inline search query for filtering statuses/labels in a flat list.
   // When empty, the dropdown shows hierarchical submenus. When typing, shows a flat filtered list.
   const [filterDropdownQuery, setFilterDropdownQuery] = React.useState('')
+  const [filterAltHeld, setFilterAltHeld] = React.useState(false)
 
   // Reset search only when navigator or filter changes (not when selecting sessions)
   const navFilterKey = React.useMemo(() => {
@@ -2479,7 +2501,7 @@ function AppShellContent({
                       Shows user-added filters (removable) and pinned filters (non-removable, derived from route).
                       Pinned filters: state views pin a status, label views pin a label, flagged pins the flag. */}
                   {isSessionsNavigation(navState) && (
-                    <DropdownMenu onOpenChange={(open) => { if (!open) setFilterDropdownQuery('') }}>
+                    <DropdownMenu onOpenChange={(open) => { if (!open) { setFilterDropdownQuery(''); setFilterAltHeld(false) } }}>
                       <DropdownMenuTrigger asChild>
                         <HeaderIconButton
                           icon={<ListFilter className="h-4 w-4" />}
@@ -2492,6 +2514,7 @@ function AppShellContent({
                         light
                         minWidth="min-w-[200px]"
                         onKeyDown={(e: React.KeyboardEvent) => {
+                          if (e.key === 'Alt') setFilterAltHeld(true)
                           // When on the first menu item and pressing Up, refocus the search input
                           if (e.key === 'ArrowUp' && !filterDropdownQuery.trim()) {
                             const menu = (e.target as HTMLElement).closest('[role="menu"]')
@@ -2502,6 +2525,9 @@ function AppShellContent({
                               filterDropdownInputRef.current?.focus()
                             }
                           }
+                        }}
+                        onKeyUp={(e: React.KeyboardEvent) => {
+                          if (e.key === 'Alt') setFilterAltHeld(false)
                         }}
                       >
                         {/* Header with title and clear button (only clears user-added filters, never pinned) */}
@@ -2557,6 +2583,7 @@ function AppShellContent({
                                     break
                                   case 'Enter': {
                                     e.preventDefault()
+                                    const mode: FilterMode = e.altKey ? 'exclude' : 'include'
                                     const idx = filterDropdownSelectedIdx
                                     if (idx < ms.length) {
                                       // Toggle a status filter
@@ -2565,7 +2592,7 @@ function AppShellContent({
                                         setListFilter(prev => {
                                           const next = new Map(prev)
                                           if (next.has(state.id)) next.delete(state.id)
-                                          else next.set(state.id, 'include')
+                                          else next.set(state.id, mode)
                                           return next
                                         })
                                       }
@@ -2576,7 +2603,7 @@ function AppShellContent({
                                         setLabelFilter(prev => {
                                           const next = new Map(prev)
                                           if (next.has(item.id)) next.delete(item.id)
-                                          else next.set(item.id, 'include')
+                                          else next.set(item.id, mode)
                                           return next
                                         })
                                       }
@@ -2755,28 +2782,29 @@ function AppShellContent({
                                   }
                                   // Inactive / pinned status → simple toggleable item
                                   return (
-                                    <StyledDropdownMenuItem
-                                      key={state.id}
-                                      disabled={isPinned}
-                                      onClick={(e) => {
-                                        if (isPinned) return
-                                        e.preventDefault()
-                                        setListFilter(prev => {
-                                          const next = new Map(prev)
-                                          if (next.has(state.id)) next.delete(state.id)
-                                          else next.set(state.id, 'include')
-                                          return next
-                                        })
-                                      }}
-                                    >
-                                      <FilterMenuRow
-                                        icon={state.icon}
-                                        label={state.label}
-                                        accessory={isPinned ? <Check className="h-3 w-3 text-muted-foreground" /> : null}
-                                        iconStyle={applyColor ? { color: state.resolvedColor } : undefined}
-                                        noIconContainer
-                                      />
-                                    </StyledDropdownMenuItem>
+                                    <AltExcludeTooltip key={state.id} show={filterAltHeld && !isPinned}>
+                                      <StyledDropdownMenuItem
+                                        disabled={isPinned}
+                                        onClick={(e) => {
+                                          if (isPinned) return
+                                          e.preventDefault()
+                                          setListFilter(prev => {
+                                            const next = new Map(prev)
+                                            if (next.has(state.id)) next.delete(state.id)
+                                            else next.set(state.id, e.altKey ? 'exclude' : 'include')
+                                            return next
+                                          })
+                                        }}
+                                      >
+                                        <FilterMenuRow
+                                          icon={state.icon}
+                                          label={state.label}
+                                          accessory={isPinned ? <Check className="h-3 w-3 text-muted-foreground" /> : null}
+                                          iconStyle={applyColor ? { color: state.resolvedColor } : undefined}
+                                          noIconContainer
+                                        />
+                                      </StyledDropdownMenuItem>
+                                    </AltExcludeTooltip>
                                   )
                                 })}
                               </StyledDropdownMenuSubContent>
@@ -2799,6 +2827,7 @@ function AppShellContent({
                                     labelFilter={labelFilter}
                                     setLabelFilter={setLabelFilter}
                                     pinnedLabelId={pinnedFilters.pinnedLabelId}
+                                    altHeld={filterAltHeld}
                                   />
                                 )}
                               </StyledDropdownMenuSubContent>
@@ -2901,35 +2930,36 @@ function AppShellContent({
                                       }
                                       // Inactive / pinned status → plain div with click-to-toggle
                                       return (
-                                        <div
-                                          key={`flat-status-${state.id}`}
-                                          data-filter-selected={isHighlighted}
-                                          onMouseEnter={() => setFilterDropdownSelectedIdx(index)}
-                                          onClick={(e) => {
-                                            if (isPinned) return
-                                            e.preventDefault()
-                                            setListFilter(prev => {
-                                              const next = new Map(prev)
-                                              if (next.has(state.id)) next.delete(state.id)
-                                              else next.set(state.id, 'include')
-                                              return next
-                                            })
-                                          }}
-                                          className={cn(
-                                            // SVG sizing matches StyledDropdownMenuSubTrigger so icons render at the same size
-                                            "flex cursor-pointer select-none items-center gap-2 rounded-[4px] mx-1 px-2 py-1.5 text-sm [&_svg:not([class*='size-'])]:size-4 [&_svg]:shrink-0",
-                                            isHighlighted && "bg-foreground/5",
-                                            isPinned && "opacity-50 pointer-events-none",
-                                          )}
-                                        >
-                                          <FilterMenuRow
-                                            icon={state.icon}
-                                            label={state.label}
-                                            accessory={isPinned ? <Check className="h-3 w-3 text-muted-foreground" /> : null}
-                                            iconStyle={applyColor ? { color: state.resolvedColor } : undefined}
-                                            noIconContainer
-                                          />
-                                        </div>
+                                        <AltExcludeTooltip key={`flat-status-${state.id}`} show={filterAltHeld && !isPinned}>
+                                          <div
+                                            data-filter-selected={isHighlighted}
+                                            onMouseEnter={() => setFilterDropdownSelectedIdx(index)}
+                                            onClick={(e) => {
+                                              if (isPinned) return
+                                              e.preventDefault()
+                                              setListFilter(prev => {
+                                                const next = new Map(prev)
+                                                if (next.has(state.id)) next.delete(state.id)
+                                                else next.set(state.id, e.altKey ? 'exclude' : 'include')
+                                                return next
+                                              })
+                                            }}
+                                            className={cn(
+                                              // SVG sizing matches StyledDropdownMenuSubTrigger so icons render at the same size
+                                              "flex cursor-pointer select-none items-center gap-2 rounded-[4px] mx-1 px-2 py-1.5 text-sm [&_svg:not([class*='size-'])]:size-4 [&_svg]:shrink-0",
+                                              isHighlighted && "bg-foreground/5",
+                                              isPinned && "opacity-50 pointer-events-none",
+                                            )}
+                                          >
+                                            <FilterMenuRow
+                                              icon={state.icon}
+                                              label={state.label}
+                                              accessory={isPinned ? <Check className="h-3 w-3 text-muted-foreground" /> : null}
+                                              iconStyle={applyColor ? { color: state.resolvedColor } : undefined}
+                                              noIconContainer
+                                            />
+                                          </div>
+                                        </AltExcludeTooltip>
                                       )
                                     })}
                                   </>
@@ -2990,33 +3020,34 @@ function AppShellContent({
                                       }
                                       // Inactive / pinned label → plain div with click-to-toggle
                                       return (
-                                        <div
-                                          key={`flat-label-${item.id}`}
-                                          data-filter-selected={isHighlighted}
-                                          onMouseEnter={() => setFilterDropdownSelectedIdx(flatIndex)}
-                                          onClick={(e) => {
-                                            if (isPinned) return
-                                            e.preventDefault()
-                                            setLabelFilter(prev => {
-                                              const next = new Map(prev)
-                                              if (next.has(item.id)) next.delete(item.id)
-                                              else next.set(item.id, 'include')
-                                              return next
-                                            })
-                                          }}
-                                          className={cn(
-                                            // SVG sizing matches StyledDropdownMenuSubTrigger so icons render at the same size
-                                            "flex cursor-pointer select-none items-center gap-2 rounded-[4px] mx-1 px-2 py-1.5 text-sm [&_svg:not([class*='size-'])]:size-4 [&_svg]:shrink-0",
-                                            isHighlighted && "bg-foreground/5",
-                                            isPinned && "opacity-50 pointer-events-none",
-                                          )}
-                                        >
-                                          <FilterMenuRow
-                                            icon={<LabelIcon label={item.config} size="lg" />}
-                                            label={labelDisplay}
-                                            accessory={isPinned ? <Check className="h-3 w-3 text-muted-foreground" /> : null}
-                                          />
-                                        </div>
+                                        <AltExcludeTooltip key={`flat-label-${item.id}`} show={filterAltHeld && !isPinned}>
+                                          <div
+                                            data-filter-selected={isHighlighted}
+                                            onMouseEnter={() => setFilterDropdownSelectedIdx(flatIndex)}
+                                            onClick={(e) => {
+                                              if (isPinned) return
+                                              e.preventDefault()
+                                              setLabelFilter(prev => {
+                                                const next = new Map(prev)
+                                                if (next.has(item.id)) next.delete(item.id)
+                                                else next.set(item.id, e.altKey ? 'exclude' : 'include')
+                                                return next
+                                              })
+                                            }}
+                                            className={cn(
+                                              // SVG sizing matches StyledDropdownMenuSubTrigger so icons render at the same size
+                                              "flex cursor-pointer select-none items-center gap-2 rounded-[4px] mx-1 px-2 py-1.5 text-sm [&_svg:not([class*='size-'])]:size-4 [&_svg]:shrink-0",
+                                              isHighlighted && "bg-foreground/5",
+                                              isPinned && "opacity-50 pointer-events-none",
+                                            )}
+                                          >
+                                            <FilterMenuRow
+                                              icon={<LabelIcon label={item.config} size="lg" />}
+                                              label={labelDisplay}
+                                              accessory={isPinned ? <Check className="h-3 w-3 text-muted-foreground" /> : null}
+                                            />
+                                          </div>
+                                        </AltExcludeTooltip>
                                       )
                                     })}
                                   </>

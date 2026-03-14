@@ -64,6 +64,7 @@ export {
 export {
   Markdown,
   MemoizedMarkdown,
+  StreamingMarkdown,
   CodeBlock,
   InlineCode,
   CollapsibleMarkdownProvider,

@@ -55,6 +55,7 @@ import { CHAT_LAYOUT } from "@/config/layout"
 import { flattenLabels } from "@work-agent/shared/labels"
 import { useTranslation } from 'react-i18next'
 import { getChatDisplayLabels } from './chat-display-labels'
+import { rendererPerf } from '@/lib/perf'
 
 // ============================================================================
 // Overlay State Types
@@ -461,6 +462,13 @@ export const ChatDisplay = React.forwardRef<ChatDisplayHandle, ChatDisplayProps>
   const isStickToBottomRef = React.useRef(true)
   // Skip smooth scroll briefly after session switch (instant scroll already happened)
   const skipSmoothScrollUntilRef = React.useRef(0)
+  const lastObservedScrollHeightRef = React.useRef(0)
+  const lastAutoScrollAtRef = React.useRef(0)
+  const autoScrollFrameRef = React.useRef<number | null>(null)
+  const autoScrollTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
+  const pendingAnimatedHeightDeltaRef = React.useRef(0)
+  const animatedHeightAdjustTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null)
+  const animatedHeightAdjustFrameRef = React.useRef<number | null>(null)
   const internalTextareaRef = React.useRef<RichTextInputHandle>(null)
   const textareaRef = externalTextareaRef || internalTextareaRef
 
@@ -513,6 +521,28 @@ export const ChatDisplay = React.forwardRef<ChatDisplayHandle, ChatDisplayProps>
   // Use the external search query from props
   const searchQuery = externalSearchQuery || ''
   const isSearchActive = Boolean(searchQuery.trim())
+  const sessionId = session?.id
+  const sessionMessages = session?.messages
+  const sessionIsProcessing = session?.isProcessing ?? false
+  const totalTurnCountRef = React.useRef(0)
+
+  // Memoize turn grouping once per session message change.
+  const allTurns = React.useMemo(() => {
+    if (!sessionId || !sessionMessages) return []
+    const start = performance.now()
+    const groupedTurns = groupMessagesByTurn(sessionMessages)
+    if (sessionIsProcessing && rendererPerf.isEnabled()) {
+      rendererPerf.recordStreamingTurnGrouping(
+        sessionId,
+        performance.now() - start,
+        sessionMessages.length,
+        groupedTurns.length
+      )
+    }
+    return groupedTurns
+  }, [sessionId, sessionIsProcessing, sessionMessages])
+
+  totalTurnCountRef.current = allTurns.length
 
   // Focus textarea when zone gains focus via keyboard (Tab, Cmd+3, ArrowRight)
   // Requires isFocused to be true - respects zone architecture
@@ -555,14 +585,12 @@ export const ChatDisplay = React.forwardRef<ChatDisplayHandle, ChatDisplayProps>
   // Find ALL individual match occurrences (not just turns)
   // Returns array with unique matchId for each occurrence
   const matchingOccurrences = useMemo(() => {
-    if (!searchQuery.trim() || !session?.messages) return []
-    const startTime = performance.now()
+    if (!searchQuery.trim() || allTurns.length === 0) return []
     const query = searchQuery.toLowerCase()
-    const turns = groupMessagesByTurn(session.messages)
     const matches: { matchId: string; turnId: string; turnIndex: number; matchIndexInTurn: number }[] = []
 
-    for (let turnIndex = 0; turnIndex < turns.length; turnIndex++) {
-      const turn = turns[turnIndex]
+    for (let turnIndex = 0; turnIndex < allTurns.length; turnIndex++) {
+      const turn = allTurns[turnIndex]
       let textContent = ''
       let turnId = ''
 
@@ -602,7 +630,7 @@ export const ChatDisplay = React.forwardRef<ChatDisplayHandle, ChatDisplayProps>
       }
     }
     return matches
-  }, [searchQuery, session?.messages, countOccurrences])
+  }, [allTurns, searchQuery, countOccurrences])
 
   // Auto-expand pagination when search is active to show all matching turns
   // This ensures match count is stable and all matches are highlightable from the start
@@ -611,7 +639,7 @@ export const ChatDisplay = React.forwardRef<ChatDisplayHandle, ChatDisplayProps>
 
     // Find the earliest matching turn index
     const earliestMatchTurnIndex = Math.min(...matchingOccurrences.map(m => m.turnIndex))
-    const totalTurns = groupMessagesByTurn(session?.messages || []).length
+    const totalTurns = totalTurnCountRef.current
 
     // Calculate how many turns we need to show to include all matches
     // totalTurns - visibleTurnCount = startIndex, so we need visibleTurnCount = totalTurns - earliestMatchTurnIndex + buffer
@@ -1029,7 +1057,7 @@ export const ChatDisplay = React.forwardRef<ChatDisplayHandle, ChatDisplayProps>
       content: message.content,
       title: 'Message Preview',
     })
-  }, [session])
+  }, [session?.id, session?.isProcessing, session?.messages])
 
   // Helper to collect Edit/Write activities into FileChange array
   // Used by both onOpenActivityDetails and onOpenMultiFileDiff
@@ -1079,9 +1107,6 @@ export const ChatDisplay = React.forwardRef<ChatDisplayHandle, ChatDisplayProps>
     return changes
   }, [])
 
-  // Ref to track total turn count for scroll handler
-  const totalTurnCountRef = React.useRef(0)
-
   // Track scroll position to toggle sticky-bottom behavior
   // - User scrolls up → unstick (stop auto-scrolling)
   // - User scrolls back to bottom → re-stick (resume auto-scrolling)
@@ -1123,6 +1148,71 @@ export const ChatDisplay = React.forwardRef<ChatDisplayHandle, ChatDisplayProps>
     return () => viewport.removeEventListener('scroll', handleScroll)
   }, [handleScroll])
 
+  const cancelPendingAutoScroll = React.useCallback(() => {
+    if (autoScrollTimeoutRef.current) {
+      clearTimeout(autoScrollTimeoutRef.current)
+      autoScrollTimeoutRef.current = null
+    }
+    if (autoScrollFrameRef.current !== null) {
+      cancelAnimationFrame(autoScrollFrameRef.current)
+      autoScrollFrameRef.current = null
+    }
+  }, [])
+
+  const flushPendingAnimatedHeightAdjustment = React.useCallback(() => {
+    if (animatedHeightAdjustTimeoutRef.current) {
+      clearTimeout(animatedHeightAdjustTimeoutRef.current)
+      animatedHeightAdjustTimeoutRef.current = null
+    }
+    if (animatedHeightAdjustFrameRef.current !== null) {
+      cancelAnimationFrame(animatedHeightAdjustFrameRef.current)
+      animatedHeightAdjustFrameRef.current = null
+    }
+
+    const delta = pendingAnimatedHeightDeltaRef.current
+    pendingAnimatedHeightDeltaRef.current = 0
+    if (delta === 0 || !isStickToBottomRef.current) return
+
+    const viewport = scrollViewportRef.current
+    if (!viewport) return
+
+    viewport.scrollTop += delta
+    if (session?.id && session.isProcessing && rendererPerf.isEnabled()) {
+      rendererPerf.recordStreamingLayoutMetric(session.id, 'animatedHeightAdjustments')
+    }
+  }, [session?.id, session?.isProcessing])
+
+  const scheduleAutoScroll = React.useCallback((source: 'resize' | 'submit') => {
+    if (!isStickToBottomRef.current) return
+    const viewport = scrollViewportRef.current
+    if (!viewport) return
+
+    const isStreaming = session?.isProcessing ?? false
+    const shouldUseSmoothScroll = !isStreaming && Date.now() >= skipSmoothScrollUntilRef.current
+    const minIntervalMs = isStreaming ? 250 : 120
+    const delayMs = isStreaming ? 80 : 160
+    const now = performance.now()
+    const waitMs = Math.max(delayMs, minIntervalMs - (now - lastAutoScrollAtRef.current))
+
+    if (autoScrollTimeoutRef.current || autoScrollFrameRef.current !== null) {
+      return
+    }
+
+    autoScrollTimeoutRef.current = setTimeout(() => {
+      autoScrollTimeoutRef.current = null
+      autoScrollFrameRef.current = requestAnimationFrame(() => {
+        autoScrollFrameRef.current = null
+        if (!isStickToBottomRef.current) return
+        messagesEndRef.current?.scrollIntoView({ behavior: shouldUseSmoothScroll ? 'smooth' : 'instant' })
+        lastAutoScrollAtRef.current = performance.now()
+
+        if (source === 'resize' && shouldUseSmoothScroll && session?.id && rendererPerf.isEnabled()) {
+          rendererPerf.recordStreamingLayoutMetric(session.id, 'smoothScrollCalls')
+        }
+      })
+    }, waitMs)
+  }, [session?.id, session?.isProcessing])
+
   // Auto-scroll using ResizeObserver for streaming content
   // Initial scroll is handled by ScrollOnMount (useLayoutEffect, before paint)
   React.useEffect(() => {
@@ -1136,21 +1226,21 @@ export const ChatDisplay = React.forwardRef<ChatDisplayHandle, ChatDisplayProps>
     if (isSessionSwitch) {
       isStickToBottomRef.current = true
       setVisibleTurnCount(TURNS_PER_PAGE)
+      lastObservedScrollHeightRef.current = 0
+      cancelPendingAutoScroll()
+      flushPendingAnimatedHeightAdjustment()
     }
-
-    // Debounced scroll for streaming - waits for layout to settle
-    let debounceTimer: ReturnType<typeof setTimeout> | null = null
 
     const resizeObserver = new ResizeObserver(() => {
       if (!isStickToBottomRef.current) return
+      const nextScrollHeight = viewport.scrollHeight
+      if (nextScrollHeight === lastObservedScrollHeightRef.current) return
+      lastObservedScrollHeightRef.current = nextScrollHeight
 
-      // Clear pending scroll and wait for layout to settle
-      if (debounceTimer) clearTimeout(debounceTimer)
-      debounceTimer = setTimeout(() => {
-        // Skip smooth scroll if we just did an instant scroll (session switch/lazy load)
-        if (Date.now() < skipSmoothScrollUntilRef.current) return
-        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-      }, 200)
+      if (session?.id && session.isProcessing && rendererPerf.isEnabled()) {
+        rendererPerf.recordStreamingLayoutMetric(session.id, 'resizeObserverCallbacks')
+      }
+      scheduleAutoScroll('resize')
     })
 
     // Observe the scroll content container (first child of viewport)
@@ -1161,9 +1251,10 @@ export const ChatDisplay = React.forwardRef<ChatDisplayHandle, ChatDisplayProps>
 
     return () => {
       resizeObserver.disconnect()
-      if (debounceTimer) clearTimeout(debounceTimer)
+      cancelPendingAutoScroll()
+      flushPendingAnimatedHeightAdjustment()
     }
-  }, [session?.id])
+  }, [cancelPendingAutoScroll, flushPendingAnimatedHeightAdjustment, scheduleAutoScroll, session?.id, session?.isProcessing])
 
   // Handle message submission from InputContainer
   // Backend handles interruption and queueing if currently processing
@@ -1174,8 +1265,10 @@ export const ChatDisplay = React.forwardRef<ChatDisplayHandle, ChatDisplayProps>
 
     // Immediately scroll to bottom after sending - use requestAnimationFrame
     // to ensure the DOM has updated with the new message
+    cancelPendingAutoScroll()
     requestAnimationFrame(() => {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+      messagesEndRef.current?.scrollIntoView({ behavior: 'instant' })
+      lastAutoScrollAtRef.current = performance.now()
     })
   }
 
@@ -1192,11 +1285,34 @@ export const ChatDisplay = React.forwardRef<ChatDisplayHandle, ChatDisplayProps>
   // Only compensate when user is "stuck to bottom" - otherwise let them control their scroll position
   const handleAnimatedHeightChange = React.useCallback((delta: number) => {
     if (!isStickToBottomRef.current) return
-    const viewport = scrollViewportRef.current
-    if (!viewport) return
-    // Adjust scroll to maintain position relative to content
-    viewport.scrollTop += delta
-  }, [])
+    if (delta === 0) return
+
+    if (!session?.isProcessing) {
+      const viewport = scrollViewportRef.current
+      if (!viewport) return
+      viewport.scrollTop += delta
+      return
+    }
+
+    pendingAnimatedHeightDeltaRef.current += delta
+    if (animatedHeightAdjustTimeoutRef.current || animatedHeightAdjustFrameRef.current !== null) {
+      return
+    }
+
+    animatedHeightAdjustTimeoutRef.current = setTimeout(() => {
+      animatedHeightAdjustTimeoutRef.current = null
+      animatedHeightAdjustFrameRef.current = requestAnimationFrame(() => {
+        animatedHeightAdjustFrameRef.current = null
+        flushPendingAnimatedHeightAdjustment()
+      })
+    }, 80)
+  }, [flushPendingAnimatedHeightAdjustment, session?.isProcessing])
+
+  React.useEffect(() => {
+    return () => {
+      flushPendingAnimatedHeightAdjustment()
+    }
+  }, [flushPendingAnimatedHeightAdjustment])
 
   // Handle structured input responses (permissions, credentials, and questions)
   const handleStructuredResponse = (response: StructuredResponse) => {
@@ -1239,19 +1355,20 @@ export const ChatDisplay = React.forwardRef<ChatDisplayHandle, ChatDisplayProps>
     return undefined
   }, [pendingPermission, pendingCredential, pendingQuestion])
 
-  // Memoize turn grouping - avoids O(n) iteration on every render/keystroke
-  const allTurns = React.useMemo(() => {
-    if (!session) return []
-    return groupMessagesByTurn(session.messages)
-  }, [session?.messages])
-
-  // Keep ref in sync for scroll handler
-  totalTurnCountRef.current = allTurns.length
-
   // Reverse pagination: only render last N turns for fast initial render
   const startIndex = Math.max(0, allTurns.length - visibleTurnCount)
   const turns = allTurns.slice(startIndex)
   const hasMoreAbove = startIndex > 0
+
+  const handleTurnsProfilerRender = React.useCallback((
+    _id: string,
+    _phase: 'mount' | 'update' | 'nested-update',
+    actualDuration: number,
+    baseDuration: number
+  ) => {
+    if (!session?.isProcessing || !rendererPerf.isEnabled()) return
+    rendererPerf.recordStreamingRenderCommit(session.id, actualDuration, baseDuration)
+  }, [session?.id, session?.isProcessing])
 
   // Compute if we should skip scroll-to-bottom (when search is active on session switch)
   // At render time, prevSessionIdForScrollRef still has the OLD session ID, so we can detect the switch
@@ -1302,36 +1419,37 @@ export const ChatDisplay = React.forwardRef<ChatDisplayHandle, ChatDisplayProps>
                     ) : (
                     /* Turn-based Message Display - memoized to avoid re-grouping on every render */
                     /* AnimatePresence handles the fade-in animation when transitioning from loading */
-                    <motion.div
-                      key={`loaded-${session?.id}`}
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      exit={{ opacity: 0 }}
-                      transition={{ duration: 0.1, ease: 'easeOut' }}
-                    >
-                  {/* Scroll to bottom before paint - fires via useLayoutEffect */}
-                  {/* Skip when search is active on session switch - scroll to first match instead */}
-                  <ScrollOnMount
-                    targetRef={messagesEndRef}
-                    skip={skipScrollToBottom}
-                    onScroll={() => {
-                      skipSmoothScrollUntilRef.current = Date.now() + 500
-                    }}
-                  />
-                  {/* Empty state for compact mode - inviting conversational prompt, centered in full popover */}
-                  {compactMode && turns.length === 0 && (
-                    <div className="absolute inset-0 flex flex-col items-center justify-center select-none gap-1 pointer-events-none">
-                      <span className="text-sm text-muted-foreground">{chatLabels.compactTitle}</span>
-                      <span className="text-xs text-muted-foreground/50">{chatLabels.compactDescription}</span>
-                    </div>
-                  )}
-                  {/* Load more indicator - shown when there are older messages */}
-                  {hasMoreAbove && (
-                    <div className="text-center text-muted-foreground/60 text-xs py-3 select-none">
-                      ↑ Scroll up for earlier messages ({startIndex} more)
-                    </div>
-                  )}
-                  {turns.map((turn, index) => {
+	                    <motion.div
+	                      key={`loaded-${session?.id}`}
+	                      initial={{ opacity: 0 }}
+	                      animate={{ opacity: 1 }}
+	                      exit={{ opacity: 0 }}
+	                      transition={{ duration: 0.1, ease: 'easeOut' }}
+	                    >
+	                      <React.Profiler id={`chat-turns-${session.id}`} onRender={handleTurnsProfilerRender}>
+	                  {/* Scroll to bottom before paint - fires via useLayoutEffect */}
+	                  {/* Skip when search is active on session switch - scroll to first match instead */}
+	                  <ScrollOnMount
+	                    targetRef={messagesEndRef}
+	                    skip={skipScrollToBottom}
+	                    onScroll={() => {
+	                      skipSmoothScrollUntilRef.current = Date.now() + 500
+	                    }}
+	                  />
+	                  {/* Empty state for compact mode - inviting conversational prompt, centered in full popover */}
+	                  {compactMode && turns.length === 0 && (
+	                    <div className="absolute inset-0 flex flex-col items-center justify-center select-none gap-1 pointer-events-none">
+	                      <span className="text-sm text-muted-foreground">{chatLabels.compactTitle}</span>
+	                      <span className="text-xs text-muted-foreground/50">{chatLabels.compactDescription}</span>
+	                    </div>
+	                  )}
+	                  {/* Load more indicator - shown when there are older messages */}
+	                  {hasMoreAbove && (
+	                    <div className="text-center text-muted-foreground/60 text-xs py-3 select-none">
+	                      ↑ Scroll up for earlier messages ({startIndex} more)
+	                    </div>
+	                  )}
+	                  {turns.map((turn, index) => {
                     // Compute turn key and check if it's a search match
                     const getTurnKey = () => {
                       if (turn.type === 'user') return `user-${turn.message.id}`
@@ -1530,8 +1648,9 @@ export const ChatDisplay = React.forwardRef<ChatDisplayHandle, ChatDisplayProps>
                       />
                       </div>
                     )
-                  })}
-                    </motion.div>
+	                  })}
+	                      </React.Profiler>
+	                    </motion.div>
                     )}
                     </AnimatePresence>
                   </motion.div>

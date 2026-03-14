@@ -59,6 +59,12 @@ interface UseEventProcessorResult {
   ) => { session: Session; effects: Effect[] }
 
   /**
+   * Append text to the in-memory streaming accumulator without rebuilding session state.
+   * Used by the renderer fast path that batches text_delta atom writes per frame.
+   */
+  appendStreamingText: (sessionId: string, delta: string, turnId?: string) => void
+
+  /**
    * Clear streaming state for a session (e.g., on error or complete)
    */
   clearStreamingState: (sessionId: string) => void
@@ -114,6 +120,20 @@ export function useEventProcessor(): UseEventProcessorResult {
     }
   }, [])
 
+  const appendStreamingText = useCallback((sessionId: string, delta: string, turnId?: string) => {
+    const current = streamingStates.current.get(sessionId)
+    streamingStates.current.set(sessionId, current
+      ? {
+          ...current,
+          content: current.content + delta,
+          turnId: turnId ?? current.turnId,
+        }
+      : {
+          content: delta,
+          turnId,
+        })
+  }, [])
+
   const clearStreamingState = useCallback((sessionId: string) => {
     streamingStates.current.delete(sessionId)
   }, [])
@@ -124,6 +144,7 @@ export function useEventProcessor(): UseEventProcessorResult {
 
   return {
     processAgentEvent,
+    appendStreamingText,
     clearStreamingState,
     getStreamingState,
   }

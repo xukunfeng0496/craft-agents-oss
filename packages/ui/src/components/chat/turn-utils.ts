@@ -366,10 +366,22 @@ function extractTodosFromActivities(activities: ActivityItem[]): TodoItem[] | un
  * as the signal: isIntermediate=true means more work coming, isIntermediate=false
  * means final response.
  */
+function isChronologicallySorted(messages: Message[]): boolean {
+  for (let i = 1; i < messages.length; i++) {
+    if (messages[i - 1]!.timestamp > messages[i]!.timestamp) {
+      return false
+    }
+  }
+  return true
+}
+
 export function groupMessagesByTurn(messages: Message[]): Turn[] {
-  // Sort by timestamp for correct chronological order
-  // This ensures correct turn grouping even if messages are added out of order during streaming
-  const sortedMessages = [...messages].sort((a, b) => a.timestamp - b.timestamp)
+  // Most live sessions are already ordered by append time.
+  // Keep the correctness fallback for out-of-order reload/buffering cases,
+  // but avoid O(n log n) resorting on every streaming update when we can.
+  const sortedMessages = isChronologicallySorted(messages)
+    ? messages
+    : [...messages].sort((a, b) => a.timestamp - b.timestamp)
 
   const turns: Turn[] = []
   let currentTurn: AssistantTurn | null = null

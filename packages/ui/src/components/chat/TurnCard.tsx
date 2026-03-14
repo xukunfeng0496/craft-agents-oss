@@ -23,7 +23,7 @@ import {
 } from 'lucide-react'
 import * as ReactDOM from 'react-dom'
 import { cn } from '../../lib/utils'
-import { Markdown } from '../markdown'
+import { Markdown, StreamingMarkdown } from '../markdown'
 import { Spinner } from '../ui/LoadingIndicator'
 import { Tooltip, TooltipTrigger, TooltipContent } from '../tooltip'
 import { parseDiffFromFile, type FileContents } from '@pierre/diffs'
@@ -1587,13 +1587,13 @@ export function ResponseCard({
           }),
         }}
       >
-        <Markdown
+        <StreamingMarkdown
+          content={displayedText}
+          isStreaming={true}
           mode="minimal"
           onUrlClick={onOpenUrl}
           onFileClick={onOpenFile}
-        >
-          {displayedText}
-        </Markdown>
+        />
       </div>
 
       {/* Footer - hidden in compact mode */}

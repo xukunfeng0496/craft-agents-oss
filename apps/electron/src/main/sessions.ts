@@ -23,7 +23,7 @@ import {
   type CredentialCacheEntry,
 } from '@work-agent/shared/codex'
 import { getLlmConnection, getDefaultLlmConnection } from '@work-agent/shared/config'
-import { sessionLog, isDebugMode, getLogFilePath } from './logger'
+import { sessionLog, isDebugMode, getLogFilePath, perfLog } from './logger'
 import { InitGate } from './init-gate'
 import { createSdkMcpServer } from '@anthropic-ai/claude-agent-sdk'
 import type { WindowManager } from './window-manager'
@@ -940,6 +940,16 @@ interface PendingDelta {
   turnId?: string
 }
 
+interface DeltaPerfWindow {
+  startedAt: number
+  lastUpdatedAt: number
+  rawEvents: number
+  rawChars: number
+  flushes: number
+  flushedChars: number
+  maxFlushChars: number
+}
+
 export class SessionManager {
   private sessions: Map<string, ManagedSession> = new Map()
   private windowManager: WindowManager | null = null
@@ -947,6 +957,7 @@ export class SessionManager {
   // Delta batching for performance - reduces IPC events from 50+/sec to ~20/sec
   private pendingDeltas: Map<string, PendingDelta> = new Map()
   private deltaFlushTimers: Map<string, NodeJS.Timeout> = new Map()
+  private deltaPerfWindows: Map<string, DeltaPerfWindow> = new Map()
   // Config watchers for live updates (sources, etc.) - one per workspace
   private configWatchers: Map<string, ConfigWatcher> = new Map()
   // Hook systems for workspace event hooks - one per workspace (includes scheduler, diffing, and handlers)
@@ -987,6 +998,64 @@ export class SessionManager {
 
   setBrowserPaneManager(bpm: BrowserPaneManager): void {
     this.browserPaneManager = bpm
+  }
+
+  private getDeltaPerfWindow(sessionId: string): DeltaPerfWindow {
+    const now = Date.now()
+    const current = this.deltaPerfWindows.get(sessionId)
+    if (!current) {
+      const created: DeltaPerfWindow = {
+        startedAt: now,
+        lastUpdatedAt: now,
+        rawEvents: 0,
+        rawChars: 0,
+        flushes: 0,
+        flushedChars: 0,
+        maxFlushChars: 0,
+      }
+      this.deltaPerfWindows.set(sessionId, created)
+      return created
+    }
+
+    if ((now - current.startedAt) >= 1000) {
+      current.lastUpdatedAt = now
+      this.flushDeltaPerfWindow(sessionId)
+      const next: DeltaPerfWindow = {
+        startedAt: now,
+        lastUpdatedAt: now,
+        rawEvents: 0,
+        rawChars: 0,
+        flushes: 0,
+        flushedChars: 0,
+        maxFlushChars: 0,
+      }
+      this.deltaPerfWindows.set(sessionId, next)
+      return next
+    }
+
+    current.lastUpdatedAt = now
+    return current
+  }
+
+  private flushDeltaPerfWindow(sessionId: string, force = false): void {
+    if (!isDebugMode) return
+    const window = this.deltaPerfWindows.get(sessionId)
+    if (!window) return
+    if (!force && window.rawEvents === 0 && window.flushes === 0) return
+
+    perfLog.info('stream.main_delta', {
+      sessionId,
+      windowMs: window.lastUpdatedAt - window.startedAt,
+      rawEvents: window.rawEvents,
+      rawChars: window.rawChars,
+      flushes: window.flushes,
+      flushedChars: window.flushedChars,
+      maxFlushChars: window.maxFlushChars,
+    })
+
+    if (force) {
+      this.deltaPerfWindows.delete(sessionId)
+    }
   }
 
   /**
@@ -1786,10 +1855,14 @@ export class SessionManager {
       labels: managed.labels,
       workingDirectory: managed.workingDirectory,
       sdkCwd: managed.sdkCwd,
+      sharedUrl: managed.sharedUrl,
+      sharedId: managed.sharedId,
       model: managed.model,
       llmConnection: managed.llmConnection,
       connectionLocked: managed.connectionLocked,
       thinkingLevel: managed.thinkingLevel,
+      remoteRoomId: managed.remoteRoomId,
+      remoteUrl: managed.remoteUrl,
       messages: persistableMessages.map(messageToStored),
       tokenUsage: managed.tokenUsage ?? {
         inputTokens: 0,
@@ -1799,6 +1872,8 @@ export class SessionManager {
         costUsd: 0,
       },
       hidden: managed.hidden,
+      parentSessionId: managed.parentSessionId,
+      siblingOrder: managed.siblingOrder,
     }
   }
 
@@ -3505,11 +3580,8 @@ export class SessionManager {
       // Store shared info in session
       managed.sharedUrl = data.url
       managed.sharedId = data.id
-      const workspaceRootPath = managed.workspace.rootPath
-      await updateSessionMetadata(workspaceRootPath, sessionId, {
-        sharedUrl: data.url,
-        sharedId: data.id,
-      })
+      this.persistSession(managed)
+      await this.flushSession(managed.id)
 
       sessionLog.info(`Session ${sessionId} shared at ${data.url}`)
       // Notify all windows for this workspace
@@ -3768,10 +3840,8 @@ export class SessionManager {
       managed.remoteWs = ws
       managed.remoteRoomId = roomId
       managed.remoteUrl = remoteUrl
-      await updateSessionMetadata(managed.workspace.rootPath, sessionId, {
-        remoteRoomId: roomId,
-        remoteUrl,
-      })
+      this.persistSession(managed)
+      await this.flushSession(managed.id)
 
       sessionLog.info(`[RemoteControl] Successfully started for session ${sessionId}, URL: ${remoteUrl}`)
       this.sendEvent({ type: 'remote_control_started', sessionId, remoteUrl }, managed.workspace.id)
@@ -3792,10 +3862,8 @@ export class SessionManager {
     managed.remoteRoomId = undefined
     managed.remoteUrl = undefined
 
-    await updateSessionMetadata(managed.workspace.rootPath, sessionId, {
-      remoteRoomId: undefined,
-      remoteUrl: undefined,
-    })
+    this.persistSession(managed)
+    await this.flushSession(managed.id)
 
     this.sendEvent({ type: 'remote_control_stopped', sessionId }, managed.workspace.id)
     return { success: true }
@@ -3833,11 +3901,8 @@ export class SessionManager {
       // Clear shared info
       delete managed.sharedUrl
       delete managed.sharedId
-      const workspaceRootPath = managed.workspace.rootPath
-      await updateSessionMetadata(workspaceRootPath, sessionId, {
-        sharedUrl: undefined,
-        sharedId: undefined,
-      })
+      this.persistSession(managed)
+      await this.flushSession(managed.id)
 
       sessionLog.info(`Session ${sessionId} share revoked`)
       // Notify all windows for this workspace
@@ -3973,15 +4038,21 @@ export class SessionManager {
    * new messages as unread - if user is viewing, don't mark unread.
    */
   setActiveViewingSession(sessionId: string | null, workspaceId: string): void {
-    if (sessionId) {
-      this.activeViewingSession.set(workspaceId, sessionId)
-      // When user starts viewing a session that's not processing, clear unread
-      const managed = this.sessions.get(sessionId)
-      if (managed && !managed.isProcessing && managed.hasUnread) {
-        this.markSessionRead(sessionId)
-      }
-    } else {
+    if (!sessionId) {
       this.activeViewingSession.delete(workspaceId)
+      return
+    }
+
+    if (this.activeViewingSession.get(workspaceId) !== sessionId) {
+      this.activeViewingSession.set(workspaceId, sessionId)
+    }
+
+    // When user starts viewing a session that's not processing, clear unread.
+    // Keep this check even when the workspace was already marked as viewing the
+    // same session, so a focus regain can still clear unread exactly once.
+    const managed = this.sessions.get(sessionId)
+    if (managed && !managed.isProcessing && managed.hasUnread) {
+      void this.markSessionRead(sessionId)
     }
   }
 
@@ -4013,14 +4084,11 @@ export class SessionManager {
     if (managed.isProcessing) return
 
     let needsPersist = false
-    const updates: { lastReadMessageId?: string; hasUnread?: boolean } = {}
-
     // Update lastReadMessageId for legacy/manual unread functionality
     if (managed.messages.length > 0) {
       const lastFinalId = this.getLastFinalAssistantMessageId(managed.messages)
       if (lastFinalId && managed.lastReadMessageId !== lastFinalId) {
         managed.lastReadMessageId = lastFinalId
-        updates.lastReadMessageId = lastFinalId
         needsPersist = true
       }
     }
@@ -4028,14 +4096,13 @@ export class SessionManager {
     // Clear hasUnread flag (primary source of truth for NEW badge)
     if (managed.hasUnread) {
       managed.hasUnread = false
-      updates.hasUnread = false
       needsPersist = true
     }
 
     // Persist changes
     if (needsPersist) {
-      const workspaceRootPath = managed.workspace.rootPath
-      await updateSessionMetadata(workspaceRootPath, sessionId, updates)
+      this.persistSession(managed)
+      await this.flushSession(managed.id)
     }
   }
 
@@ -4048,9 +4115,8 @@ export class SessionManager {
     if (managed) {
       managed.hasUnread = true
       managed.lastReadMessageId = undefined
-      // Persist to disk
-      const workspaceRootPath = managed.workspace.rootPath
-      await updateSessionMetadata(workspaceRootPath, sessionId, { hasUnread: true, lastReadMessageId: undefined })
+      this.persistSession(managed)
+      await this.flushSession(managed.id)
     }
   }
 
@@ -4238,12 +4304,8 @@ export class SessionManager {
       if (connection && !managed.connectionLocked) {
         managed.llmConnection = connection
       }
-      // Persist to disk (include connection if it was updated)
-      const updates: { model?: string; llmConnection?: string } = { model: model ?? undefined }
-      if (connection && !managed.connectionLocked) {
-        updates.llmConnection = connection
-      }
-      await updateSessionMetadata(managed.workspace.rootPath, sessionId, updates)
+      this.persistSession(managed)
+      await this.flushSession(managed.id)
       // Update agent model if it already exists (takes effect on next query)
       if (managed.agent) {
         // Fallback chain: session model > workspace default > connection default
@@ -4309,6 +4371,7 @@ export class SessionManager {
       this.deltaFlushTimers.delete(sessionId)
     }
     this.pendingDeltas.delete(sessionId)
+    this.flushDeltaPerfWindow(sessionId, true)
 
     // Cancel any pending persistence write (session is being deleted, no need to save)
     sessionPersistenceQueue.cancel(sessionId)
@@ -4919,7 +4982,8 @@ export class SessionManager {
         // User is not watching - mark as unread for NEW badge
         if (!managed.hasUnread) {
           managed.hasUnread = true
-          await updateSessionMetadata(managed.workspace.rootPath, sessionId, { hasUnread: true })
+          this.persistSession(managed)
+          await this.flushSession(managed.id)
         }
       }
     }
@@ -5379,6 +5443,7 @@ To view this task's output:
 
         // Persist session after complete message to prevent data loss on quit
         this.persistSession(managed)
+        this.flushDeltaPerfWindow(sessionId, true)
         break
       }
 
@@ -5976,6 +6041,12 @@ To view this task's output:
    * Instead of sending 50+ IPC events per second, batches deltas and flushes every 50ms
    */
   private queueDelta(sessionId: string, workspaceId: string, delta: string, turnId?: string): void {
+    if (isDebugMode) {
+      const perfWindow = this.getDeltaPerfWindow(sessionId)
+      perfWindow.rawEvents += 1
+      perfWindow.rawChars += delta.length
+    }
+
     const existing = this.pendingDeltas.get(sessionId)
     if (existing) {
       // Append to existing batch
@@ -6011,6 +6082,12 @@ To view this task's output:
     // Send batched delta if any
     const pending = this.pendingDeltas.get(sessionId)
     if (pending && pending.delta) {
+      if (isDebugMode) {
+        const perfWindow = this.getDeltaPerfWindow(sessionId)
+        perfWindow.flushes += 1
+        perfWindow.flushedChars += pending.delta.length
+        perfWindow.maxFlushChars = Math.max(perfWindow.maxFlushChars, pending.delta.length)
+      }
       this.sendEvent({
         type: 'text_delta',
         sessionId,

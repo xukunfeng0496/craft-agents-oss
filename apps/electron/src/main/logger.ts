@@ -59,6 +59,7 @@ export const ipcLog = log.scope('ipc')
 export const windowLog = log.scope('window')
 export const agentLog = log.scope('agent')
 export const searchLog = log.scope('search')
+export const perfLog = log.scope('perf')
 
 /**
  * Get the path to the current log file.

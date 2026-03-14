@@ -1486,7 +1486,7 @@ export function FreeFormInput({
           disabled={disabled}
           skills={skills}
           sources={sources}
-          workspaceId={workspaceSlug}
+          workspaceId={workspaceId}
           className="pl-5 pr-4 pt-4 pb-3 overflow-y-auto min-h-[88px]"
           style={{ maxHeight: inputMaxHeight }}
           data-tutorial="chat-input"

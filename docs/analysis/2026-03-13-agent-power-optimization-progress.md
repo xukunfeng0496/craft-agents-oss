@@ -25,6 +25,8 @@
 1. `text_delta` 命中已有 streaming assistant message 时，不再走完整 `processAgentEvent -> 全 session 替换` 路径。
 2. renderer 侧对同一 session 的多个 `text_delta` 做了 `requestAnimationFrame` 级别合帧，改成“一帧一次 atom 提交”。
 3. `updateStreamingContentAtom()` 现在会按 `turnId` 或“最后一个 streaming assistant”定位目标，不再要求目标消息必须是最后一条。
+4. turn grouping 结果现在会对未变化的历史 turn 复用旧引用，避免长回答时历史 `TurnCard` 跟着最后一个 streaming turn 一起重渲染。
+5. `TurnCard` 的 memo 比较改成基于 `activities / response / todos` 的实际内容，而不是只看数组引用。
 
 这轮改动的目标不是再压布局噪声，而是继续减少：
 
@@ -44,6 +46,7 @@
 | after7 `/tmp/work-agent-benchmark-6570-20260313-222249.csv` | 92 | 38.06 | 15.36 | 17.43 | 1405.47 | 样本不完整，`text_delta` 压力不高，但暴露出新的 icon IPC 噪声 |
 | after8 `/tmp/work-agent-benchmark-87193-20260313-223631.csv` | 180 | 18.85 | 7.76 | 8.54 | 1158.98 | 当前最佳完整样本，说明 renderer / GPU 主链路已明显收敛 |
 | after9 `/tmp/work-agent-benchmark-3014-20260314-205556.csv` | 95 | 37.35 | 15.50 | 17.66 | 1416.22 | 样本不完整，但 `workspace:readImage` 错误已清零；整体更接近 after7 这类“长输出”场景 |
+| after10 `/tmp/work-agent-benchmark-14718-20260315-100247.csv` | 180 | 15.64 | 7.13 | 6.48 | 960.37 | 完整 180s，长输出量显著更高，说明 turn 稳定化后长输出场景继续改善 |
 
 ## 已确认收益
 
@@ -132,6 +135,41 @@
 
 虽然 `after6` 只有 `104` 个样本，不算最终定版数据，但方向已经非常明确。
 
+### 6. `after10` 证明长输出场景也继续收敛
+
+相对 baseline：
+
+- `total_cpu 66.46 -> 15.64`，下降约 `76.5%`
+- `renderer_cpu 40.50 -> 7.13`，下降约 `82.4%`
+- `gpu_cpu 22.17 -> 6.48`，下降约 `70.8%`
+
+相对更可比的长输出样本 `after9`：
+
+- `total_cpu 37.35 -> 15.64`，下降约 `58.1%`
+- `renderer_cpu 15.50 -> 7.13`
+- `gpu_cpu 17.66 -> 6.48`
+
+这轮和 `after8` 不同，不能再解释成“输出太短所以 CPU 很低”：
+
+- `main-long-output.log` 中 `stream.main_delta.rawChars` 总和约 `2140`
+- 远高于 `after9` 约 `553`
+- 样本数也是完整 `180`
+
+因此这轮低 CPU 可以直接归因到新一轮 renderer 收缩，而不是负载变轻的偶然样本。
+
+日志同时表明：
+
+- `workspace:readImage -> Workspace not found`：`0` 次
+- `loadSession`：`73` 次，`cacheHit 80.8%`，平均 `0.10ms`
+- `streaming.window.groupingRuns` 平均 `1.91`
+- `streaming.window.groupingMs` 平均 `0.11ms`
+
+这说明：
+
+- 旧的结构性噪声项没有回潮
+- turn grouping 仍然发生，但成本已经很低
+- 历史 turn 跟随 streaming turn 一起重跑的问题，基本已被压住
+
 ## 关键判断
 
 ### 1. 当前不是 agent SDK 主导
@@ -161,6 +199,12 @@
 - `StreamingMarkdown` 在 streaming 时仍会随着内容追加做拆块工作
 - 历史 turn 虽然已尽量 memo，但最后一个 streaming turn 仍有进一步缩窄更新范围的空间
 - icon / asset 读取失败后的重复 IPC 重试，也开始进入高 ROI 队列
+
+截至 `after10`，这条判断要再收紧一步：
+
+- “历史 turn 跟着 active turn 一起重渲染”这类传播面问题，已经明显改善
+- 继续优化前，应该先把 `renderCommits / renderActualMs` 的 renderer 埋点补准
+- 因为 `main-long-output.log` 这轮里这几个字段全是 `0`，暂时不足以继续细分最后剩余的 markdown / commit 成本
 
 ## 建议下一步
 
@@ -208,7 +252,7 @@
 
 ## 下一轮验证建议
 
-建议用同样口径再跑一轮完整 `180s` benchmark，并同时保留 main 日志：
+建议在补齐 renderer commit 埋点后，再用同样口径跑一轮完整 `180s` benchmark，并同时保留 main 日志：
 
 - CSV：例如 `/tmp/work-agent-after-7.csv`
 - 日志：例如 `/tmp/main7.log`
@@ -222,10 +266,10 @@
 - `streaming.window.processedEvents / atomUpdates` 的比值
 - `workspace:readImage` 是否还会出现高频 `Workspace not found`
 
-如果下一轮确认 `workspace:readImage` 已消失，而总量仍接近 `after8`，这轮 renderer 功耗优化可以认为已经完成第一阶段收口。
+如果下一轮确认新的 `renderCommits` 指标恢复可用，而总量仍接近 `after10` 这一水平，那么第一阶段 renderer 功耗优化可以认为已经完成收口。
 
-截至 `after9`，第一阶段可以认为已经基本完成：
+截至 `after10`，第一阶段可以认为已经基本完成：
 
 1. 结构性噪声项已经基本清干净。
-2. 长输出场景下的剩余成本，开始更直接地与输出体量相关。
-3. 下一阶段如果继续做高 ROI 优化，应优先盯“长回答 / 大块 delta”时最后一个 turn 的渲染与 markdown 成本，而不是继续追 `loadSession`、icon IPC 或滚动补偿。
+2. 长输出场景下，renderer / GPU 也已经明显继续下降，不再只是短输出样本好看。
+3. 下一阶段如果继续做高 ROI 优化，应优先补准 `renderCommits` 埋点，再决定是否继续盯“长回答 / 大块 delta”时最后一个 turn 的渲染与 markdown 成本。

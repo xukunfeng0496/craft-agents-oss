@@ -10,10 +10,12 @@
 
 import { describe, it, expect } from 'bun:test'
 import {
+  stabilizeTurns,
   groupActivitiesByParent,
   computeLastChildSet,
   isActivityGroup,
   type ActivityGroup,
+  type Turn,
 } from '../turn-utils'
 import type { ActivityItem } from '../TurnCard'
 
@@ -575,6 +577,122 @@ describe('computeLastChildSet', () => {
 
     expect(result.size).toBe(1)
     expect(result.has(onlyChild.id)).toBe(true)
+  })
+})
+
+describe('stabilizeTurns', () => {
+  it('reuses unchanged completed turns while replacing the updated streaming turn', () => {
+    resetCounters()
+
+    const sharedReadInput = { file_path: 'src/app.tsx' }
+    const completedTurn: Turn = {
+      type: 'assistant',
+      turnId: 'turn-complete',
+      activities: [
+        createActivity({
+          id: 'activity-complete',
+          toolName: 'Read',
+          toolUseId: 'tool-complete',
+          toolInput: sharedReadInput,
+          timestamp: 1000,
+        }),
+      ],
+      response: {
+        text: 'Completed response',
+        isStreaming: false,
+      },
+      isStreaming: false,
+      isComplete: true,
+      timestamp: 1000,
+    }
+
+    const streamingBefore: Turn = {
+      type: 'assistant',
+      turnId: 'turn-streaming',
+      activities: [],
+      response: {
+        text: 'partial',
+        isStreaming: true,
+        streamStartTime: 2000,
+      },
+      isStreaming: true,
+      isComplete: false,
+      timestamp: 2000,
+    }
+
+    const nextTurns: Turn[] = [
+      {
+        type: 'assistant',
+        turnId: 'turn-complete',
+        activities: [
+          createActivity({
+            id: 'activity-complete',
+            toolName: 'Read',
+            toolUseId: 'tool-complete',
+            toolInput: sharedReadInput,
+            timestamp: 1000,
+          }),
+        ],
+        response: {
+          text: 'Completed response',
+          isStreaming: false,
+        },
+        isStreaming: false,
+        isComplete: true,
+        timestamp: 1000,
+      },
+      {
+        type: 'assistant',
+        turnId: 'turn-streaming',
+        activities: [],
+        response: {
+          text: 'partial plus more',
+          isStreaming: true,
+          streamStartTime: 2000,
+        },
+        isStreaming: true,
+        isComplete: false,
+        timestamp: 2000,
+      },
+    ]
+
+    const stabilized = stabilizeTurns([completedTurn, streamingBefore], nextTurns)
+
+    expect(stabilized[0]).toBe(completedTurn)
+    expect(stabilized[1]).toBe(nextTurns[1])
+  })
+
+  it('does not reuse a completed turn when its response changes', () => {
+    resetCounters()
+
+    const previous: Turn[] = [{
+      type: 'assistant',
+      turnId: 'turn-complete',
+      activities: [],
+      response: {
+        text: 'Old response',
+        isStreaming: false,
+      },
+      isStreaming: false,
+      isComplete: true,
+      timestamp: 1000,
+    }]
+
+    const next: Turn[] = [{
+      type: 'assistant',
+      turnId: 'turn-complete',
+      activities: [],
+      response: {
+        text: 'New response',
+        isStreaming: false,
+      },
+      isStreaming: false,
+      isComplete: true,
+      timestamp: 1000,
+    }]
+
+    const stabilized = stabilizeTurns(previous, next)
+    expect(stabilized[0]).toBe(next[0])
   })
 })
 

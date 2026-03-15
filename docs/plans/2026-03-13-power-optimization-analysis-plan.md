@@ -63,6 +63,8 @@
 - `StreamingMarkdown` 已经改成 append-aware 增量拆块。
 - renderer 侧的 `text_delta` 已经开始合帧提交，不再每个 delta 都立刻更新 atom。
 - `updateStreamingContentAtom()` 已经支持“assistant streaming message 后面夹着 tool/status message”时继续原位追加。
+- turn grouping 结果开始对未变化的历史 turn 复用旧引用，减少长回答时历史 `TurnCard` 的无效更新。
+- `TurnCard` memo 已从“数组引用变化即重渲染”收紧为“内容真实变化才重渲染”。
 
 也就是说，下一阶段的重点不再是“继续减滚动事件”，而是：
 
@@ -249,4 +251,10 @@
 
 ## 下一步
 
-优先补一轮新的 `180s` benchmark 验证这次 `text_delta` 合帧是否继续降低 renderer / GPU；在拿到结果前，不建议直接做更大规模的数据结构重构。
+`after10` 已经给出一个完整 `180s` 且长输出量更高的好样本，说明这轮 turn 稳定化继续有效。
+
+当前下一步不再是立刻继续改数据结构，而是：
+
+1. 先补准 `streaming.window.renderCommits / renderActualMs` 埋点。
+2. 再跑一轮相同口径 benchmark。
+3. 只有在新的 commit 渲染指标仍显示明显热点时，才考虑继续深入最后一个 streaming turn 的 markdown / render 传播。

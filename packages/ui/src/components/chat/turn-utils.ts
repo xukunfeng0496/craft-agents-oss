@@ -122,6 +122,129 @@ export interface AuthRequestTurn {
 
 export type Turn = AssistantTurn | UserTurn | SystemTurn | AuthRequestTurn
 
+function getTurnReuseKey(turn: Turn): string {
+  switch (turn.type) {
+    case 'assistant':
+      return `assistant:${turn.turnId}`
+    case 'user':
+      return `user:${turn.message.id}`
+    case 'system':
+      return `system:${turn.message.id}`
+    case 'auth-request':
+      return `auth-request:${turn.message.id}`
+  }
+}
+
+export function areActivityItemsEqual(prev: ActivityItem, next: ActivityItem): boolean {
+  if (prev === next) return true
+
+  return (
+    prev.id === next.id &&
+    prev.type === next.type &&
+    prev.status === next.status &&
+    prev.toolName === next.toolName &&
+    prev.toolUseId === next.toolUseId &&
+    prev.toolInput === next.toolInput &&
+    prev.content === next.content &&
+    prev.intent === next.intent &&
+    prev.displayName === next.displayName &&
+    prev.toolDisplayMeta === next.toolDisplayMeta &&
+    prev.timestamp === next.timestamp &&
+    prev.error === next.error &&
+    prev.parentId === next.parentId &&
+    prev.depth === next.depth &&
+    prev.statusType === next.statusType &&
+    prev.taskId === next.taskId &&
+    prev.shellId === next.shellId &&
+    prev.elapsedSeconds === next.elapsedSeconds &&
+    prev.isBackground === next.isBackground
+  )
+}
+
+export function areActivityListsEqual(prev: ActivityItem[], next: ActivityItem[]): boolean {
+  if (prev === next) return true
+  if (prev.length !== next.length) return false
+
+  for (let i = 0; i < prev.length; i++) {
+    if (!areActivityItemsEqual(prev[i]!, next[i]!)) {
+      return false
+    }
+  }
+
+  return true
+}
+
+export function areResponseContentsEqual(prev?: ResponseContent, next?: ResponseContent): boolean {
+  if (prev === next) return true
+  if (!prev || !next) return prev === next
+
+  return (
+    prev.text === next.text &&
+    prev.isStreaming === next.isStreaming &&
+    prev.streamStartTime === next.streamStartTime &&
+    prev.isPlan === next.isPlan
+  )
+}
+
+export function areTodoListsEqual(prev?: TodoItem[], next?: TodoItem[]): boolean {
+  if (prev === next) return true
+  if (!prev || !next) return prev === next
+  if (prev.length !== next.length) return false
+
+  for (let i = 0; i < prev.length; i++) {
+    const prevTodo = prev[i]!
+    const nextTodo = next[i]!
+    if (
+      prevTodo.content !== nextTodo.content ||
+      prevTodo.status !== nextTodo.status ||
+      prevTodo.activeForm !== nextTodo.activeForm
+    ) {
+      return false
+    }
+  }
+
+  return true
+}
+
+export function areTurnsEquivalent(prev: Turn, next: Turn): boolean {
+  if (prev === next) return true
+  if (prev.type !== next.type || prev.timestamp !== next.timestamp) return false
+
+  if (prev.type === 'assistant' && next.type === 'assistant') {
+    return (
+      prev.turnId === next.turnId &&
+      prev.intent === next.intent &&
+      prev.isStreaming === next.isStreaming &&
+      prev.isComplete === next.isComplete &&
+      areActivityListsEqual(prev.activities, next.activities) &&
+      areResponseContentsEqual(prev.response, next.response) &&
+      areTodoListsEqual(prev.todos, next.todos)
+    )
+  }
+
+  return prev.message === next.message
+}
+
+export function stabilizeTurns(previousTurns: Turn[], nextTurns: Turn[]): Turn[] {
+  if (previousTurns.length === 0 || nextTurns.length === 0) {
+    return nextTurns
+  }
+
+  const previousByKey = new Map(previousTurns.map((turn) => [getTurnReuseKey(turn), turn]))
+  let reusedCount = 0
+
+  const stabilizedTurns = nextTurns.map((turn) => {
+    const previous = previousByKey.get(getTurnReuseKey(turn))
+    if (previous && areTurnsEquivalent(previous, turn)) {
+      reusedCount += 1
+      return previous
+    }
+    return turn
+  })
+
+  return reusedCount === 0 ? nextTurns : stabilizedTurns
+}
+
 // ============================================================================
 // Turn Lifecycle Phase
 // ============================================================================

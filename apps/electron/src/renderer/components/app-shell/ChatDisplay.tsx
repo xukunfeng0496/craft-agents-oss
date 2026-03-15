@@ -43,7 +43,7 @@ import { usePageVisible } from "@/hooks/usePageVisible"
 import type { Session, Message, FileAttachment, StoredAttachment, PermissionRequest, CredentialRequest, CredentialResponse, UserQuestionRequest, UserQuestionResponse, LoadedSource, LoadedSkill } from "../../../shared/types"
 import type { PermissionMode } from "@work-agent/shared/agent/modes"
 import type { ThinkingLevel } from "@work-agent/shared/agent/thinking-levels"
-import { TurnCard, UserMessageBubble, groupMessagesByTurn, formatTurnAsMarkdown, formatActivityAsMarkdown, type Turn, type AssistantTurn, type UserTurn, type SystemTurn, type AuthRequestTurn } from "@work-agent/ui"
+import { TurnCard, UserMessageBubble, groupMessagesByTurn, stabilizeTurns, formatTurnAsMarkdown, formatActivityAsMarkdown, type Turn, type AssistantTurn, type UserTurn, type SystemTurn, type AuthRequestTurn } from "@work-agent/ui"
 import { MemoizedAuthRequestCard } from "@/components/chat/AuthRequestCard"
 import { ActiveOptionBadges } from "./ActiveOptionBadges"
 import { InputContainer, type StructuredInputState, type StructuredResponse, type PermissionResponse, type UserQuestionStructuredResponse } from "./input"
@@ -525,12 +525,30 @@ export const ChatDisplay = React.forwardRef<ChatDisplayHandle, ChatDisplayProps>
   const sessionMessages = session?.messages
   const sessionIsProcessing = session?.isProcessing ?? false
   const totalTurnCountRef = React.useRef(0)
+  const stabilizedTurnsRef = React.useRef<Turn[]>([])
+  const stabilizedTurnsSessionIdRef = React.useRef<string | null>(null)
+  const pendingStreamingCommitRef = React.useRef<{
+    sessionId: string
+    renderStartedAt: number
+    profilerRecorded: boolean
+  } | null>(null)
 
   // Memoize turn grouping once per session message change.
   const allTurns = React.useMemo(() => {
-    if (!sessionId || !sessionMessages) return []
+    if (!sessionId || !sessionMessages) {
+      stabilizedTurnsRef.current = []
+      stabilizedTurnsSessionIdRef.current = sessionId ?? null
+      return []
+    }
+
+    if (stabilizedTurnsSessionIdRef.current !== sessionId) {
+      stabilizedTurnsRef.current = []
+      stabilizedTurnsSessionIdRef.current = sessionId
+    }
+
     const start = performance.now()
-    const groupedTurns = groupMessagesByTurn(sessionMessages)
+    const groupedTurns = stabilizeTurns(stabilizedTurnsRef.current, groupMessagesByTurn(sessionMessages))
+    stabilizedTurnsRef.current = groupedTurns
     if (sessionIsProcessing && rendererPerf.isEnabled()) {
       rendererPerf.recordStreamingTurnGrouping(
         sessionId,
@@ -1359,6 +1377,29 @@ export const ChatDisplay = React.forwardRef<ChatDisplayHandle, ChatDisplayProps>
   const startIndex = Math.max(0, allTurns.length - visibleTurnCount)
   const turns = allTurns.slice(startIndex)
   const hasMoreAbove = startIndex > 0
+  const hasFutureUserTurn = React.useMemo(() => {
+    const futureUserTurnFlags = new Array<boolean>(turns.length)
+    let sawUserTurn = false
+
+    for (let i = turns.length - 1; i >= 0; i--) {
+      futureUserTurnFlags[i] = sawUserTurn
+      if (turns[i]?.type === 'user') {
+        sawUserTurn = true
+      }
+    }
+
+    return futureUserTurnFlags
+  }, [turns])
+
+  if (sessionId && sessionIsProcessing && rendererPerf.isEnabled()) {
+    pendingStreamingCommitRef.current = {
+      sessionId,
+      renderStartedAt: performance.now(),
+      profilerRecorded: false,
+    }
+  } else {
+    pendingStreamingCommitRef.current = null
+  }
 
   const handleTurnsProfilerRender = React.useCallback((
     _id: string,
@@ -1367,8 +1408,26 @@ export const ChatDisplay = React.forwardRef<ChatDisplayHandle, ChatDisplayProps>
     baseDuration: number
   ) => {
     if (!session?.isProcessing || !rendererPerf.isEnabled()) return
+    if (actualDuration <= 0 && baseDuration <= 0) return
+    if (pendingStreamingCommitRef.current?.sessionId === session.id) {
+      pendingStreamingCommitRef.current.profilerRecorded = true
+    }
     rendererPerf.recordStreamingRenderCommit(session.id, actualDuration, baseDuration)
   }, [session?.id, session?.isProcessing])
+
+  React.useLayoutEffect(() => {
+    const pendingCommit = pendingStreamingCommitRef.current
+    if (!pendingCommit || pendingCommit.profilerRecorded) {
+      return
+    }
+
+    rendererPerf.recordStreamingRenderCommit(
+      pendingCommit.sessionId,
+      performance.now() - pendingCommit.renderStartedAt,
+      0
+    )
+    pendingStreamingCommitRef.current = null
+  })
 
   // Compute if we should skip scroll-to-bottom (when search is active on session switch)
   // At render time, prevSessionIdForScrollRef still has the OLD session ID, so we can detect the switch
@@ -1510,7 +1569,7 @@ export const ChatDisplay = React.forwardRef<ChatDisplayHandle, ChatDisplayProps>
                     // mt-2 matches ResponseCard spacing for visual consistency
                     if (turn.type === 'auth-request') {
                       // Interactive only if no user message follows
-                      const isAuthInteractive = !turns.slice(index + 1).some(t => t.type === 'user')
+                      const isAuthInteractive = !hasFutureUserTurn[index]
                       return (
                         <div
                           key={turnKey}
@@ -1532,7 +1591,7 @@ export const ChatDisplay = React.forwardRef<ChatDisplayHandle, ChatDisplayProps>
                     }
 
                     // Check if this is the last response (for Accept Plan button visibility)
-                    const isLastResponse = index === turns.length - 1 || !turns.slice(index + 1).some(t => t.type === 'user')
+                    const isLastResponse = index === turns.length - 1 || !hasFutureUserTurn[index]
 
                     // Assistant turns - render with TurnCard (buffered streaming)
                     return (

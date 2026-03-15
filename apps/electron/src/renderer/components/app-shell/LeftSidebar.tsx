@@ -43,6 +43,12 @@ export interface SidebarContextMenuConfig {
   onDeleteView?: (id: string) => void
   /** Workspace root path for EditPopover contexts */
   workspaceRootPath?: string
+  /** Schedule ID for schedule items (reserved for future menu actions) */
+  scheduleId?: string
+  /** Handler for creating a schedule (reserved for future menu actions) */
+  onAddSchedule?: () => void
+  /** Handler for editing schedules (reserved for future menu actions) */
+  onEditSchedules?: () => void
 }
 
 /**

@@ -26,9 +26,13 @@ describe('detectMissingTools', () => {
     for (const result of results) {
       if (result.found) {
         expect(result.path).toBeDefined()
-        expect(typeof result.path).toBe('string')
         expect(result.source).toBeDefined()
-        expect(['system', 'bundled']).toContain(result.source)
+        if (result.path) {
+          expect(typeof result.path).toBe('string')
+        }
+        if (result.source) {
+          expect(['system', 'bundled']).toContain(result.source)
+        }
       }
     }
   })

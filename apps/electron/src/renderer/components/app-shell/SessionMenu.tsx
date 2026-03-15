@@ -193,7 +193,7 @@ export function SessionMenu({
   }
 
   const handleUpdateShare = async () => {
-    const result = await window.electronAPI.sessionCommand(sessionId, { type: 'updateShare' })
+    const result = await window.electronAPI.sessionCommand(sessionId, { type: 'updateShare' }) as { success: boolean; error?: string } | undefined
     if (result?.success) {
       toast.success(i18nLabels.toast.shareUpdated)
     } else {
@@ -202,7 +202,7 @@ export function SessionMenu({
   }
 
   const handleRevokeShare = async () => {
-    const result = await window.electronAPI.sessionCommand(sessionId, { type: 'revokeShare' })
+    const result = await window.electronAPI.sessionCommand(sessionId, { type: 'revokeShare' }) as { success: boolean; error?: string } | undefined
     if (result?.success) {
       toast.success(i18nLabels.toast.sharingStopped)
     } else {

@@ -222,7 +222,21 @@ export function areTurnsEquivalent(prev: Turn, next: Turn): boolean {
     )
   }
 
-  return prev.message === next.message
+  if (
+    (prev.type === 'user' && next.type === 'user') ||
+    (prev.type === 'system' && next.type === 'system') ||
+    (prev.type === 'auth-request' && next.type === 'auth-request')
+  ) {
+    return (
+      prev.message.id === next.message.id &&
+      prev.message.role === next.message.role &&
+      prev.message.content === next.message.content &&
+      prev.message.toolStatus === next.message.toolStatus &&
+      prev.message.authStatus === next.message.authStatus
+    )
+  }
+
+  return false
 }
 
 export function stabilizeTurns(previousTurns: Turn[], nextTurns: Turn[]): Turn[] {

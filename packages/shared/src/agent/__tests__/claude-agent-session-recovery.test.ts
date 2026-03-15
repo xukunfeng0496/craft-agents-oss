@@ -310,6 +310,7 @@ describe('ClaudeAgent session recovery', () => {
         name: 'resume.pdf',
         type: 'pdf',
         mimeType: 'application/pdf',
+        size: 0,
       },
     ]));
 
@@ -363,6 +364,7 @@ describe('ClaudeAgent session recovery', () => {
         name: 'resume.pdf',
         type: 'pdf',
         mimeType: 'application/pdf',
+        size: 0,
       },
     ]));
 

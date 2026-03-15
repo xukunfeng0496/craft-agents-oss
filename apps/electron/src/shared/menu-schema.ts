@@ -228,7 +228,6 @@ const SETTINGS_ICONS: Record<SettingsSubpage, string> = {
   workspace: 'Building2',
   permissions: 'ShieldCheck',
   labels: 'Tag',
-  hooks: 'Zap',
   shortcuts: 'Keyboard',
   preferences: 'UserCircle',
 }

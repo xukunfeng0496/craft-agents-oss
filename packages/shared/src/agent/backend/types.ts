@@ -31,6 +31,7 @@ import type { ModelProvider } from '../../config/models.ts';
 import type { LlmAuthType, LlmProviderType } from '../../config/llm-connections.ts';
 export type { LlmAuthType, LlmProviderType } from '../../config/llm-connections.ts';
 import type { HookSystem } from '../../hooks-simple/index.ts';
+import type { BrowserPaneFns } from '../browser-tools.ts';
 
 /**
  * Provider identifier for AI backends.
@@ -415,6 +416,9 @@ export interface BackendConfig {
 
   /** Workspace-level hook system for user-defined SDK hooks (hooks.json) */
   hookSystem?: HookSystem;
+
+  /** Browser automation functions for session-scoped browser tools. */
+  getBrowserPaneFns?: () => BrowserPaneFns | undefined;
 
   /**
    * Per-session environment variable overrides for the SDK subprocess.

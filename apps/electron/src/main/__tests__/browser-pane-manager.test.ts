@@ -318,9 +318,12 @@ describe('BrowserPaneManager', () => {
       (args: unknown[]) => args[0] === 'browser-toolbar:destroy',
     )
 
-    expect(destroyRegistration).toBeTruthy()
+    if (!destroyRegistration) {
+      throw new Error('browser-toolbar:destroy handler was not registered')
+    }
 
-    const destroyHandler = destroyRegistration[1] as (_event: unknown, instanceId: string) => Promise<void>
+    const destroyArgs = destroyRegistration as unknown[]
+    const destroyHandler = destroyArgs[1] as (_event: unknown, instanceId: string) => Promise<void>
     await destroyHandler({}, 'd-ipc-destroy')
 
     expect(manager.listInstances()).toHaveLength(0)

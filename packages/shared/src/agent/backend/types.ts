@@ -96,6 +96,8 @@ export interface ChatOptions {
   isRetry?: boolean;
   /** Override thinking level for this message only */
   thinkingOverride?: ThinkingLevel;
+  /** Suppress user-visible recovery info for internal redirect/requeue flows */
+  suppressRecoveryInfo?: boolean;
 }
 
 /**

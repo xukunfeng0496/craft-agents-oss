@@ -384,6 +384,45 @@ export class ClaudeAgent extends BaseAgent {
     return this.config.workspace.rootPath;
   }
 
+  private isSessionExpiredError(rawErrorMsg: string, stderrContext?: string): boolean {
+    const combined = [rawErrorMsg, stderrContext]
+      .filter((value): value is string => Boolean(value))
+      .join('\n')
+      .toLowerCase();
+
+    return combined.includes('no conversation found with session id');
+  }
+
+  private clearSessionStateForRecovery(): void {
+    const hadSessionId = this.sessionId !== null;
+    this.sessionId = null;
+    if (hadSessionId) {
+      this.config.onSdkSessionIdCleared?.();
+    }
+    this.pinnedPreferencesPrompt = null;
+    this.preferencesDriftNotified = false;
+  }
+
+  private buildRecoveryRetryMessage(userMessage: string): string {
+    const recoveryContext = this.buildRecoveryContext();
+    return recoveryContext
+      ? recoveryContext + userMessage
+      : userMessage;
+  }
+
+  private async *retryFreshSession(
+    userMessage: string,
+    attachments: FileAttachment[] | undefined,
+    infoMessage: string,
+    suppressInfo = false,
+  ): AsyncGenerator<AgentEvent> {
+    this.clearSessionStateForRecovery();
+    if (!suppressInfo) {
+      yield { type: 'info', message: infoMessage };
+    }
+    yield* this.chat(this.buildRecoveryRetryMessage(userMessage), attachments, { isRetry: true });
+  }
+
   // Callback for permission requests - set by application to receive permission prompts
   public onPermissionRequest: ((request: { requestId: string; toolName: string; command?: string; description: string; type?: PermissionRequestType }) => void) | null = null;
 
@@ -599,6 +638,8 @@ export class ClaudeAgent extends BaseAgent {
   ): AsyncGenerator<AgentEvent> {
     // Extract options (ChatOptions interface from AgentBackend)
     const _isRetry = options?.isRetry ?? false;
+    const suppressRecoveryInfo = options?.suppressRecoveryInfo ?? false;
+    let wasResuming = false;
 
     try {
       const sessionId = this.config.session?.id || `temp-${Date.now()}`;
@@ -1344,7 +1385,7 @@ export class ClaudeAgent extends BaseAgent {
       };
 
       // Track whether we're trying to resume a session (for error handling)
-      const wasResuming = !_isRetry && !!this.sessionId;
+      wasResuming = !_isRetry && !!this.sessionId;
 
       // Log resume attempt for debugging session failures
       if (wasResuming) {
@@ -1416,9 +1457,40 @@ export class ClaudeAgent extends BaseAgent {
           }
           // Also track text_delta events as assistant content (nested in stream_event)
           if ('type' in message && message.type === 'stream_event' && 'event' in message) {
-            const event = (message as { event: { type: string } }).event;
-            if (event.type === 'content_block_delta' || event.type === 'message_start') {
+            const event = (message as {
+              event: {
+                type: string;
+                content_block?: { type?: string };
+              };
+            }).event;
+            if (
+              event.type === 'content_block_delta' ||
+              (
+                event.type === 'content_block_start' &&
+                (event.content_block?.type === 'text' || event.content_block?.type === 'tool_use')
+              )
+            ) {
               receivedAssistantContent = true;
+            }
+          }
+
+          if ('type' in message && message.type === 'result') {
+            const resultMessage = message as {
+              subtype?: string;
+              errors?: string[];
+            };
+            const resultErrorMsg = resultMessage.subtype === 'success'
+              ? null
+              : Array.isArray(resultMessage.errors) && resultMessage.errors.length > 0
+                ? resultMessage.errors.join(', ')
+                : 'Query failed';
+
+            if (wasResuming && !_isRetry && resultErrorMsg && this.isSessionExpiredError(resultErrorMsg)) {
+              debug('[SESSION_DEBUG] >>> TAKING PATH: Result-based session expired recovery');
+              console.error('[ClaudeAgent] SDK session expired via result payload, clearing and retrying fresh');
+              debug('[ClaudeAgent] SDK session expired via result payload, clearing and retrying fresh');
+              yield* this.retryFreshSession(userMessage, attachments, 'Session expired, restoring context...', suppressRecoveryInfo);
+              return;
             }
           }
 
@@ -1490,23 +1562,7 @@ export class ClaudeAgent extends BaseAgent {
         debug('[SESSION_DEBUG] Post-loop check: wasResuming=', wasResuming, 'receivedAssistantContent=', receivedAssistantContent, '_isRetry=', _isRetry);
         if (wasResuming && !receivedAssistantContent && !_isRetry) {
           debug('[SESSION_DEBUG] >>> DETECTED EMPTY RESPONSE - triggering recovery');
-          // SDK resume failed silently - clear session and retry with context
-          this.sessionId = null;
-          // Notify that we're clearing the session ID (for persistence)
-          this.config.onSdkSessionIdCleared?.();
-          // Clear pinned state for fresh start
-          this.pinnedPreferencesPrompt = null;
-          this.preferencesDriftNotified = false;
-
-          // Build recovery context from previous messages to inject into retry
-          const recoveryContext = this.buildRecoveryContext();
-          const messageWithContext = recoveryContext
-            ? recoveryContext + userMessage
-            : userMessage;
-
-          yield { type: 'info', message: 'Restoring conversation context...' };
-          // Retry with fresh session, injecting conversation history into the message
-          yield* this.chat(messageWithContext, attachments, { isRetry: true });
+          yield* this.retryFreshSession(userMessage, attachments, 'Restoring conversation context...', suppressRecoveryInfo);
           return;
         }
 
@@ -1536,9 +1592,11 @@ export class ClaudeAgent extends BaseAgent {
           // For later messages (messageCount > 0), keep the session ID to preserve conversation history.
           // The SDK session file should have valid previous turns we can resume from.
           if (!receivedAssistantContent && this.sessionId) {
-            // Check if there are previous messages (completed turns) in this session
-            // If yes, keep the session ID to preserve history on resume
-            const hasCompletedTurns = this.config.getRecoveryMessages && this.config.getRecoveryMessages().length > 0;
+            // Only preserve the SDK session if we have at least one completed assistant turn.
+            // A queued follow-up user message can already be persisted by the app layer when
+            // the current turn is interrupted; that should not count as resumable history.
+            const recoveryMessages = this.config.getRecoveryMessages?.() ?? [];
+            const hasCompletedTurns = recoveryMessages.some((message) => message.type === 'assistant');
 
             if (!hasCompletedTurns) {
               // First message was interrupted before any response - SDK session is empty/corrupt
@@ -1566,10 +1624,21 @@ export class ClaudeAgent extends BaseAgent {
         // parseError() will detect status codes (402, 401, etc.) in the raw message.
         const rawErrorMsg = sdkError instanceof Error ? sdkError.message : String(sdkError);
         const errorMsg = rawErrorMsg.toLowerCase();
+        const stderrContext = this.lastStderrOutput.length > 0
+          ? this.lastStderrOutput.join('\n')
+          : undefined;
 
         // Debug logging - always log the actual error and context
         this.onDebug?.(`Error in chat: ${rawErrorMsg}`);
         this.onDebug?.(`Context: wasResuming=${wasResuming}, isRetry=${_isRetry}`);
+
+        if (wasResuming && !_isRetry && this.isSessionExpiredError(rawErrorMsg, stderrContext)) {
+          debug('[SESSION_DEBUG] >>> TAKING PATH: Session expired recovery');
+          console.error('[ClaudeAgent] SDK session expired server-side, clearing and retrying fresh');
+          debug('[ClaudeAgent] SDK session expired server-side, clearing and retrying fresh');
+          yield* this.retryFreshSession(userMessage, attachments, 'Session expired, restoring context...', suppressRecoveryInfo);
+          return;
+        }
 
         // Check for auth errors - these won't be fixed by clearing session
         const isAuthError =
@@ -1657,31 +1726,8 @@ export class ClaudeAgent extends BaseAgent {
 
         if (isProcessError) {
           // Include captured stderr in diagnostics - this is often where the real error is
-          const stderrContext = this.lastStderrOutput.length > 0
-            ? this.lastStderrOutput.join('\n')
-            : undefined;
           if (stderrContext) {
             debug('[SDK process error] Captured stderr:', stderrContext);
-          }
-
-          // Check for expired session error - SDK session no longer exists server-side
-          // This happens when sessions expire (TTL) or are cleaned up by Anthropic
-          const isSessionExpired = stderrContext?.includes('No conversation found with session ID');
-          debug('[SESSION_DEBUG] isSessionExpired:', isSessionExpired);
-
-          if (isSessionExpired && wasResuming && !_isRetry) {
-            debug('[SESSION_DEBUG] >>> TAKING PATH: Session expired recovery');
-            console.error('[ClaudeAgent] SDK session expired server-side, clearing and retrying fresh');
-            debug('[ClaudeAgent] SDK session expired server-side, clearing and retrying fresh');
-            this.sessionId = null;
-            // Clear pinned state so retry captures fresh values
-            this.pinnedPreferencesPrompt = null;
-            this.preferencesDriftNotified = false;
-            // Use 'info' instead of 'status' to show message without spinner
-            yield { type: 'info', message: 'Session expired, restoring context...' };
-            // Recursively call with isRetry=true (yield* delegates all events)
-            yield* this.chat(userMessage, attachments, { isRetry: true });
-            return;
           }
 
           // Check for Windows SDK setup error (missing .claude/skills directory)
@@ -1757,11 +1803,6 @@ export class ClaudeAgent extends BaseAgent {
         debug('[SESSION_DEBUG] isProcessError=false, checking wasResuming fallback');
         if (wasResuming && !_isRetry) {
           debug('[SESSION_DEBUG] >>> TAKING PATH: wasResuming fallback retry');
-          this.sessionId = null;
-          // Clear pinned state so retry captures fresh values
-          this.pinnedPreferencesPrompt = null;
-          this.preferencesDriftNotified = false;
-
           // Provide context-aware message (conservative: only match explicit session/resume terms)
           const isSessionError =
             errorMsg.includes('session') ||
@@ -1770,13 +1811,10 @@ export class ClaudeAgent extends BaseAgent {
           debug('[SESSION_DEBUG] isSessionError (for message):', isSessionError);
 
           const statusMessage = isSessionError
-            ? 'Conversation sync failed, starting fresh...'
-            : 'Request failed, retrying without history...';
+            ? 'Conversation sync failed, restoring context...'
+            : 'Request failed while resuming, restoring context...';
 
-          // Use 'info' instead of 'status' to show message without spinner
-          yield { type: 'info', message: statusMessage };
-          // Recursively call with isRetry=true (yield* delegates all events)
-          yield* this.chat(userMessage, attachments, { isRetry: true });
+          yield* this.retryFreshSession(userMessage, attachments, statusMessage, suppressRecoveryInfo);
           return;
         }
 
@@ -1796,6 +1834,21 @@ export class ClaudeAgent extends BaseAgent {
       console.error(`[ClaudeAgent] Error stack: ${error instanceof Error ? error.stack : 'no stack'}`);
 
       const errorMessage = error instanceof Error ? error.message : String(error);
+      const stderrContext = this.lastStderrOutput.length > 0
+        ? this.lastStderrOutput.join('\n')
+        : undefined;
+
+      if (wasResuming && !_isRetry && this.isSessionExpiredError(errorMessage, stderrContext)) {
+        debug('[SESSION_DEBUG] >>> TAKING PATH: Outer catch session expired recovery');
+        yield* this.retryFreshSession(userMessage, attachments, 'Session expired, restoring context...', suppressRecoveryInfo);
+        return;
+      }
+
+      if (wasResuming && !_isRetry) {
+        debug('[SESSION_DEBUG] >>> TAKING PATH: Outer catch resume recovery');
+        yield* this.retryFreshSession(userMessage, attachments, 'Conversation sync failed, restoring context...', suppressRecoveryInfo);
+        return;
+      }
 
       // Check if this is a recognizable error type
       const typedError = parseError(error);

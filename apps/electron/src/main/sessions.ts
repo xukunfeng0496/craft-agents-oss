@@ -95,6 +95,7 @@ export { sanitizeForTitle }
 import { buildAgentEnv } from './agent-env'
 export { buildAgentEnv }
 import { detectMissingTools } from './tool-detection'
+import { buildRecoveryMessages } from './session-recovery-context'
 
 /**
  * Get the path to the bundled Bun executable.
@@ -2828,15 +2829,7 @@ export class SessionManager {
           // Called to get recent messages for recovery context when resume fails.
           // Returns last 6 messages (3 exchanges) of user/assistant content.
           getRecoveryMessages: () => {
-            const relevantMessages = managed.messages
-              .filter(m => m.role === 'user' || m.role === 'assistant')
-              .filter(m => !m.isIntermediate)  // Skip intermediate assistant messages
-              .slice(-6);  // Last 6 messages (3 exchanges)
-
-            return relevantMessages.map(m => ({
-              type: m.role as 'user' | 'assistant',
-              content: m.content,
-            }));
+            return buildRecoveryMessages(managed.messages)
           },
         })
         sessionLog.info(`Created Codex agent for session ${managed.id} (model: ${codexModel}, codexHome: ${codexHome})${managed.sdkSessionId ? ' (resuming)' : ''}`)
@@ -2968,14 +2961,7 @@ export class SessionManager {
             sessionPersistenceQueue.flush(managed.id)
           },
           getRecoveryMessages: () => {
-            const relevantMessages = managed.messages
-              .filter(m => m.role === 'user' || m.role === 'assistant')
-              .filter(m => !m.isIntermediate)
-              .slice(-6)
-            return relevantMessages.map(m => ({
-              type: m.role as 'user' | 'assistant',
-              content: m.content,
-            }))
+            return buildRecoveryMessages(managed.messages)
           },
         })
         sessionLog.info(`Created Copilot agent for session ${managed.id} (model: ${copilotModel})${managed.sdkSessionId ? ' (resuming)' : ''}`)
@@ -3081,15 +3067,7 @@ export class SessionManager {
           // Called to get recent messages for recovery context when resume fails.
           // Returns last 6 messages (3 exchanges) of user/assistant content.
           getRecoveryMessages: () => {
-            const relevantMessages = managed.messages
-              .filter(m => m.role === 'user' || m.role === 'assistant')
-              .filter(m => !m.isIntermediate)  // Skip intermediate assistant messages
-              .slice(-6);  // Last 6 messages (3 exchanges)
-
-            return relevantMessages.map(m => ({
-              type: m.role as 'user' | 'assistant',
-              content: m.content,
-            }));
+            return buildRecoveryMessages(managed.messages)
           },
           // Debug mode - enables log file path injection into system prompt
           debugMode: isDebugMode ? {
@@ -4447,7 +4425,23 @@ export class SessionManager {
       managed.messages.push(queuedMessage)
 
       // Queue the message info (with the generated ID for later matching)
-      managed.messageQueue.push({ message, attachments, storedAttachments, options, messageId: queuedMessage.id, optimisticMessageId: options?.optimisticMessageId })
+      const carryForwardAttachments =
+        (!attachments || attachments.length === 0) &&
+        (managed.lastSentAttachments?.length ?? 0) > 0 &&
+        !managed.lastSentMessage?.trim()
+
+      if (carryForwardAttachments) {
+        sessionLog.info(`Carrying forward ${managed.lastSentAttachments!.length} attachment(s) into queued follow-up`)
+      }
+
+      managed.messageQueue.push({
+        message,
+        attachments: carryForwardAttachments ? managed.lastSentAttachments : attachments,
+        storedAttachments,
+        options,
+        messageId: queuedMessage.id,
+        optimisticMessageId: options?.optimisticMessageId,
+      })
 
       // Emit user_message event so UI can show queued state
       this.sendEvent({
@@ -4592,6 +4586,7 @@ export class SessionManager {
     // Capture the generation to detect if a new request supersedes this one.
     // This prevents the finally block from clobbering state when a follow-up message arrives.
     const myGeneration = managed.processingGeneration
+    let processingStopHandled = false
 
     // Pre-enable sources required by invoked skills (Issue #249)
     // This eliminates the two-turn penalty where the agent discovers missing sources at runtime.
@@ -4748,13 +4743,14 @@ export class SessionManager {
       // rather than part of the user's message content. The original message is stored
       // in session JSONL (line ~3952); this only affects the SDK's in-process context.
       let effectiveMessage = message
+      const suppressRecoveryInfo = managed.wasInterrupted
       if (managed.wasInterrupted) {
         effectiveMessage = `${message}\n\n<system-reminder>The previous assistant response was interrupted by the user and may be incomplete. Do not repeat or continue the interrupted response unless asked. Focus on the new message above.</system-reminder>`
         managed.wasInterrupted = false
       }
 
       sendSpan.mark('chat.starting')
-      const chatIterator = agent.chat(effectiveMessage, attachments)
+      const chatIterator = agent.chat(effectiveMessage, attachments, { suppressRecoveryInfo })
       sessionLog.info('Got chat iterator, starting iteration...')
 
       for await (const event of chatIterator) {
@@ -4816,7 +4812,8 @@ export class SessionManager {
 
           sendSpan.mark('chat.complete')
           sendSpan.end()
-          this.onProcessingStopped(sessionId, 'complete')
+          processingStopHandled = true
+          await this.onProcessingStopped(sessionId, 'complete')
           return  // Exit function, skip finally block (onProcessingStopped handles cleanup)
         }
 
@@ -4829,7 +4826,8 @@ export class SessionManager {
       // Loop exited - either via complete event (normal) or generator ended after soft interrupt
       if (managed.stopRequested) {
         sessionLog.info('Chat loop completed after stop request - events drained successfully')
-        this.onProcessingStopped(sessionId, 'interrupted')
+        processingStopHandled = true
+        await this.onProcessingStopped(sessionId, 'interrupted')
       } else {
         sessionLog.info('Chat loop exited unexpectedly')
       }
@@ -4853,7 +4851,8 @@ export class SessionManager {
         // Plan submissions handle their own cleanup (they set isProcessing = false directly).
         // All other abort reasons route through onProcessingStopped for queue draining.
         if (reason === AbortReason.UserStop || reason === AbortReason.Redirect || reason === undefined) {
-          this.onProcessingStopped(sessionId, 'interrupted')
+          processingStopHandled = true
+          await this.onProcessingStopped(sessionId, 'interrupted')
         }
       } else {
         sessionLog.error('Error in chat:', error)
@@ -4874,17 +4873,18 @@ export class SessionManager {
           error: error instanceof Error ? error.message : 'Unknown error'
         }, managed.workspace.id)
         // Handle error via centralized handler
-        this.onProcessingStopped(sessionId, 'error')
+        processingStopHandled = true
+        await this.onProcessingStopped(sessionId, 'error')
       }
     } finally {
       // Only handle cleanup for unexpected exits (loop break without complete event)
       // Normal completion returns early after calling onProcessingStopped
       // Errors are handled in catch block
-      if (managed.isProcessing && managed.processingGeneration === myGeneration) {
+      if (!processingStopHandled && managed.isProcessing && managed.processingGeneration === myGeneration) {
         sessionLog.info('Finally block cleanup - unexpected exit')
         sendSpan.mark('chat.unexpected_exit')
         sendSpan.end()
-        this.onProcessingStopped(sessionId, 'interrupted')
+        await this.onProcessingStopped(sessionId, 'interrupted')
       }
     }
   }

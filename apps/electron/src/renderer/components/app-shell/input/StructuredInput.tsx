@@ -9,6 +9,8 @@ interface StructuredInputProps {
   onResponse: (response: StructuredResponse) => void
   /** When true, removes container styling (shadow, bg, rounded) - used when wrapped by InputContainer */
   unstyled?: boolean
+  /** Callback for structured inputs that can change preferred height after mount */
+  onHeightChange?: (height: number) => void
 }
 
 /**
@@ -19,7 +21,12 @@ interface StructuredInputProps {
  * - credential: CredentialRequest (secure auth input)
  * - user_question: UserQuestionRequest (agent asking user questions)
  */
-export function StructuredInput({ state, onResponse, unstyled = false }: StructuredInputProps) {
+export function StructuredInput({
+  state,
+  onResponse,
+  unstyled = false,
+  onHeightChange,
+}: StructuredInputProps) {
   switch (state.type) {
     case 'permission':
       return (
@@ -43,6 +50,7 @@ export function StructuredInput({ state, onResponse, unstyled = false }: Structu
           request={state.data as UserQuestionRequestType}
           onResponse={onResponse}
           unstyled={unstyled}
+          onHeightChange={onHeightChange}
         />
       )
     default:

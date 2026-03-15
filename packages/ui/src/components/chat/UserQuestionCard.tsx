@@ -11,7 +11,10 @@ export interface UserQuestionCardProps {
   }
   onSubmit: (requestId: string, answers: Record<string, string[]>) => void
   unstyled?: boolean
+  onHeightChange?: (height: number) => void
 }
+
+const QUESTIONS_MAX_HEIGHT = 260
 
 /**
  * UserQuestionCard - Shared UI for agent questions
@@ -22,8 +25,17 @@ export interface UserQuestionCardProps {
  * Platform-agnostic: no i18n, no Electron-specific imports.
  * Used in both the Electron app and the remote viewer.
  */
-export function UserQuestionCard({ request, onSubmit, unstyled = false }: UserQuestionCardProps) {
+export function UserQuestionCard({
+  request,
+  onSubmit,
+  unstyled = false,
+  onHeightChange,
+}: UserQuestionCardProps) {
   const [collapsed, setCollapsed] = React.useState(false)
+  const rootRef = React.useRef<HTMLDivElement>(null)
+  const headerRef = React.useRef<HTMLButtonElement>(null)
+  const questionsRef = React.useRef<HTMLDivElement>(null)
+  const submitRef = React.useRef<HTMLDivElement>(null)
 
   // Track selections per question: questionIndex -> selected labels
   const [selections, setSelections] = React.useState<Record<string, Set<string>>>(() => {
@@ -90,10 +102,61 @@ export function UserQuestionCard({ request, onSubmit, unstyled = false }: UserQu
   // Check if at least one question has a selection
   const hasAnySelection = Object.values(selections).some(s => s.size > 0)
 
+  const reportPreferredHeight = React.useCallback(() => {
+    if (!onHeightChange || !rootRef.current || !headerRef.current) return
+
+    const rootStyle = window.getComputedStyle(rootRef.current)
+    const rootBorderHeight =
+      (parseFloat(rootStyle.borderTopWidth) || 0) +
+      (parseFloat(rootStyle.borderBottomWidth) || 0)
+
+    let nextHeight = headerRef.current.offsetHeight + rootBorderHeight
+
+    if (!collapsed) {
+      if (questionsRef.current) {
+        const questionsStyle = window.getComputedStyle(questionsRef.current)
+        const questionsBorderHeight =
+          (parseFloat(questionsStyle.borderTopWidth) || 0) +
+          (parseFloat(questionsStyle.borderBottomWidth) || 0)
+
+        nextHeight += Math.min(questionsRef.current.scrollHeight, QUESTIONS_MAX_HEIGHT) + questionsBorderHeight
+      }
+
+      if (submitRef.current) {
+        nextHeight += submitRef.current.offsetHeight
+      }
+    }
+
+    onHeightChange(Math.ceil(nextHeight))
+  }, [collapsed, onHeightChange])
+
+  React.useEffect(() => {
+    reportPreferredHeight()
+  }, [reportPreferredHeight, request.questions, selections, otherTexts])
+
+  React.useEffect(() => {
+    if (!onHeightChange) return
+
+    const observer = new ResizeObserver(() => {
+      reportPreferredHeight()
+    })
+
+    const elements = [rootRef.current, headerRef.current, questionsRef.current, submitRef.current]
+
+    for (const element of elements) {
+      if (element) {
+        observer.observe(element)
+      }
+    }
+
+    return () => observer.disconnect()
+  }, [collapsed, onHeightChange, reportPreferredHeight])
+
   return (
     <div
+      ref={rootRef}
       className={cn(
-        'flex flex-col bg-accent/5',
+        'flex h-full min-h-0 flex-col bg-accent/5',
         unstyled
           ? 'border-0'
           : 'border border-accent/30 rounded-[8px] shadow-middle'
@@ -101,8 +164,9 @@ export function UserQuestionCard({ request, onSubmit, unstyled = false }: UserQu
     >
       {/* Header - always visible, click to collapse/expand */}
       <button
+        ref={headerRef}
         type="button"
-        className="flex items-center gap-2 px-4 py-2.5 w-full text-left hover:bg-accent/5 transition-colors"
+        className="flex shrink-0 items-center gap-2 px-4 py-2.5 w-full text-left hover:bg-accent/5 transition-colors"
         onClick={() => setCollapsed(c => !c)}
       >
         <MessageCircleQuestion className="h-4 w-4 text-accent shrink-0" />
@@ -119,7 +183,10 @@ export function UserQuestionCard({ request, onSubmit, unstyled = false }: UserQu
       {!collapsed && (
         <>
           {/* Scrollable questions area */}
-          <div className="px-4 pb-3 space-y-4 max-h-[260px] overflow-y-auto border-t border-border/30">
+          <div
+            ref={questionsRef}
+            className="flex-1 min-h-0 px-4 pb-3 space-y-4 max-h-[260px] overflow-y-auto border-t border-border/30"
+          >
             {request.questions.map((q, qIdx) => {
               const key = String(qIdx)
               const selected = selections[key] || new Set()
@@ -215,7 +282,7 @@ export function UserQuestionCard({ request, onSubmit, unstyled = false }: UserQu
           </div>
 
           {/* Submit button */}
-          <div className="flex items-center gap-2 px-3 py-2 border-t border-border/50">
+          <div ref={submitRef} className="flex shrink-0 items-center gap-2 px-3 py-2 border-t border-border/50">
             <button
               type="button"
               className={cn(

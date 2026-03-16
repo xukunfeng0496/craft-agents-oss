@@ -23,6 +23,7 @@ export type ErrorCode =
   | 'invalid_request'        // API rejected the request (e.g., bad image, invalid content)
   | 'image_too_large'        // Image exceeds API dimension/size limits
   | 'provider_error'         // AI provider experiencing issues (overloaded, unavailable)
+  | 'runtime_crash'          // Local Claude runtime crashed before request execution
   | 'unknown_error';
 
 export interface RecoveryAction {
@@ -200,6 +201,15 @@ const ERROR_DEFINITIONS: Record<ErrorCode, Omit<AgentError, 'code' | 'originalEr
     canRetry: true,
     retryDelayMs: 5000,
   },
+  runtime_crash: {
+    title: 'Claude Runtime Crashed',
+    message: 'Claude Code crashed locally before the request could run. Retry once, then restart the app if it keeps happening.',
+    actions: [
+      { key: 'r', label: 'Retry', action: 'retry' },
+    ],
+    canRetry: true,
+    retryDelayMs: 1000,
+  },
   unknown_error: {
     title: 'Error',
     message: 'An unexpected error occurred.',
@@ -292,6 +302,14 @@ export function parseError(error: unknown): AgentError {
     (lowerMessage.includes('exceed') || lowerMessage.includes('too large'))
   ) {
     code = 'image_too_large';
+  } else if (
+    lowerMessage.includes('terminated by signal sigabrt') ||
+    lowerMessage.includes('terminated by signal sigsegv') ||
+    lowerMessage.includes('terminated by signal sigill') ||
+    lowerMessage.includes('terminated by signal sigtrap') ||
+    lowerMessage.includes('abort trap: 6')
+  ) {
+    code = 'runtime_crash';
   } else if (lowerMessage.includes('exited with code') || lowerMessage.includes('process exited')) {
     // SDK subprocess crashed - likely auth/setup issue
     // Check if the error contains more specific info

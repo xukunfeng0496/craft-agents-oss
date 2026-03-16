@@ -20,6 +20,7 @@ import type { LoadedSource } from '../../sources/types.ts';
 import type { AuthRequest } from '../session-scoped-tools.ts';
 import type { Workspace } from '../../config/storage.ts';
 import type { SessionConfig as Session } from '../../sessions/storage.ts';
+import type { ClaudeCodeRuntimeOverride } from '../options.ts';
 
 // Import AbortReason and RecoveryMessage from core module (single source of truth)
 import { AbortReason, type RecoveryMessage } from '../core/index.ts';
@@ -95,6 +96,10 @@ export type SourceActivationCallback = (sourceSlug: string) => Promise<boolean>;
 export interface ChatOptions {
   /** Retry flag (internal use for session recovery) */
   isRetry?: boolean;
+  /** Internal guard to avoid retrying the macOS runtime fallback more than once */
+  runtimeFallbackAttempted?: boolean;
+  /** Internal per-call runtime override used for local compatibility fallback */
+  runtimeOverride?: ClaudeCodeRuntimeOverride;
   /** Override thinking level for this message only */
   thinkingOverride?: ThinkingLevel;
   /** Suppress user-visible recovery info for internal redirect/requeue flows */

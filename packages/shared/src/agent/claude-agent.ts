@@ -1,5 +1,5 @@
 import { query, createSdkMcpServer, tool, AbortError, type Query, type SDKUserMessage, type SDKAssistantMessageError, type Options } from '@anthropic-ai/claude-agent-sdk';
-import { getDefaultOptions, resetClaudeConfigCheck } from './options.ts';
+import { getDefaultOptions, resetClaudeConfigCheck, enableElectronNodeRuntimeFallback, getExecutableKind } from './options.ts';
 import type { ContentBlockParam } from '@anthropic-ai/sdk/resources';
 import { z } from 'zod';
 import { getSystemPrompt } from '../prompts/system.ts';
@@ -393,6 +393,21 @@ export class ClaudeAgent extends BaseAgent {
     return combined.includes('no conversation found with session id');
   }
 
+  private isLocalRuntimeCrash(rawErrorMsg: string, stderrContext?: string): boolean {
+    const combined = [rawErrorMsg, stderrContext]
+      .filter((value): value is string => Boolean(value))
+      .join('\n')
+      .toLowerCase();
+
+    return (
+      combined.includes('terminated by signal sigabrt') ||
+      combined.includes('terminated by signal sigsegv') ||
+      combined.includes('terminated by signal sigill') ||
+      combined.includes('terminated by signal sigtrap') ||
+      combined.includes('abort trap: 6')
+    );
+  }
+
   private clearSessionStateForRecovery(): void {
     const hadSessionId = this.sessionId !== null;
     this.sessionId = null;
@@ -638,6 +653,8 @@ export class ClaudeAgent extends BaseAgent {
   ): AsyncGenerator<AgentEvent> {
     // Extract options (ChatOptions interface from AgentBackend)
     const _isRetry = options?.isRetry ?? false;
+    const runtimeFallbackAttempted = options?.runtimeFallbackAttempted ?? false;
+    const runtimeOverride = options?.runtimeOverride;
     const suppressRecoveryInfo = options?.suppressRecoveryInfo ?? false;
     let wasResuming = false;
 
@@ -768,7 +785,7 @@ export class ClaudeAgent extends BaseAgent {
       }
 
       const options: Options = {
-        ...getDefaultOptions(this.config.envOverrides),
+        ...getDefaultOptions(this.config.envOverrides, runtimeOverride),
         model,
         // Capture stderr from SDK subprocess for error diagnostics
         // This helps identify why sessions fail with "process exited with code 1"
@@ -1730,6 +1747,49 @@ export class ClaudeAgent extends BaseAgent {
             debug('[SDK process error] Captured stderr:', stderrContext);
           }
 
+          const isLocalRuntimeCrash = this.isLocalRuntimeCrash(rawErrorMsg, stderrContext);
+          const shouldTryElectronNodeFallback =
+            isLocalRuntimeCrash &&
+            process.platform === 'darwin' &&
+            process.arch === 'arm64' &&
+            getExecutableKind() === 'bun' &&
+            !runtimeFallbackAttempted;
+          const electronNodeRuntimeOverride = shouldTryElectronNodeFallback
+            ? enableElectronNodeRuntimeFallback()
+            : null;
+          const canRetryWithElectronNode = electronNodeRuntimeOverride !== null;
+
+          if (canRetryWithElectronNode) {
+            debug('[ClaudeAgent] Detected local Bun runtime crash on macOS arm64, retrying with Electron Node.js fallback');
+            yield {
+              type: 'info',
+              message: 'Claude runtime crashed on startup. Retrying with compatibility mode...',
+            };
+            yield* this.chat(userMessage, attachments, {
+              isRetry: _isRetry,
+              runtimeFallbackAttempted: true,
+              runtimeOverride: electronNodeRuntimeOverride ?? undefined,
+              suppressRecoveryInfo,
+            });
+            return;
+          }
+
+          if (isLocalRuntimeCrash) {
+            const typedError = parseError(new Error(stderrContext || rawErrorMsg));
+            yield {
+              type: 'typed_error',
+              error: {
+                ...typedError,
+                details: stderrContext
+                  ? [`SDK stderr: ${stderrContext}`]
+                  : undefined,
+                originalError: stderrContext || rawErrorMsg,
+              },
+            };
+            yield { type: 'complete' };
+            return;
+          }
+
           // Check for Windows SDK setup error (missing .claude/skills directory)
           const windowsSkillsError = buildWindowsSkillsDirError(stderrContext || rawErrorMsg);
           if (windowsSkillsError) {
@@ -1837,6 +1897,32 @@ export class ClaudeAgent extends BaseAgent {
       const stderrContext = this.lastStderrOutput.length > 0
         ? this.lastStderrOutput.join('\n')
         : undefined;
+      const isLocalRuntimeCrash = this.isLocalRuntimeCrash(errorMessage, stderrContext);
+      const shouldTryElectronNodeFallback =
+        isLocalRuntimeCrash &&
+        process.platform === 'darwin' &&
+        process.arch === 'arm64' &&
+        getExecutableKind() === 'bun' &&
+        !runtimeFallbackAttempted;
+      const electronNodeRuntimeOverride = shouldTryElectronNodeFallback
+        ? enableElectronNodeRuntimeFallback()
+        : null;
+      const canRetryWithElectronNode = electronNodeRuntimeOverride !== null;
+
+      if (canRetryWithElectronNode) {
+        debug('[ClaudeAgent] Outer catch detected local Bun runtime crash on macOS arm64, retrying with Electron Node.js fallback');
+        yield {
+          type: 'info',
+          message: 'Claude runtime crashed on startup. Retrying with compatibility mode...',
+        };
+        yield* this.chat(userMessage, attachments, {
+          isRetry: _isRetry,
+          runtimeFallbackAttempted: true,
+          runtimeOverride: electronNodeRuntimeOverride ?? undefined,
+          suppressRecoveryInfo,
+        });
+        return;
+      }
 
       if (wasResuming && !_isRetry && this.isSessionExpiredError(errorMessage, stderrContext)) {
         debug('[SESSION_DEBUG] >>> TAKING PATH: Outer catch session expired recovery');
@@ -1854,7 +1940,16 @@ export class ClaudeAgent extends BaseAgent {
       const typedError = parseError(error);
       if (typedError.code !== 'unknown_error') {
         // Known error type - show user-friendly message with recovery actions
-        yield { type: 'typed_error', error: typedError };
+        yield {
+          type: 'typed_error',
+          error: {
+            ...typedError,
+            details: stderrContext
+              ? [`SDK stderr: ${stderrContext}`]
+              : typedError.details,
+            originalError: stderrContext || typedError.originalError || errorMessage,
+          },
+        };
       } else {
         // Unknown error - show raw message
         yield { type: 'error', message: errorMessage };

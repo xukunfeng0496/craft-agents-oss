@@ -1,6 +1,13 @@
 import { beforeEach, describe, expect, it, mock } from 'bun:test';
 
 const queryMock = mock();
+const enableElectronNodeRuntimeFallbackMock = mock(() => ({
+  executable: process.execPath,
+  executableKind: 'node' as const,
+  env: { ELECTRON_RUN_AS_NODE: '1' },
+  disableInterceptorPreload: true,
+}));
+const getExecutableKindMock = mock(() => 'bun');
 
 mock.module('@anthropic-ai/claude-agent-sdk', () => ({
   query: queryMock,
@@ -12,6 +19,8 @@ mock.module('@anthropic-ai/claude-agent-sdk', () => ({
 mock.module('../options.ts', () => ({
   getDefaultOptions: async () => ({}),
   resetClaudeConfigCheck: () => {},
+  enableElectronNodeRuntimeFallback: enableElectronNodeRuntimeFallbackMock,
+  getExecutableKind: getExecutableKindMock,
 }));
 
 mock.module('../../config/preferences.ts', () => ({
@@ -34,6 +43,113 @@ async function collectEvents(iterator: AsyncGenerator<any>): Promise<any[]> {
 describe('ClaudeAgent session recovery', () => {
   beforeEach(() => {
     queryMock.mockReset();
+    enableElectronNodeRuntimeFallbackMock.mockReset();
+    enableElectronNodeRuntimeFallbackMock.mockImplementation(() => ({
+      executable: process.execPath,
+      executableKind: 'node' as const,
+      env: { ELECTRON_RUN_AS_NODE: '1' },
+      disableInterceptorPreload: true,
+    }));
+    getExecutableKindMock.mockReset();
+    getExecutableKindMock.mockImplementation(() => 'bun');
+  });
+
+  it('retries with Electron Node fallback after SIGABRT on macOS arm64', async () => {
+    const queryCalls: Array<{ prompt: unknown; options: Record<string, unknown> }> = [];
+
+    queryMock.mockImplementation(({ prompt, options }: { prompt: unknown; options: Record<string, unknown> }) => {
+      queryCalls.push({ prompt, options });
+
+      if (queryCalls.length === 1) {
+        throw new Error('Claude Code process terminated by signal SIGABRT');
+      }
+
+      return (async function* () {
+        yield {
+          type: 'assistant',
+          message: {
+            content: [{ type: 'text', text: 'Recovered with node fallback' }],
+            usage: {
+              input_tokens: 10,
+              cache_read_input_tokens: 0,
+              cache_creation_input_tokens: 0,
+            },
+          },
+          parent_tool_use_id: null,
+          session_id: 'fallback-sdk-session',
+          isReplay: false,
+        };
+
+        yield {
+          type: 'stream_event',
+          event: {
+            type: 'message_delta',
+            delta: { stop_reason: 'end_turn' },
+          },
+          parent_tool_use_id: null,
+          session_id: 'fallback-sdk-session',
+        };
+
+        yield {
+          type: 'result',
+          subtype: 'success',
+          usage: {
+            input_tokens: 10,
+            output_tokens: 20,
+            cache_read_input_tokens: 0,
+            cache_creation_input_tokens: 0,
+          },
+          modelUsage: {},
+          total_cost_usd: 0,
+        };
+      })();
+    });
+
+    const originalPlatform = process.platform;
+    const originalArch = process.arch;
+    Object.defineProperty(process, 'platform', { value: 'darwin' });
+    Object.defineProperty(process, 'arch', { value: 'arm64' });
+
+    try {
+      const agent = new ClaudeAgent({
+        workspace: {
+          id: 'ws-1',
+          name: 'Test Workspace',
+          rootPath: '/tmp',
+          createdAt: Date.now(),
+        },
+        session: {
+          id: 'session-1',
+          workspaceRootPath: '/tmp',
+          createdAt: Date.now(),
+          lastUsedAt: Date.now(),
+        },
+        model: 'claude-sonnet-4-20250514',
+        isHeadless: true,
+      });
+
+      const events = await collectEvents(agent.chat('Trigger fallback'));
+
+      expect(queryCalls).toHaveLength(2);
+      expect(enableElectronNodeRuntimeFallbackMock).toHaveBeenCalledTimes(1);
+      expect(events).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            type: 'info',
+            message: 'Claude runtime crashed on startup. Retrying with compatibility mode...',
+          }),
+          expect.objectContaining({
+            type: 'text_complete',
+            text: 'Recovered with node fallback',
+          }),
+        ]),
+      );
+
+      agent.destroy();
+    } finally {
+      Object.defineProperty(process, 'platform', { value: originalPlatform });
+      Object.defineProperty(process, 'arch', { value: originalArch });
+    }
   });
 
   it('retries fresh when resume fails before streaming starts', async () => {

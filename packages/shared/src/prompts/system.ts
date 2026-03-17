@@ -7,6 +7,7 @@ import { PERMISSION_MODE_CONFIG } from '../agent/mode-types.ts';
 import { FEATURE_FLAGS } from '../feature-flags.ts';
 import { APP_VERSION } from '../version/index.ts';
 import { readPluginName } from '../utils/workspace.ts';
+import { AGENTS_PLUGIN_NAME } from '../skills/types.ts';
 import { globSync } from 'glob';
 import os from 'os';
 
@@ -454,7 +455,7 @@ Sources are external data connections. Each source has:
 - Skills: \`${workspacePath}/skills/{slug}/\`
 - Theme: \`${workspacePath}/theme.json\`
 
-**SDK Plugin:** This workspace is mounted as a Claude Code SDK plugin. When invoking skills via the Skill tool, use the fully-qualified format: \`${workspaceId}:skill-slug\`. For example, to invoke a skill named "commit", use \`${workspaceId}:commit\`.
+**SDK Plugin:** This workspace is mounted as a Claude Code SDK plugin. When invoking skills via the Skill tool, use fully-qualified names only. Workspace skills use \`${workspaceId}:skill-slug\`. Project-level and global skills use \`${AGENTS_PLUGIN_NAME}:skill-slug\`. Never invoke a skill with a bare slug like \`commit\`, \`xlsx\`, or \`pdf\`; prefer the exact fully-qualified names shown in \`<available_skills>\`.
 
 ## Project Context
 

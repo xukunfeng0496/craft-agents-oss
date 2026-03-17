@@ -1214,10 +1214,11 @@ export function registerIpcHandlers(sessionManager: SessionManager, windowManage
   })
 
   // Auto-update handlers
-  // Manual check from UI - don't auto-download (user might be on metered connection)
+  // Manual checks from renderer should behave like a normal app updater:
+  // once an update is found, start downloading immediately.
   ipcMain.handle(IPC_CHANNELS.UPDATE_CHECK, async () => {
     const { checkForUpdates } = await import('./auto-update')
-    return checkForUpdates({ autoDownload: false })
+    return checkForUpdates({ autoDownload: true })
   })
 
   ipcMain.handle(IPC_CHANNELS.UPDATE_GET_INFO, async () => {

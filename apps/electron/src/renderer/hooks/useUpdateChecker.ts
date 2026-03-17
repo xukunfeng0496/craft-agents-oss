@@ -145,7 +145,7 @@ export function useUpdateChecker(): UseUpdateCheckerResult {
       cleanupAvailable()
       cleanupProgress()
     }
-  }, [showUpdateToast, installUpdate])
+  }, [showUpdateToast, showManualDownloadToast, installUpdate])
 
   // Check for updates manually
   const checkForUpdates = useCallback(async () => {
@@ -156,6 +156,11 @@ export function useUpdateChecker(): UseUpdateCheckerResult {
       if (!info.available) {
         toast.success('You\'re up to date', {
           description: `Version ${info.currentVersion} is the latest.`,
+          duration: 3000,
+        })
+      } else if (info.downloadState === 'downloading' && info.latestVersion) {
+        toast.info(`Downloading v${info.latestVersion}`, {
+          description: 'The update is downloading in the background.',
           duration: 3000,
         })
       } else if (info.downloadState === 'ready' && info.latestVersion) {

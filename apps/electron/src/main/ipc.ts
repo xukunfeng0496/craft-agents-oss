@@ -21,7 +21,7 @@ import { isValidThinkingLevel } from '@work-agent/shared/agent/thinking-levels'
 import { getCredentialManager } from '@work-agent/shared/credentials'
 import { AppServerClient, getCodexPath } from '@work-agent/shared/codex'
 import type { ModelDefinition } from '@work-agent/shared/config'
-import { isUsableGitBashPath, validateGitBashPath } from './git-bash'
+import { getBundledUsableGitBashPath, isUsableGitBashPath, validateGitBashPath } from './git-bash'
 import { detectMissingTools } from './tool-detection'
 import { installTool } from './tool-installer'
 import { initializeBundledSkills } from './bundled-skills'
@@ -1250,13 +1250,16 @@ export function registerIpcHandlers(sessionManager: SessionManager, windowManage
       return { found: true, path: null, platform }
     }
 
-    // Check common Git Bash installation paths
+    const bundledPath = await getBundledUsableGitBashPath()
+
+    // Check bundled shell first, then common external Git Bash installation paths
     const commonPaths = [
+      bundledPath,
       'C:\\Program Files\\Git\\bin\\bash.exe',
       'C:\\Program Files (x86)\\Git\\bin\\bash.exe',
       join(process.env.LOCALAPPDATA || '', 'Programs', 'Git', 'bin', 'bash.exe'),
       join(process.env.PROGRAMFILES || '', 'Git', 'bin', 'bash.exe'),
-    ]
+    ].filter((value): value is string => Boolean(value))
 
     // Check if we have a persisted path from a previous session
     const persistedPath = getGitBashPath()

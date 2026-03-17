@@ -85,7 +85,7 @@ import log, { isDebugMode, mainLog, getLogFilePath } from './logger'
 import { setPerfEnabled, enableDebug } from '@work-agent/shared/utils'
 import { initNotificationService, clearBadgeCount, initBadgeIcon, initInstanceBadge } from './notifications'
 import { checkForUpdatesOnLaunch, setWindowManager as setAutoUpdateWindowManager, isUpdating } from './auto-update'
-import { validateGitBashPath } from './git-bash'
+import { getBundledUsableGitBashPath, validateGitBashPath } from './git-bash'
 import { initializeBundledSkills, initializeBundledSkillsForExistingWorkspaces } from './bundled-skills'
 
 // Initialize electron-log for renderer process support
@@ -320,6 +320,12 @@ app.whenReady().then(async () => {
           clearGitBashPath()
           delete process.env.CLAUDE_CODE_GIT_BASH_PATH
           mainLog.warn(`Cleared invalid persisted Git Bash path: ${gitBashPath}`)
+        }
+      } else {
+        const bundledGitBashPath = await getBundledUsableGitBashPath()
+        if (bundledGitBashPath) {
+          process.env.CLAUDE_CODE_GIT_BASH_PATH = bundledGitBashPath
+          mainLog.info(`Using bundled Windows shell for Claude Code: ${bundledGitBashPath}`)
         }
       }
     }

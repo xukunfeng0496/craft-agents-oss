@@ -18,7 +18,7 @@ describe('git-bash helpers', () => {
   it('recognizes bash.exe paths with different separators', () => {
     expect(isGitBashExecutablePath('C:\\Program Files\\Git\\bin\\bash.exe')).toBe(true)
     expect(isGitBashExecutablePath('/tmp/git/bin/bash.exe')).toBe(true)
-    expect(isGitBashExecutablePath('/tmp/git/bin/sh.exe')).toBe(false)
+    expect(isGitBashExecutablePath('/tmp/git/usr/bin/sh.exe')).toBe(true)
   })
 
   it('rejects non-bash executable names', async () => {
@@ -28,7 +28,7 @@ describe('git-bash helpers', () => {
     const result = await validateGitBashPath(fakePath)
     expect(result.valid).toBe(false)
     if (!result.valid) {
-      expect(result.error).toBe('Path must point to bash.exe')
+      expect(result.error).toBe('Path must point to bash.exe or sh.exe')
     }
   })
 
@@ -50,5 +50,17 @@ describe('git-bash helpers', () => {
       expect(result.path).toBe(bashPath)
     }
     await expect(isUsableGitBashPath(bashPath)).resolves.toBe(true)
+  })
+
+  it('accepts existing sh.exe files', async () => {
+    const shellPath = join(tempDir, 'sh.exe')
+    writeFileSync(shellPath, 'echo sh')
+
+    const result = await validateGitBashPath(shellPath)
+    expect(result.valid).toBe(true)
+    if (result.valid) {
+      expect(result.path).toBe(shellPath)
+    }
+    await expect(isUsableGitBashPath(shellPath)).resolves.toBe(true)
   })
 })

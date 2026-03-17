@@ -100,6 +100,40 @@ describe('icon-cache null handling', () => {
       ).rejects.toThrow('IPC failed')
     })
   })
+
+  describe('workspace guards', () => {
+    it('loadSourceIcon skips IPC when workspaceId is empty', async () => {
+      const { clearIconCaches, loadSourceIcon } = await import('../icon-cache')
+      clearIconCaches()
+
+      const result = await loadSourceIcon({
+        workspaceId: '',
+        config: {
+          slug: 'test-source',
+          name: 'Test Source',
+          type: 'mcp',
+          icon: './icon.svg',
+        },
+      })
+
+      expect(result).toBeNull()
+      expect(mockReadWorkspaceImage).not.toHaveBeenCalled()
+    })
+
+    it('loadSkillIcon skips IPC when workspaceId is empty', async () => {
+      const { clearIconCaches, loadSkillIcon } = await import('../icon-cache')
+      clearIconCaches()
+
+      const result = await loadSkillIcon({
+        slug: 'test-skill',
+        iconPath: '/tmp/skills/test-skill/icon.svg',
+        metadata: {},
+      }, '')
+
+      expect(result).toBeNull()
+      expect(mockReadWorkspaceImage).not.toHaveBeenCalled()
+    })
+  })
 })
 
 // ============================================================================

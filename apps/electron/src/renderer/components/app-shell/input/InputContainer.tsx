@@ -58,6 +58,7 @@ export function InputContainer({
     compactMode ? FALLBACK_HEIGHTS['freeform-compact'] : FALLBACK_HEIGHTS.freeform
   )
   const [structuredHeight, setStructuredHeight] = React.useState<number | null>(null)
+  const [reportedStructuredHeight, setReportedStructuredHeight] = React.useState<number | null>(null)
   const [containerWidth, setContainerWidth] = React.useState<number>(600)
   const [isFocused, setIsFocused] = React.useState(false)
   const hasInitializedRef = React.useRef(false)
@@ -77,8 +78,16 @@ export function InputContainer({
     return () => observer.disconnect()
   }, [])
 
+  const structuredRequestKey = React.useMemo(() => {
+    if (!structuredInput) return 'none'
+    const data = structuredInput.data as { requestId?: string; sessionId?: string }
+    return data.requestId ?? data.sessionId ?? structuredInput.type
+  }, [structuredInput])
+
   // Create a stable key for the current content
-  const contentKey = mode === 'freeform' ? 'freeform' : `structured-${structuredInput?.type}`
+  const contentKey = mode === 'freeform'
+    ? 'freeform'
+    : `structured-${structuredInput?.type}-${structuredRequestKey}`
 
   // Track mode transitions - animate height for a short period after mode change
   const [isAnimating, setIsAnimating] = React.useState(false)
@@ -93,6 +102,7 @@ export function InputContainer({
   React.useEffect(() => {
     if (isTransitioning) {
       prevContentKeyRef.current = contentKey
+      setReportedStructuredHeight(null)
       setIsAnimating(true)
       // Keep animating for the transition duration + a bit extra for measurement settle
       const timer = setTimeout(() => {
@@ -158,7 +168,12 @@ export function InputContainer({
   // Use appropriate height source based on mode
   const targetHeight = mode === 'freeform'
     ? freeformHeight
-    : (structuredHeight ?? FALLBACK_HEIGHTS[structuredInput?.type ?? 'freeform'] ?? FALLBACK_HEIGHTS.freeform)
+    : (
+        reportedStructuredHeight ??
+        structuredHeight ??
+        FALLBACK_HEIGHTS[structuredInput?.type ?? 'freeform'] ??
+        FALLBACK_HEIGHTS.freeform
+      )
 
   // Motion value for frame-synchronized height animation
   const heightMotionValue = useMotionValue(targetHeight)
@@ -191,6 +206,11 @@ export function InputContainer({
     onStructuredResponse?.(response)
   }
 
+  const handleStructuredHeightChange = React.useCallback((height: number) => {
+    if (!(height > 0)) return
+    setReportedStructuredHeight(prev => (prev === height ? prev : height))
+  }, [])
+
   // Render the current content (measuring div only for structured, freeform uses callback)
   const renderContent = (forMeasuring: boolean) => {
     if (mode === 'freeform') {
@@ -211,6 +231,7 @@ export function InputContainer({
         state={structuredInput!}
         onResponse={forMeasuring ? () => {} : handleStructuredResponse}
         unstyled
+        onHeightChange={forMeasuring ? undefined : handleStructuredHeightChange}
       />
     )
   }

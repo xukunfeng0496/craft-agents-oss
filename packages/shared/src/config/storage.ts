@@ -1838,6 +1838,7 @@ export function updateLlmConnection(slug: string, updates: Partial<Omit<LlmConne
     baseUrl: updates.baseUrl !== undefined ? updates.baseUrl : existing.baseUrl,
     models: updates.models !== undefined ? updates.models : existing.models,
     defaultModel: updates.defaultModel !== undefined ? updates.defaultModel : existing.defaultModel,
+    capabilities: updates.capabilities !== undefined ? updates.capabilities : existing.capabilities,
     codexPath: updates.codexPath !== undefined ? updates.codexPath : existing.codexPath,
     // Cloud provider fields
     awsRegion: updates.awsRegion !== undefined ? updates.awsRegion : existing.awsRegion,

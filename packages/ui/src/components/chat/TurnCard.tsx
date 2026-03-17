@@ -23,13 +23,13 @@ import {
 } from 'lucide-react'
 import * as ReactDOM from 'react-dom'
 import { cn } from '../../lib/utils'
-import { Markdown } from '../markdown'
+import { Markdown, StreamingMarkdown } from '../markdown'
 import { Spinner } from '../ui/LoadingIndicator'
 import { Tooltip, TooltipTrigger, TooltipContent } from '../tooltip'
 import { parseDiffFromFile, type FileContents } from '@pierre/diffs'
 import { getDiffStats, getUnifiedDiffStats } from '../code-viewer'
 import { TurnCardActionsMenu } from './TurnCardActionsMenu'
-import { computeLastChildSet, groupActivitiesByParent, isActivityGroup, formatDuration, formatTokens, deriveTurnPhase, shouldShowThinkingIndicator, type ActivityGroup, type AssistantTurn } from './turn-utils'
+import { areActivityListsEqual, areResponseContentsEqual, areTodoListsEqual, computeLastChildSet, groupActivitiesByParent, isActivityGroup, formatDuration, formatTokens, deriveTurnPhase, shouldShowThinkingIndicator, type ActivityGroup, type AssistantTurn } from './turn-utils'
 import { DocumentFormattedMarkdownOverlay } from '../overlay'
 import { AcceptPlanDropdown } from './AcceptPlanDropdown'
 
@@ -1587,13 +1587,13 @@ export function ResponseCard({
           }),
         }}
       >
-        <Markdown
+        <StreamingMarkdown
+          content={displayedText}
+          isStreaming={true}
           mode="minimal"
           onUrlClick={onOpenUrl}
           onFileClick={onOpenFile}
-        >
-          {displayedText}
-        </Markdown>
+        />
       </div>
 
       {/* Footer - hidden in compact mode */}
@@ -2149,9 +2149,13 @@ export const TurnCard = React.memo(function TurnCard({
 
   // Re-render if displayMode changed
   if (prev.displayMode !== next.displayMode) return false
+  if (prev.compactMode !== next.compactMode) return false
+  if (prev.sessionFolderPath !== next.sessionFolderPath) return false
+  if (prev.intent !== next.intent) return false
 
-  // Re-render if activities changed (important for playground/testing scenarios)
-  if (prev.activities !== next.activities) return false
+  if (!areActivityListsEqual(prev.activities, next.activities)) return false
+  if (!areResponseContentsEqual(prev.response, next.response)) return false
+  if (!areTodoListsEqual(prev.todos, next.todos)) return false
 
   // For complete, non-streaming turns: skip re-render if same turn
   // These are static and safe to cache

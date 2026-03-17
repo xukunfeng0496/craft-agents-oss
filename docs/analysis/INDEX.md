@@ -70,6 +70,27 @@
 - 关键冲突：最小（主要是新增）
 - 风险等级：低
 
+### 6. 功耗基线分析
+**文件：** `2026-03-13-agent-power-baseline.md`
+**分析日期：** 2026-03-13
+**预计时间：** 1 小时
+
+**关键发现：**
+- 前端侧（main + renderer + gpu + utility）占总 CPU 的 97.0%
+- `renderer` 是主要持续 CPU 来源，`gpu` 是第二大持续来源
+- `claude_sdk` 有短时尖峰，但不是主要持续负载
+- 当前优化优先级应先看 renderer / GPU，而不是 agent backend
+
+### 7. 功耗优化进展
+**文件：** `2026-03-13-agent-power-optimization-progress.md`
+**分析日期：** 2026-03-13
+**预计时间：** 1 小时
+
+**关键发现：**
+- `loadSession` 高频读盘风暴已被缓存修复压住
+- streaming 期间的 `ResizeObserver` / `smoothScroll` / 输入区高度补偿噪声已基本清掉
+- 当前剩余高 ROI 热点已经转移到 renderer 的 streaming 内容更新传播范围
+
 ---
 
 ## 🎯 推荐执行顺序

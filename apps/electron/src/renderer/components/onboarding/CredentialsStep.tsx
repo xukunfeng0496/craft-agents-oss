@@ -230,7 +230,7 @@ export function CredentialsStep({
           <>
             <BackButton onClick={onBack} disabled={status === 'validating'}>{labels.back}</BackButton>
             <ContinueButton
-              onClick={onStartOAuth}
+              onClick={() => onStartOAuth?.()}
               className="gap-2"
               loading={status === 'validating'}
               loadingText={t('onboarding:credentials.oauthConnect.loading')}

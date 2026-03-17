@@ -1,5 +1,5 @@
 import { query, createSdkMcpServer, tool, AbortError, type Query, type SDKUserMessage, type SDKAssistantMessageError, type Options } from '@anthropic-ai/claude-agent-sdk';
-import { getDefaultOptions, resetClaudeConfigCheck } from './options.ts';
+import { getDefaultOptions, resetClaudeConfigCheck, enableElectronNodeRuntimeFallback, getExecutableKind } from './options.ts';
 import type { ContentBlockParam } from '@anthropic-ai/sdk/resources';
 import { z } from 'zod';
 import { getSystemPrompt } from '../prompts/system.ts';
@@ -12,7 +12,14 @@ import { getLastApiError } from '../network-interceptor.ts';
 import { loadStoredConfig, loadConfigDefaults, type Workspace, type AuthType, getDefaultLlmConnection, getLlmConnection } from '../config/storage.ts';
 import { isLocalMcpEnabled } from '../workspaces/storage.ts';
 import { loadPlanFromPath, type SessionConfig as Session } from '../sessions/storage.ts';
-import { DEFAULT_MODEL, isClaudeModel, getDefaultSummarizationModel } from '../config/models.ts';
+import {
+  DEFAULT_MODEL,
+  getDefaultSummarizationModel,
+  isClaudeModel,
+  type ModelCapabilityOverrides,
+  supportsDocumentBlocks,
+  supportsVision,
+} from '../config/models.ts';
 import { getCredentialManager } from '../credentials/index.ts';
 import { updatePreferences, loadPreferences, formatPreferencesForPrompt, type UserPreferences } from '../config/preferences.ts';
 import type { FileAttachment } from '../utils/files.ts';
@@ -141,6 +148,10 @@ export interface ClaudeAgentConfig {
   envOverrides?: Record<string, string>;
   /** Mini/utility model for summarization, title generation, and mini completions. */
   miniModel?: string;
+  /** Browser automation functions (session-scoped) */
+  getBrowserPaneFns?: () => any;
+  /** Optional capability overrides for the active routed/custom model. */
+  modelCapabilities?: ModelCapabilityOverrides;
 }
 
 // Permission request tracking
@@ -381,6 +392,60 @@ export class ClaudeAgent extends BaseAgent {
     return this.config.workspace.rootPath;
   }
 
+  private isSessionExpiredError(rawErrorMsg: string, stderrContext?: string): boolean {
+    const combined = [rawErrorMsg, stderrContext]
+      .filter((value): value is string => Boolean(value))
+      .join('\n')
+      .toLowerCase();
+
+    return combined.includes('no conversation found with session id');
+  }
+
+  private isLocalRuntimeCrash(rawErrorMsg: string, stderrContext?: string): boolean {
+    const combined = [rawErrorMsg, stderrContext]
+      .filter((value): value is string => Boolean(value))
+      .join('\n')
+      .toLowerCase();
+
+    return (
+      combined.includes('terminated by signal sigabrt') ||
+      combined.includes('terminated by signal sigsegv') ||
+      combined.includes('terminated by signal sigill') ||
+      combined.includes('terminated by signal sigtrap') ||
+      combined.includes('abort trap: 6')
+    );
+  }
+
+  private clearSessionStateForRecovery(): void {
+    const hadSessionId = this.sessionId !== null;
+    this.sessionId = null;
+    if (hadSessionId) {
+      this.config.onSdkSessionIdCleared?.();
+    }
+    this.pinnedPreferencesPrompt = null;
+    this.preferencesDriftNotified = false;
+  }
+
+  private buildRecoveryRetryMessage(userMessage: string): string {
+    const recoveryContext = this.buildRecoveryContext();
+    return recoveryContext
+      ? recoveryContext + userMessage
+      : userMessage;
+  }
+
+  private async *retryFreshSession(
+    userMessage: string,
+    attachments: FileAttachment[] | undefined,
+    infoMessage: string,
+    suppressInfo = false,
+  ): AsyncGenerator<AgentEvent> {
+    this.clearSessionStateForRecovery();
+    if (!suppressInfo) {
+      yield { type: 'info', message: infoMessage };
+    }
+    yield* this.chat(this.buildRecoveryRetryMessage(userMessage), attachments, { isRetry: true });
+  }
+
   // Callback for permission requests - set by application to receive permission prompts
   public onPermissionRequest: ((request: { requestId: string; toolName: string; command?: string; description: string; type?: PermissionRequestType }) => void) | null = null;
 
@@ -433,6 +498,8 @@ export class ClaudeAgent extends BaseAgent {
       getRecoveryMessages: config.getRecoveryMessages,
       envOverrides: config.envOverrides,
       miniModel: config.miniModel,
+      getBrowserPaneFns: config.getBrowserPaneFns,
+      modelCapabilities: config.modelCapabilities,
     };
 
     // Call BaseAgent constructor - initializes model, thinkingLevel, permissionManager, sourceManager, etc.
@@ -486,6 +553,7 @@ export class ClaudeAgent extends BaseAgent {
         this.onDebug?.(`[ClaudeAgent] onQuestionRequest received: ${request.requestId}`);
         this.onQuestionRequest?.(request);
       },
+      getBrowserPaneFns: this.config.getBrowserPaneFns,
     });
 
     // Start config watcher for hot-reloading source changes
@@ -596,9 +664,17 @@ export class ClaudeAgent extends BaseAgent {
   ): AsyncGenerator<AgentEvent> {
     // Extract options (ChatOptions interface from AgentBackend)
     const _isRetry = options?.isRetry ?? false;
+    const runtimeFallbackAttempted = options?.runtimeFallbackAttempted ?? false;
+    const runtimeOverride = options?.runtimeOverride;
+    const suppressRecoveryInfo = options?.suppressRecoveryInfo ?? false;
+    let wasResuming = false;
 
     try {
       const sessionId = this.config.session?.id || `temp-${Date.now()}`;
+      const model = this._model;
+      const isClaude = isClaudeModel(model);
+      const allowInlineImages = supportsVision(model, this.config.modelCapabilities);
+      const allowInlinePdf = supportsDocumentBlocks(model, this.config.modelCapabilities);
 
       // Pin system prompt components on first chat() call for consistency after compaction
       // The SDK's resume mechanism expects system prompt consistency within a session
@@ -622,8 +698,11 @@ export class ClaudeAgent extends BaseAgent {
         }
       }
 
-      // Check if we have binary attachments that need the AsyncIterable interface
-      const hasBinaryAttachments = attachments?.some(a => a.type === 'image' || a.type === 'pdf');
+      // Only inline-upload PDFs for Claude-native models. Other routed models should
+      // rely on stored path references and native tools instead of Anthropic document blocks.
+      const hasBinaryAttachments = attachments?.some(a =>
+        (a.type === 'image' && allowInlineImages) || (a.type === 'pdf' && allowInlinePdf)
+      );
 
       // Validate we have something to send
       if (!userMessage.trim() && (!attachments || attachments.length === 0)) {
@@ -673,10 +752,6 @@ export class ClaudeAgent extends BaseAgent {
         ? this.filterMcpServersForMiniAgent(fullMcpServers, miniConfig.mcpServerKeys)
         : fullMcpServers;
       
-      // Configure SDK options
-      // Model is always set by caller via connection config
-      const model = this._model;
-
       // Log provider context for diagnostics (custom base URL = third-party provider)
       const defaultConnSlug = getDefaultLlmConnection();
       const defaultConn = defaultConnSlug ? getLlmConnection(defaultConnSlug) : null;
@@ -707,10 +782,6 @@ export class ClaudeAgent extends BaseAgent {
         }
       }
 
-      // Detect if resolved model is Claude — non-Claude models (via OpenRouter/Ollama) don't
-      // support Anthropic-specific betas or extended thinking parameters
-      const isClaude = isClaudeModel(model);
-
       // Log mini agent mode details (using centralized config)
       if (miniConfig.enabled) {
         debug('[ClaudeAgent] 🤖 MINI AGENT mode - optimized for quick config edits');
@@ -724,7 +795,7 @@ export class ClaudeAgent extends BaseAgent {
       }
 
       const options: Options = {
-        ...getDefaultOptions(this.config.envOverrides),
+        ...getDefaultOptions(this.config.envOverrides, runtimeOverride),
         model,
         // Capture stderr from SDK subprocess for error diagnostics
         // This helps identify why sessions fail with "process exited with code 1"
@@ -768,11 +839,12 @@ export class ClaudeAgent extends BaseAgent {
         // - Mini agents: minimal set for quick config edits (reduces token count ~70%)
         // - Regular agents: full Claude Code toolset
         tools: (() => {
-          const toolsValue = miniConfig.enabled
-            ? [...miniConfig.tools]  // Use centralized tool list
-            : { type: 'preset' as const, preset: 'claude_code' as const };
-          debug('[ClaudeAgent] 🔧 Tools configuration:', JSON.stringify(toolsValue));
-          return toolsValue;
+          if (miniConfig.enabled) {
+            debug('[ClaudeAgent] 🔧 Tools configuration (mini):', JSON.stringify(miniConfig.tools));
+            return [...miniConfig.tools];
+          }
+          debug('[ClaudeAgent] 🔧 Tools configuration: native Claude Code preset (browser via session MCP:', !!this.config.getBrowserPaneFns, ')');
+          return { type: 'preset' as const, preset: 'claude_code' as const };
         })(),
         // Bypass SDK's built-in permission system - we handle all permissions via PreToolUse hook
         // This allows Safe Mode to properly allow read-only bash commands without SDK interference
@@ -1329,7 +1401,7 @@ export class ClaudeAgent extends BaseAgent {
       };
 
       // Track whether we're trying to resume a session (for error handling)
-      const wasResuming = !_isRetry && !!this.sessionId;
+      wasResuming = !_isRetry && !!this.sessionId;
 
       // Log resume attempt for debugging session failures
       if (wasResuming) {
@@ -1368,7 +1440,10 @@ export class ClaudeAgent extends BaseAgent {
         debug(`[chat] Detected SDK slash command: ${trimmedMessage}`);
         this.currentQuery = query({ prompt: trimmedMessage, options: optionsWithAbort });
       } else if (hasBinaryAttachments) {
-        const sdkMessage = this.buildSDKUserMessage(userMessage, attachments);
+        const sdkMessage = this.buildSDKUserMessage(userMessage, attachments, {
+          inlineImages: allowInlineImages,
+          inlinePdf: allowInlinePdf,
+        });
         async function* singleMessage(): AsyncIterable<SDKUserMessage> {
           yield sdkMessage;
         }
@@ -1401,9 +1476,40 @@ export class ClaudeAgent extends BaseAgent {
           }
           // Also track text_delta events as assistant content (nested in stream_event)
           if ('type' in message && message.type === 'stream_event' && 'event' in message) {
-            const event = (message as { event: { type: string } }).event;
-            if (event.type === 'content_block_delta' || event.type === 'message_start') {
+            const event = (message as {
+              event: {
+                type: string;
+                content_block?: { type?: string };
+              };
+            }).event;
+            if (
+              event.type === 'content_block_delta' ||
+              (
+                event.type === 'content_block_start' &&
+                (event.content_block?.type === 'text' || event.content_block?.type === 'tool_use')
+              )
+            ) {
               receivedAssistantContent = true;
+            }
+          }
+
+          if ('type' in message && message.type === 'result') {
+            const resultMessage = message as {
+              subtype?: string;
+              errors?: string[];
+            };
+            const resultErrorMsg = resultMessage.subtype === 'success'
+              ? null
+              : Array.isArray(resultMessage.errors) && resultMessage.errors.length > 0
+                ? resultMessage.errors.join(', ')
+                : 'Query failed';
+
+            if (wasResuming && !_isRetry && resultErrorMsg && this.isSessionExpiredError(resultErrorMsg)) {
+              debug('[SESSION_DEBUG] >>> TAKING PATH: Result-based session expired recovery');
+              console.error('[ClaudeAgent] SDK session expired via result payload, clearing and retrying fresh');
+              debug('[ClaudeAgent] SDK session expired via result payload, clearing and retrying fresh');
+              yield* this.retryFreshSession(userMessage, attachments, 'Session expired, restoring context...', suppressRecoveryInfo);
+              return;
             }
           }
 
@@ -1475,23 +1581,7 @@ export class ClaudeAgent extends BaseAgent {
         debug('[SESSION_DEBUG] Post-loop check: wasResuming=', wasResuming, 'receivedAssistantContent=', receivedAssistantContent, '_isRetry=', _isRetry);
         if (wasResuming && !receivedAssistantContent && !_isRetry) {
           debug('[SESSION_DEBUG] >>> DETECTED EMPTY RESPONSE - triggering recovery');
-          // SDK resume failed silently - clear session and retry with context
-          this.sessionId = null;
-          // Notify that we're clearing the session ID (for persistence)
-          this.config.onSdkSessionIdCleared?.();
-          // Clear pinned state for fresh start
-          this.pinnedPreferencesPrompt = null;
-          this.preferencesDriftNotified = false;
-
-          // Build recovery context from previous messages to inject into retry
-          const recoveryContext = this.buildRecoveryContext();
-          const messageWithContext = recoveryContext
-            ? recoveryContext + userMessage
-            : userMessage;
-
-          yield { type: 'info', message: 'Restoring conversation context...' };
-          // Retry with fresh session, injecting conversation history into the message
-          yield* this.chat(messageWithContext, attachments, { isRetry: true });
+          yield* this.retryFreshSession(userMessage, attachments, 'Restoring conversation context...', suppressRecoveryInfo);
           return;
         }
 
@@ -1521,9 +1611,11 @@ export class ClaudeAgent extends BaseAgent {
           // For later messages (messageCount > 0), keep the session ID to preserve conversation history.
           // The SDK session file should have valid previous turns we can resume from.
           if (!receivedAssistantContent && this.sessionId) {
-            // Check if there are previous messages (completed turns) in this session
-            // If yes, keep the session ID to preserve history on resume
-            const hasCompletedTurns = this.config.getRecoveryMessages && this.config.getRecoveryMessages().length > 0;
+            // Only preserve the SDK session if we have at least one completed assistant turn.
+            // A queued follow-up user message can already be persisted by the app layer when
+            // the current turn is interrupted; that should not count as resumable history.
+            const recoveryMessages = this.config.getRecoveryMessages?.() ?? [];
+            const hasCompletedTurns = recoveryMessages.some((message) => message.type === 'assistant');
 
             if (!hasCompletedTurns) {
               // First message was interrupted before any response - SDK session is empty/corrupt
@@ -1551,10 +1643,21 @@ export class ClaudeAgent extends BaseAgent {
         // parseError() will detect status codes (402, 401, etc.) in the raw message.
         const rawErrorMsg = sdkError instanceof Error ? sdkError.message : String(sdkError);
         const errorMsg = rawErrorMsg.toLowerCase();
+        const stderrContext = this.lastStderrOutput.length > 0
+          ? this.lastStderrOutput.join('\n')
+          : undefined;
 
         // Debug logging - always log the actual error and context
         this.onDebug?.(`Error in chat: ${rawErrorMsg}`);
         this.onDebug?.(`Context: wasResuming=${wasResuming}, isRetry=${_isRetry}`);
+
+        if (wasResuming && !_isRetry && this.isSessionExpiredError(rawErrorMsg, stderrContext)) {
+          debug('[SESSION_DEBUG] >>> TAKING PATH: Session expired recovery');
+          console.error('[ClaudeAgent] SDK session expired server-side, clearing and retrying fresh');
+          debug('[ClaudeAgent] SDK session expired server-side, clearing and retrying fresh');
+          yield* this.retryFreshSession(userMessage, attachments, 'Session expired, restoring context...', suppressRecoveryInfo);
+          return;
+        }
 
         // Check for auth errors - these won't be fixed by clearing session
         const isAuthError =
@@ -1642,30 +1745,50 @@ export class ClaudeAgent extends BaseAgent {
 
         if (isProcessError) {
           // Include captured stderr in diagnostics - this is often where the real error is
-          const stderrContext = this.lastStderrOutput.length > 0
-            ? this.lastStderrOutput.join('\n')
-            : undefined;
           if (stderrContext) {
             debug('[SDK process error] Captured stderr:', stderrContext);
           }
 
-          // Check for expired session error - SDK session no longer exists server-side
-          // This happens when sessions expire (TTL) or are cleaned up by Anthropic
-          const isSessionExpired = stderrContext?.includes('No conversation found with session ID');
-          debug('[SESSION_DEBUG] isSessionExpired:', isSessionExpired);
+          const isLocalRuntimeCrash = this.isLocalRuntimeCrash(rawErrorMsg, stderrContext);
+          const shouldTryElectronNodeFallback =
+            isLocalRuntimeCrash &&
+            process.platform === 'darwin' &&
+            process.arch === 'arm64' &&
+            getExecutableKind() === 'bun' &&
+            !runtimeFallbackAttempted;
+          const electronNodeRuntimeOverride = shouldTryElectronNodeFallback
+            ? enableElectronNodeRuntimeFallback()
+            : null;
+          const canRetryWithElectronNode = electronNodeRuntimeOverride !== null;
 
-          if (isSessionExpired && wasResuming && !_isRetry) {
-            debug('[SESSION_DEBUG] >>> TAKING PATH: Session expired recovery');
-            console.error('[ClaudeAgent] SDK session expired server-side, clearing and retrying fresh');
-            debug('[ClaudeAgent] SDK session expired server-side, clearing and retrying fresh');
-            this.sessionId = null;
-            // Clear pinned state so retry captures fresh values
-            this.pinnedPreferencesPrompt = null;
-            this.preferencesDriftNotified = false;
-            // Use 'info' instead of 'status' to show message without spinner
-            yield { type: 'info', message: 'Session expired, restoring context...' };
-            // Recursively call with isRetry=true (yield* delegates all events)
-            yield* this.chat(userMessage, attachments, { isRetry: true });
+          if (canRetryWithElectronNode) {
+            debug('[ClaudeAgent] Detected local Bun runtime crash on macOS arm64, retrying with Electron Node.js fallback');
+            yield {
+              type: 'info',
+              message: 'Claude runtime crashed on startup. Retrying with compatibility mode...',
+            };
+            yield* this.chat(userMessage, attachments, {
+              isRetry: _isRetry,
+              runtimeFallbackAttempted: true,
+              runtimeOverride: electronNodeRuntimeOverride ?? undefined,
+              suppressRecoveryInfo,
+            });
+            return;
+          }
+
+          if (isLocalRuntimeCrash) {
+            const typedError = parseError(new Error(stderrContext || rawErrorMsg));
+            yield {
+              type: 'typed_error',
+              error: {
+                ...typedError,
+                details: stderrContext
+                  ? [`SDK stderr: ${stderrContext}`]
+                  : undefined,
+                originalError: stderrContext || rawErrorMsg,
+              },
+            };
+            yield { type: 'complete' };
             return;
           }
 
@@ -1742,11 +1865,6 @@ export class ClaudeAgent extends BaseAgent {
         debug('[SESSION_DEBUG] isProcessError=false, checking wasResuming fallback');
         if (wasResuming && !_isRetry) {
           debug('[SESSION_DEBUG] >>> TAKING PATH: wasResuming fallback retry');
-          this.sessionId = null;
-          // Clear pinned state so retry captures fresh values
-          this.pinnedPreferencesPrompt = null;
-          this.preferencesDriftNotified = false;
-
           // Provide context-aware message (conservative: only match explicit session/resume terms)
           const isSessionError =
             errorMsg.includes('session') ||
@@ -1755,13 +1873,10 @@ export class ClaudeAgent extends BaseAgent {
           debug('[SESSION_DEBUG] isSessionError (for message):', isSessionError);
 
           const statusMessage = isSessionError
-            ? 'Conversation sync failed, starting fresh...'
-            : 'Request failed, retrying without history...';
+            ? 'Conversation sync failed, restoring context...'
+            : 'Request failed while resuming, restoring context...';
 
-          // Use 'info' instead of 'status' to show message without spinner
-          yield { type: 'info', message: statusMessage };
-          // Recursively call with isRetry=true (yield* delegates all events)
-          yield* this.chat(userMessage, attachments, { isRetry: true });
+          yield* this.retryFreshSession(userMessage, attachments, statusMessage, suppressRecoveryInfo);
           return;
         }
 
@@ -1781,12 +1896,62 @@ export class ClaudeAgent extends BaseAgent {
       console.error(`[ClaudeAgent] Error stack: ${error instanceof Error ? error.stack : 'no stack'}`);
 
       const errorMessage = error instanceof Error ? error.message : String(error);
+      const stderrContext = this.lastStderrOutput.length > 0
+        ? this.lastStderrOutput.join('\n')
+        : undefined;
+      const isLocalRuntimeCrash = this.isLocalRuntimeCrash(errorMessage, stderrContext);
+      const shouldTryElectronNodeFallback =
+        isLocalRuntimeCrash &&
+        process.platform === 'darwin' &&
+        process.arch === 'arm64' &&
+        getExecutableKind() === 'bun' &&
+        !runtimeFallbackAttempted;
+      const electronNodeRuntimeOverride = shouldTryElectronNodeFallback
+        ? enableElectronNodeRuntimeFallback()
+        : null;
+      const canRetryWithElectronNode = electronNodeRuntimeOverride !== null;
+
+      if (canRetryWithElectronNode) {
+        debug('[ClaudeAgent] Outer catch detected local Bun runtime crash on macOS arm64, retrying with Electron Node.js fallback');
+        yield {
+          type: 'info',
+          message: 'Claude runtime crashed on startup. Retrying with compatibility mode...',
+        };
+        yield* this.chat(userMessage, attachments, {
+          isRetry: _isRetry,
+          runtimeFallbackAttempted: true,
+          runtimeOverride: electronNodeRuntimeOverride ?? undefined,
+          suppressRecoveryInfo,
+        });
+        return;
+      }
+
+      if (wasResuming && !_isRetry && this.isSessionExpiredError(errorMessage, stderrContext)) {
+        debug('[SESSION_DEBUG] >>> TAKING PATH: Outer catch session expired recovery');
+        yield* this.retryFreshSession(userMessage, attachments, 'Session expired, restoring context...', suppressRecoveryInfo);
+        return;
+      }
+
+      if (wasResuming && !_isRetry) {
+        debug('[SESSION_DEBUG] >>> TAKING PATH: Outer catch resume recovery');
+        yield* this.retryFreshSession(userMessage, attachments, 'Conversation sync failed, restoring context...', suppressRecoveryInfo);
+        return;
+      }
 
       // Check if this is a recognizable error type
       const typedError = parseError(error);
       if (typedError.code !== 'unknown_error') {
         // Known error type - show user-friendly message with recovery actions
-        yield { type: 'typed_error', error: typedError };
+        yield {
+          type: 'typed_error',
+          error: {
+            ...typedError,
+            details: stderrContext
+              ? [`SDK stderr: ${stderrContext}`]
+              : typedError.details,
+            originalError: stderrContext || typedError.originalError || errorMessage,
+          },
+        };
       } else {
         // Unknown error - show raw message
         yield { type: 'error', message: errorMessage };
@@ -1855,8 +2020,14 @@ export class ClaudeAgent extends BaseAgent {
    * Prepends date/time context for prompt caching optimization (keeps system prompt static)
    * Injects session state (including mode state) for every message
    */
-  private buildSDKUserMessage(text: string, attachments?: FileAttachment[]): SDKUserMessage {
+  private buildSDKUserMessage(
+    text: string,
+    attachments?: FileAttachment[],
+    options?: { inlineImages?: boolean; inlinePdf?: boolean }
+  ): SDKUserMessage {
     const contentBlocks: ContentBlockParam[] = [];
+    const inlineImages = options?.inlineImages ?? true;
+    const inlinePdf = options?.inlinePdf ?? true;
 
     // Add context parts using centralized PromptBuilder
     // This includes: date/time, session state (with plansFolderPath),
@@ -1891,7 +2062,7 @@ export class ClaudeAgent extends BaseAgent {
         }
 
         // Only images and PDFs are uploaded inline (agent cannot read these with Read tool)
-        if (attachment.type === 'image' && attachment.base64) {
+        if (inlineImages && attachment.type === 'image' && attachment.base64) {
           const mediaType = this.mapImageMediaType(attachment.mimeType);
           if (mediaType) {
             contentBlocks.push({
@@ -1903,7 +2074,7 @@ export class ClaudeAgent extends BaseAgent {
               },
             });
           }
-        } else if (attachment.type === 'pdf' && attachment.base64) {
+        } else if (inlinePdf && attachment.type === 'pdf' && attachment.base64) {
           contentBlocks.push({
             type: 'document',
             source: {
@@ -2478,6 +2649,7 @@ export class ClaudeAgent extends BaseAgent {
    * Uses the same auth infrastructure as the main agent.
    */
   async runMiniCompletion(prompt: string): Promise<string | null> {
+    let result = '';
     try {
       if (!this.config.miniModel) {
         throw new Error('ClaudeAgent.runMiniCompletion: config.miniModel is required');
@@ -2491,7 +2663,6 @@ export class ClaudeAgent extends BaseAgent {
         systemPrompt: 'Reply with ONLY the requested text. No explanation.', // Minimal - no Claude Code preset
       };
 
-      let result = '';
       for await (const msg of query({ prompt, options })) {
         if (msg.type === 'assistant') {
           for (const block of msg.message.content) {
@@ -2506,6 +2677,12 @@ export class ClaudeAgent extends BaseAgent {
     } catch (error) {
       this.debug(`[runMiniCompletion] Failed: ${error}`);
       debug(`[ClaudeAgent.runMiniCompletion] Failed: ${error}`);
+      const partialResult = result.trim();
+      if (partialResult) {
+        this.debug('[runMiniCompletion] Returning partial result after error');
+        debug('[ClaudeAgent.runMiniCompletion] Returning partial result after error');
+        return partialResult;
+      }
       return null;
     }
   }

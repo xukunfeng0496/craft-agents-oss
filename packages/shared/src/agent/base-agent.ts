@@ -61,7 +61,8 @@ import {
 // Skill extraction for Codex/Copilot backends (Claude uses native SDK Skill tool)
 import { parseMentions, stripAllMentions } from '../mentions/index.ts';
 import { loadAllSkills } from '../skills/storage.ts';
-import type { LoadedSkill } from '../skills/types.ts';
+import { AGENTS_PLUGIN_NAME, type LoadedSkill } from '../skills/types.ts';
+import { extractWorkspaceSlug } from '../utils/workspace.ts';
 
 // ============================================================
 // Mini Agent Configuration
@@ -266,9 +267,16 @@ export abstract class BaseAgent implements AgentBackend {
    */
   protected formatSkillState(): string | null {
     if (this.cachedSkills.length === 0) return null;
-    const lines = this.cachedSkills.map(s => `- ${s.slug}: ${s.metadata.description}`);
+    const workspaceSlug = extractWorkspaceSlug(this.config.workspace.rootPath, this.config.workspace.id);
+    const lines = this.cachedSkills.map((skill) => {
+      const qualifiedName = skill.source === 'workspace'
+        ? `${workspaceSlug}:${skill.slug}`
+        : `${AGENTS_PLUGIN_NAME}:${skill.slug}`;
+      return `- ${qualifiedName}: ${skill.metadata.description}`;
+    });
     return `<available_skills>
 Invoke a skill via the Skill tool only when it is clearly and directly relevant to the user's request. Do NOT invoke skills for general conversation, simple questions, or tasks you can handle directly.
+Use the fully-qualified skill name exactly as listed below. Never invoke a skill with a bare slug like "xlsx" or "pdf".
 ${lines.join('\n')}
 </available_skills>`;
   }

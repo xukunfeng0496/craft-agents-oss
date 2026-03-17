@@ -573,6 +573,51 @@ const api: ElectronAPI = {
   setDefaultLlmConnection: (slug: string) => ipcRenderer.invoke(IPC_CHANNELS.LLM_CONNECTION_SET_DEFAULT, slug),
   setWorkspaceDefaultLlmConnection: (workspaceId: string, slug: string | null) =>
     ipcRenderer.invoke(IPC_CHANNELS.LLM_CONNECTION_SET_WORKSPACE_DEFAULT, workspaceId, slug),
+
+  // Browser pane management
+  browserPane: {
+    create: (input?: string | import('../shared/types').BrowserPaneCreateOptions) =>
+      ipcRenderer.invoke(IPC_CHANNELS.BROWSER_PANE_CREATE, input),
+    destroy: (id: string) =>
+      ipcRenderer.invoke(IPC_CHANNELS.BROWSER_PANE_DESTROY, id),
+    list: () =>
+      ipcRenderer.invoke(IPC_CHANNELS.BROWSER_PANE_LIST),
+    navigate: (id: string, url: string) =>
+      ipcRenderer.invoke(IPC_CHANNELS.BROWSER_PANE_NAVIGATE, id, url),
+    goBack: (id: string) =>
+      ipcRenderer.invoke(IPC_CHANNELS.BROWSER_PANE_GO_BACK, id),
+    goForward: (id: string) =>
+      ipcRenderer.invoke(IPC_CHANNELS.BROWSER_PANE_GO_FORWARD, id),
+    reload: (id: string) =>
+      ipcRenderer.invoke(IPC_CHANNELS.BROWSER_PANE_RELOAD, id),
+    stop: (id: string) =>
+      ipcRenderer.invoke(IPC_CHANNELS.BROWSER_PANE_STOP, id),
+    focus: (id: string) =>
+      ipcRenderer.invoke(IPC_CHANNELS.BROWSER_PANE_FOCUS, id),
+    emptyStateLaunch: (payload: import('../shared/types').BrowserEmptyStateLaunchPayload) =>
+      ipcRenderer.invoke(IPC_CHANNELS.BROWSER_EMPTY_STATE_LAUNCH, payload),
+    onStateChanged: (callback: (info: import('../shared/types').BrowserInstanceInfo) => void) => {
+      const handler = (_event: Electron.IpcRendererEvent, info: import('../shared/types').BrowserInstanceInfo) => {
+        callback(info)
+      }
+      ipcRenderer.on(IPC_CHANNELS.BROWSER_PANE_STATE_CHANGED, handler)
+      return () => ipcRenderer.removeListener(IPC_CHANNELS.BROWSER_PANE_STATE_CHANGED, handler)
+    },
+    onRemoved: (callback: (id: string) => void) => {
+      const handler = (_event: Electron.IpcRendererEvent, id: string) => {
+        callback(id)
+      }
+      ipcRenderer.on(IPC_CHANNELS.BROWSER_PANE_REMOVED, handler)
+      return () => ipcRenderer.removeListener(IPC_CHANNELS.BROWSER_PANE_REMOVED, handler)
+    },
+    onInteracted: (callback: (id: string) => void) => {
+      const handler = (_event: Electron.IpcRendererEvent, id: string) => {
+        callback(id)
+      }
+      ipcRenderer.on(IPC_CHANNELS.BROWSER_PANE_INTERACTED, handler)
+      return () => ipcRenderer.removeListener(IPC_CHANNELS.BROWSER_PANE_INTERACTED, handler)
+    },
+  },
 }
 
 contextBridge.exposeInMainWorld('electronAPI', api)

@@ -1,15 +1,50 @@
 import * as React from 'react'
-import { useEditor, EditorContent } from '@tiptap/react'
+import { useEditor, EditorContent, type Editor } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
-import { Markdown, type MarkdownStorage } from 'tiptap-markdown'
+import { Markdown } from '@tiptap/markdown'
 import { tiptapCodeBlock } from './TiptapCodeBlockView'
 import { cn } from '../../lib/utils'
 import 'katex/dist/katex.min.css'
 import './tiptap-editor.css'
 
-function getMarkdown(editor: { storage: { markdown?: MarkdownStorage } }): string {
-  return editor.storage.markdown?.getMarkdown() ?? ''
+const CURRENCY_PLACEHOLDER = '¤'
+const MERMAID_FILE_RE = /\.(mmd|mermaid)$/i
+const MERMAID_FENCE_RE = /^\s*```mermaid\s*\n([\s\S]*?)\n```\s*$/i
+const MERMAID_DIRECTIVE_RE = /^\s*%%\{[\s\S]*?\}%%/
+const MERMAID_KEYWORD_RE = /^\s*(graph|flowchart|sequenceDiagram|classDiagram|stateDiagram(?:-v2)?|erDiagram|journey|gantt|pie|mindmap|timeline|gitGraph|quadrantChart|requirementDiagram|block-beta|packet-beta|architecture)\b/m
+
+function getMarkdown(editor: Editor | null | undefined): string {
+  return editor?.getMarkdown?.() ?? ''
+}
+
+export type MarkdownEngine = 'official'
+
+export function preprocessMarkdownForOfficial(markdown: string): string {
+  return markdown
+    .replace(/\$\$([^\n]+?)\$\$/g, (_match, inner: string) => `$${inner.trim()}$`)
+    .replace(/\$(?=\d)/g, CURRENCY_PLACEHOLDER)
+}
+
+export function postprocessMarkdownFromOfficial(markdown: string): string {
+  return markdown.replaceAll(CURRENCY_PLACEHOLDER, '$')
+}
+
+export function isMermaidFilename(filename: string): boolean {
+  return MERMAID_FILE_RE.test(filename)
+}
+
+export function extractMermaidSource(input: string): string | null {
+  const fenced = input.match(MERMAID_FENCE_RE)?.[1]
+  if (fenced) return fenced.trim()
+
+  const normalized = input.trim()
+  if (!normalized) return null
+  if (MERMAID_DIRECTIVE_RE.test(normalized) || MERMAID_KEYWORD_RE.test(normalized)) {
+    return normalized
+  }
+
+  return null
 }
 
 export interface TiptapMarkdownEditorProps {
@@ -44,13 +79,10 @@ export function TiptapMarkdownEditor({
         themes: { light: 'github-light', dark: 'github-dark' },
       }),
       Placeholder.configure({ placeholder }),
-      Markdown.configure({
-        html: false,
-        transformPastedText: true,
-        transformCopiedText: true,
-      }),
+      Markdown,
     ],
-    content,
+    content: preprocessMarkdownForOfficial(content),
+    contentType: 'markdown',
     editable,
     editorProps: {
       attributes: {
@@ -58,7 +90,7 @@ export function TiptapMarkdownEditor({
       },
     },
     onUpdate: ({ editor }) => {
-      const md = getMarkdown(editor)
+      const md = postprocessMarkdownFromOfficial(getMarkdown(editor))
       onUpdateRef.current?.(md)
     },
   }, [])
@@ -76,9 +108,10 @@ export function TiptapMarkdownEditor({
   React.useEffect(() => {
     if (editor && content !== prevContentRef.current) {
       prevContentRef.current = content
+      const normalizedContent = preprocessMarkdownForOfficial(content)
       const currentMd = getMarkdown(editor)
-      if (currentMd !== content) {
-        editor.commands.setContent(content)
+      if (currentMd !== normalizedContent) {
+        editor.commands.setContent(normalizedContent, { contentType: 'markdown' })
       }
     }
   }, [editor, content])

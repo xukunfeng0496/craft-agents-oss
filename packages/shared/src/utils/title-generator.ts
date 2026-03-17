@@ -80,3 +80,166 @@ export function validateTitle(title: string | null | undefined): string | null {
   }
   return null;
 }
+
+const GENERIC_FOLLOW_UP_PATTERNS = [
+  /^(ok|okay|thanks|thank you|continue|go on)$/i,
+  /^(好的|好|行|继续|继续修复|直接修复|分析下|看下|看看|排查下)$/u,
+  /^(没有生效|还没生效|好像也没有生效|似乎没有生效)$/u,
+];
+
+const ENGLISH_LEADING_PHRASES = [
+  /^(please|kindly)\s+/i,
+  /^(can|could|would)\s+you\s+/i,
+  /^help\s+me\s+(?:to\s+)?/i,
+  /^i\s+(?:want|need|would\s+like)\s+to\s+/i,
+  /^(how\s+do\s+i|how\s+to)\s+/i,
+  /^(is|are|does|do|did)\s+(?:this|that|it|the)\s+/i,
+];
+
+const CHINESE_LEADING_PHRASES = [
+  /^(请问|请|麻烦你|麻烦|帮我|帮忙|看下|看看|分析下|排查下|修复下|直接|继续)\s*/u,
+  /^(现在的|当前的|这个|这个会话的)\s*/u,
+  /^(是不是|是否|为什么|怎么|如何|能不能|可不可以)\s*/u,
+];
+
+function normalizeTitleSource(text: string): string {
+  return text
+    .replace(/```[\s\S]*?```/g, ' ')
+    .replace(/`[^`]*`/g, ' ')
+    .replace(/\[[^\]]+\]\([^)]+\)/g, '$1')
+    .replace(/https?:\/\/\S+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/^[\s"'“”‘’【】[\](){}<>:：,，.!！？?、\-]+/u, '')
+    .replace(/[\s"'“”‘’【】[\](){}<>]+$/u, '');
+}
+
+function stripLeadingPhrases(text: string): string {
+  let stripped = text;
+
+  for (const pattern of ENGLISH_LEADING_PHRASES) {
+    stripped = stripped.replace(pattern, '');
+  }
+
+  for (const pattern of CHINESE_LEADING_PHRASES) {
+    stripped = stripped.replace(pattern, '');
+  }
+
+  return stripped.trim();
+}
+
+function containsCjk(text: string): boolean {
+  return /[\u3400-\u9fff]/u.test(text);
+}
+
+function shortenTitleCandidate(text: string): string {
+  if (containsCjk(text)) {
+    return text
+      .replace(/[。！？!?]+$/u, '')
+      .slice(0, 18)
+      .trim();
+  }
+
+  const words = text
+    .split(/\s+/)
+    .map((word) => word.trim())
+    .filter(Boolean);
+
+  return words.slice(0, 5).join(' ').trim();
+}
+
+function scoreTitleCandidate(text: string): number {
+  if (!text) return Number.NEGATIVE_INFINITY;
+
+  let score = Math.min(text.length, 80);
+
+  if (GENERIC_FOLLOW_UP_PATTERNS.some((pattern) => pattern.test(text))) {
+    score -= 100;
+  }
+
+  if (containsCjk(text) || /[a-z]/i.test(text)) {
+    score += 10;
+  }
+
+  if (/(修复|排查|分析|解释|实现|优化|重构|新增|删除|检查|处理|解决|定位)/u.test(text)) {
+    score += 10;
+  }
+
+  if (/\b(fix|debug|analyze|explain|implement|optimize|refactor|add|remove|investigate)\b/i.test(text)) {
+    score += 10;
+  }
+
+  return score;
+}
+
+function firstUsefulClause(text: string): string {
+  const clauses = text
+    .split(/[\n\r]+|[，,]+|[。！？!?；;]+/u)
+    .map((part) => normalizeTitleSource(part))
+    .filter(Boolean);
+
+  return clauses[0] ?? text;
+}
+
+function buildExtractiveTitle(text: string): string | null {
+  const normalized = normalizeTitleSource(text);
+  if (!normalized) return null;
+
+  const clause = firstUsefulClause(normalized);
+  const stripped = stripLeadingPhrases(clause);
+  const shortened = shortenTitleCandidate(stripped || clause);
+
+  if (!shortened || shortened.length < 2) {
+    return null;
+  }
+
+  return validateTitle(shortened);
+}
+
+function selectBestTitleSource(candidates: string[]): string | null {
+  let best: string | null = null;
+  let bestScore = Number.NEGATIVE_INFINITY;
+
+  for (const candidate of candidates) {
+    const normalized = normalizeTitleSource(candidate);
+    if (!normalized) continue;
+
+    const score = scoreTitleCandidate(normalized);
+    if (score > bestScore) {
+      best = normalized;
+      bestScore = score;
+    }
+  }
+
+  return best;
+}
+
+/**
+ * Build a local fallback title when model-based generation fails.
+ * Extracts a concise clause from the user's message so sessions still get
+ * a usable title even when the provider is unavailable.
+ */
+export function buildFallbackTitle(message: string): string | null {
+  return buildExtractiveTitle(message);
+}
+
+/**
+ * Build a local fallback title from recent conversation context.
+ * Prefers the most informative recent user message and falls back to the
+ * latest assistant response if user messages are too generic.
+ */
+export function buildFallbackRegeneratedTitle(
+  recentUserMessages: string[],
+  lastAssistantResponse: string,
+): string | null {
+  const representativeUserMessage = selectBestTitleSource(recentUserMessages);
+  const fromUserMessage = representativeUserMessage
+    ? buildExtractiveTitle(representativeUserMessage)
+    : null;
+
+  if (fromUserMessage) {
+    return fromUserMessage;
+  }
+
+  return buildExtractiveTitle(lastAssistantResponse);
+}

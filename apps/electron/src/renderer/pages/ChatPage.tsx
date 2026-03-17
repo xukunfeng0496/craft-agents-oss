@@ -6,7 +6,7 @@
  */
 
 import * as React from 'react'
-import { useAtomValue, useSetAtom } from 'jotai'
+import { useAtomValue } from 'jotai'
 import { AlertCircle, Globe, Copy, RefreshCw, Link2Off, Info } from 'lucide-react'
 import { ChatDisplay, type ChatDisplayHandle } from '@/components/app-shell/ChatDisplay'
 import { PanelHeader } from '@/components/app-shell/PanelHeader'
@@ -19,11 +19,12 @@ import { StyledDropdownMenuContent, StyledDropdownMenuItem, StyledDropdownMenuSe
 import { useAppShellContext, usePendingPermission, usePendingCredential, usePendingQuestion, useSessionOptionsFor, useSession as useSessionData } from '@/context/AppShellContext'
 import { rendererPerf } from '@/lib/perf'
 import { routes } from '@/lib/navigate'
-import { ensureSessionMessagesLoadedAtom, loadedSessionsAtom, sessionMetaMapAtom } from '@/atoms/sessions'
+import { loadedSessionsAtom, sessionMetaMapAtom } from '@/atoms/sessions'
 import { getSessionTitle } from '@/utils/session'
 // Model resolution: connection.defaultModel (no hardcoded defaults)
 import { resolveEffectiveConnectionSlug, isSessionConnectionUnavailable } from '@config/llm-connections'
 import { useTranslation } from 'react-i18next'
+import { BrowserTabStrip } from '@/components/browser/BrowserTabStrip'
 
 export interface ChatPageProps {
   sessionId: string
@@ -91,12 +92,6 @@ const ChatPage = React.memo(function ChatPage({ sessionId }: ChatPageProps) {
   const sessionMetaMap = useAtomValue(sessionMetaMapAtom)
   const sessionMeta = sessionMetaMap.get(sessionId)
 
-  // Fallback: ensure messages are loaded when session is viewed
-  const ensureMessagesLoaded = useSetAtom(ensureSessionMessagesLoadedAtom)
-  React.useEffect(() => {
-    ensureMessagesLoaded(sessionId)
-  }, [sessionId, ensureMessagesLoaded])
-
   // Perf: Mark when session data is available
   const sessionLoadedMarkedRef = React.useRef<string | null>(null)
   React.useLayoutEffect(() => {
@@ -114,16 +109,38 @@ const ChatPage = React.memo(function ChatPage({ sessionId }: ChatPageProps) {
     return cleanup
   }, [])
 
+  const lastActiveViewingReportRef = React.useRef<{
+    sessionId: string | null
+    isWindowFocused: boolean
+  }>({ sessionId: null, isWindowFocused: false })
+
   // Track which session user is viewing (for unread state machine).
   // This tells main process user is looking at this session, so:
   // 1. If not processing → clear hasUnread immediately
   // 2. If processing → when it completes, main process will clear hasUnread
   // The main process handles all the logic; we just report viewing state.
   React.useEffect(() => {
-    if (session && isWindowFocused) {
-      onSetActiveViewingSession(session.id)
+    const currentSessionId = session?.id ?? null
+    const prev = lastActiveViewingReportRef.current
+
+    if (!currentSessionId || !isWindowFocused) {
+      lastActiveViewingReportRef.current = {
+        sessionId: currentSessionId,
+        isWindowFocused,
+      }
+      return
     }
-  }, [session, isWindowFocused, onSetActiveViewingSession])
+
+    if (prev.sessionId === currentSessionId && prev.isWindowFocused) {
+      return
+    }
+
+    lastActiveViewingReportRef.current = {
+      sessionId: currentSessionId,
+      isWindowFocused: true,
+    }
+    onSetActiveViewingSession(currentSessionId)
+  }, [session?.id, isWindowFocused, onSetActiveViewingSession])
 
   // Get pending permission and credential for this session
   const pendingPermission = usePendingPermission(sessionId)
@@ -498,7 +515,18 @@ const ChatPage = React.memo(function ChatPage({ sessionId }: ChatPageProps) {
       return (
         <>
           <div className="h-full flex flex-col">
-            <PanelHeader  title={displayTitle} titleMenu={titleMenu} actions={shareButton} rightSidebarButton={rightSidebarButton} isRegeneratingTitle={isAsyncOperationOngoing} />
+            <PanelHeader
+              title={displayTitle}
+              titleMenu={titleMenu}
+              actions={
+                <div className="flex items-center gap-2">
+                  <BrowserTabStrip activeSessionId={sessionId} />
+                  {shareButton}
+                </div>
+              }
+              rightSidebarButton={rightSidebarButton}
+              isRegeneratingTitle={isAsyncOperationOngoing}
+            />
             <div className="flex-1 flex flex-col min-h-0">
               <ChatDisplay
                 ref={chatDisplayRef}
@@ -569,7 +597,18 @@ const ChatPage = React.memo(function ChatPage({ sessionId }: ChatPageProps) {
   return (
     <>
       <div className="h-full flex flex-col">
-        <PanelHeader  title={displayTitle} titleMenu={titleMenu} actions={shareButton} rightSidebarButton={rightSidebarButton} isRegeneratingTitle={isAsyncOperationOngoing} />
+        <PanelHeader
+          title={displayTitle}
+          titleMenu={titleMenu}
+          actions={
+            <div className="flex items-center gap-2">
+              <BrowserTabStrip activeSessionId={sessionId} />
+              {shareButton}
+            </div>
+          }
+          rightSidebarButton={rightSidebarButton}
+          isRegeneratingTitle={isAsyncOperationOngoing}
+        />
         <div className="flex-1 flex flex-col min-h-0">
           <ChatDisplay
             ref={chatDisplayRef}

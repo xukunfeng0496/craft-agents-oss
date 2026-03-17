@@ -58,6 +58,22 @@ export function getBundledGitPath(): string | null {
 }
 
 /**
+ * Get the path to the bundled Git shell executable.
+ *
+ * MinGit does not ship `bash.exe`, but it does include `sh.exe` in `usr/bin`,
+ * which is sufficient for Claude Code's Windows shell bootstrap when passed via
+ * `CLAUDE_CODE_GIT_BASH_PATH`.
+ */
+export function getBundledGitShellPath(): string | null {
+  const toolsDir = getBundledToolsDir();
+  if (!toolsDir) {
+    return null;
+  }
+
+  return path.join(toolsDir, 'mingit', 'usr', 'bin', 'sh.exe');
+}
+
+/**
  * Get additional PATH directories for bundled tools.
  * For MinGit, this includes usr/bin which contains sh.exe and other Unix tools.
  * Only available on Windows.

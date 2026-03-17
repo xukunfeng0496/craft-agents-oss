@@ -33,9 +33,7 @@ export {
 export type { LastApiError, ToolMetadata } from './interceptor-common.ts';
 export { getLastApiError, clearLastApiError } from './interceptor-common.ts';
 
-// Type alias for fetch's HeadersInit (not in ESNext lib, but available at runtime via Bun)
-// Using string[][] instead of [string, string][] to match RequestInit.headers type
-type HeadersInitType = Headers | Record<string, string> | string[][];
+type HeadersInitType = Headers | Record<string, string> | Array<[string, string]>;
 
 
 /**
@@ -90,7 +88,7 @@ function resolveConflictingAuthHeaders(headers: HeadersInitType | undefined): He
     }
   } else {
     headerObj = {};
-    for (const [key, value] of Object.entries(headers)) {
+    for (const [key, value] of Object.entries(headers as Record<string, string>)) {
       headerObj[key.toLowerCase()] = value;
     }
   }

@@ -60,6 +60,7 @@ interface SkillConfig {
  * - status:wsId:relativePath
  */
 export const iconCache = new Map<string, string>()
+const missingIconCache = new Set<string>()
 
 /**
  * Cache for resolved logo URLs (from service URL resolution).
@@ -113,6 +114,7 @@ export const skillIconCache = {
  */
 export function clearIconCaches(): void {
   iconCache.clear()
+  missingIconCache.clear()
   logoUrlCache.clear()
   colorableCache.clear()
   rawSvgCache.clear()
@@ -124,6 +126,9 @@ export function clearIconCaches(): void {
  */
 export function clearSourceIconCaches(): void {
   sourceIconCache.clear()
+  for (const key of missingIconCache) {
+    if (key.startsWith('source:')) missingIconCache.delete(key)
+  }
   logoUrlCache.clear()
   // Also clear from colorable/rawSvg caches
   for (const key of colorableCache) {
@@ -140,6 +145,9 @@ export function clearSourceIconCaches(): void {
  */
 export function clearSkillIconCaches(): void {
   skillIconCache.clear()
+  for (const key of missingIconCache) {
+    if (key.startsWith('skill:')) missingIconCache.delete(key)
+  }
   for (const key of colorableCache) {
     if (key.startsWith('skill:')) colorableCache.delete(key)
   }
@@ -259,6 +267,10 @@ export async function loadSourceIcon(
  * Handles SVG theming and returns data URL or null on failure.
  */
 async function loadWorkspaceIcon(workspaceId: string, relativePath: string): Promise<string | null> {
+  if (!workspaceId) {
+    return null
+  }
+
   try {
     const result = await window.electronAPI.readWorkspaceImage(workspaceId, relativePath)
     // IPC returns null for missing files (silent fallback)
@@ -565,6 +577,9 @@ export function useEntityIcon(opts: UseEntityIconOptions): ResolvedEntityIcon {
         rawSvg: colorable ? rawSvgCache.get(cacheKey) : undefined,
       }
     }
+    if (!workspaceId || missingIconCache.has(cacheKey)) {
+      return { kind: 'fallback', colorable: false }
+    }
     return { kind: 'fallback', colorable: false }
   })
 
@@ -582,6 +597,11 @@ export function useEntityIcon(opts: UseEntityIconOptions): ResolvedEntityIcon {
       return
     }
 
+    if (!workspaceId) {
+      setResolved({ kind: 'fallback', colorable: false })
+      return
+    }
+
     // Check cache first
     const cached = iconCache.get(cacheKey)
     if (cached) {
@@ -592,6 +612,11 @@ export function useEntityIcon(opts: UseEntityIconOptions): ResolvedEntityIcon {
         colorable,
         rawSvg: colorable ? rawSvgCache.get(cacheKey) : undefined,
       })
+      return
+    }
+
+    if (missingIconCache.has(cacheKey)) {
+      setResolved({ kind: 'fallback', colorable: false })
       return
     }
 
@@ -620,6 +645,7 @@ export function useEntityIcon(opts: UseEntityIconOptions): ResolvedEntityIcon {
       if (result) {
         // Cache the loaded icon and its colorability/rawSvg
         iconCache.set(cacheKey, result.dataUrl)
+        missingIconCache.delete(cacheKey)
         if (result.colorable) {
           colorableCache.add(cacheKey)
         }
@@ -633,6 +659,7 @@ export function useEntityIcon(opts: UseEntityIconOptions): ResolvedEntityIcon {
           rawSvg: result.rawSvg,
         })
       } else {
+        missingIconCache.add(cacheKey)
         setResolved({ kind: 'fallback', colorable: false })
       }
     }
@@ -672,6 +699,10 @@ async function loadIconFile(
   workspaceId: string,
   relativePath: string
 ): Promise<{ dataUrl: string; colorable: boolean; rawSvg?: string } | null> {
+  if (!workspaceId) {
+    return null
+  }
+
   try {
     const content = await window.electronAPI.readWorkspaceImage(workspaceId, relativePath)
     // IPC returns null for missing files (silent fallback)

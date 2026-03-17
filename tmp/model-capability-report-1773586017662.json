@@ -1,0 +1,59 @@
+{
+  "generatedAt": "2026-03-15T14:47:32.238Z",
+  "baseUrl": "https://navimaxx-cc.test.seewo.com",
+  "authMode": "api-key",
+  "reports": [
+    {
+      "model": "MiniMax-M2.5-highspeed",
+      "profile": "basic-tool-compatible",
+      "probes": [
+        {
+          "name": "text",
+          "status": "pass",
+          "durationMs": 1642,
+          "summary": "OK_MODEL_PROBE"
+        },
+        {
+          "name": "csv_text",
+          "status": "pass",
+          "durationMs": 2783,
+          "summary": "42"
+        },
+        {
+          "name": "tool_use",
+          "status": "pass",
+          "durationMs": 2987,
+          "summary": "tool_use:echo_probe",
+          "details": "{\"_displayName\":\"tool-ok\",\"_intent\":\"test\",\"value\":\"tool-ok\"}"
+        },
+        {
+          "name": "excel_normalized",
+          "status": "pass",
+          "durationMs": 3039,
+          "summary": "300|West"
+        },
+        {
+          "name": "structured_output",
+          "status": "pass",
+          "durationMs": 10293,
+          "summary": "structured_output:ok",
+          "details": "{\"score\":7,\"status\":\"ok\"}"
+        },
+        {
+          "name": "multi_turn_tool_loop",
+          "status": "fail",
+          "durationMs": 4001,
+          "summary": "Expected \"LOOP_OK\", got \"The echo_probe tool has returned the value \"loop-ok\". This confirms the function is working correctly and the test loop is functioning as expected.\"",
+          "details": "Expected \"LOOP_OK\", got \"The echo_probe tool has returned the value \"loop-ok\". This confirms the function is working correctly and the test loop is functioning as expected.\""
+        },
+        {
+          "name": "pdf_document",
+          "status": "fail",
+          "durationMs": 9826,
+          "summary": "Expected \"PDF Capability Probe\", got \"<empty>\"",
+          "details": "Expected \"PDF Capability Probe\", got \"<empty>\""
+        }
+      ]
+    }
+  ]
+}

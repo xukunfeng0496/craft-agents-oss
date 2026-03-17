@@ -1492,6 +1492,7 @@ const ALWAYS_ALLOWED_TOOLS = new Set([
   'TodoWrite',                       // Task tracking
   'SubmitPlan',                     // Plan submission
   'LSP',                            // Language server (read-only)
+  'browser_tool',                   // Browser automation (interactive, no local file mutations)
 ]);
 
 /**

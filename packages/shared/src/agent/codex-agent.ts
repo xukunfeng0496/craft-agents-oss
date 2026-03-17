@@ -1584,108 +1584,12 @@ export class CodexAgent extends BaseAgent {
   // ============================================================
 
   /**
-   * Generate a title by routing through the Codex app-server.
-   * Uses the cheapest model (Codex Mini) with an ephemeral thread.
-   * Falls back to null on failure — caller should fall back to Claude.
+   * Keep Codex title generation aligned with the shared BaseAgent flow.
+   * The caller passes the raw user message; BaseAgent turns it into the
+   * short-task prompt before delegating to runMiniCompletion().
    */
-  async generateTitle(prompt: string): Promise<string | null> {
-    const client = await this.ensureClient();
-
-    if (!this.config.miniModel) {
-      throw new Error('CodexAgent.generateTitle: config.miniModel is required');
-    }
-    const model = resolveCodexModelId(this.config.miniModel, this.config.authType);
-
-    this.debug(`[generateTitle] Starting ephemeral thread with model=${model}`);
-
-    // Start an ephemeral thread (not persisted, no tools).
-    // Mark as ephemeral so main event handlers ignore its events.
-    this._startingEphemeralThread = true;
-    const response = await client.threadStart({
-      model,
-      ephemeral: true,
-      approvalPolicy: 'never',
-      sandbox: 'danger-full-access',
-      baseInstructions: 'Reply with ONLY the requested text. No explanation.',
-    });
-    this._startingEphemeralThread = false;
-    const threadId = response.thread.id;
-    this._ephemeralThreadIds.add(threadId);
-
-    this.debug(`[generateTitle] Thread started: ${threadId}`);
-
-    // Send the title prompt
-    await client.turnStart({
-      threadId,
-      input: [{ type: 'text', text: prompt, text_elements: [] }],
-      cwd: null,
-      approvalPolicy: null,
-      sandboxPolicy: null,
-      model: null,
-      effort: null,
-      summary: null,
-      personality: null,
-      outputSchema: null,
-      collaborationMode: null,
-    });
-
-    // Collect text from agentMessage/delta events until turn completes.
-    // Filter by threadId to avoid interference with the main chat thread.
-    let title = '';
-    const result = await new Promise<string>((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        cleanup();
-        resolve(title); // resolve with whatever we have
-      }, 15000);
-
-      const onDelta = (ev: { threadId: string; delta: string }) => {
-        if (ev.threadId === threadId) {
-          title += ev.delta;
-        }
-      };
-      const onTurnComplete = (ev: { threadId: string }) => {
-        if (ev.threadId === threadId) {
-          clearTimeout(timeout);
-          cleanup();
-          resolve(title);
-        }
-      };
-      const onCodexError = (ev: { threadId: string; error: { message?: string } }) => {
-        if (ev.threadId === threadId) {
-          clearTimeout(timeout);
-          cleanup();
-          reject(new Error(ev.error?.message ?? 'Codex title generation failed'));
-        }
-      };
-      const onProcessError = (err: Error) => {
-        // If a main chat turn is active, this error likely belongs to it — not to title gen
-        if (this.currentTurnId) {
-          this.debug(`[generateTitle] Ignoring process error during active turn: ${err.message}`);
-          return;
-        }
-        clearTimeout(timeout);
-        cleanup();
-        reject(err);
-      };
-
-      const cleanup = () => {
-        client.off('item/agentMessage/delta', onDelta);
-        client.off('turn/completed', onTurnComplete);
-        client.off('codex/error', onCodexError);
-        client.off('error', onProcessError);
-      };
-
-      client.on('item/agentMessage/delta', onDelta);
-      client.on('turn/completed', onTurnComplete);
-      client.on('codex/error', onCodexError);
-      client.on('error', onProcessError);
-    });
-
-    this._ephemeralThreadIds.delete(threadId);
-
-    const trimmed = result.trim();
-    this.debug(`[generateTitle] Result: "${trimmed}"`);
-    return (trimmed.length > 0 && trimmed.length < 100) ? trimmed : null;
+  override async generateTitle(message: string, language?: string): Promise<string | null> {
+    return super.generateTitle(message, language);
   }
 
   // ============================================================

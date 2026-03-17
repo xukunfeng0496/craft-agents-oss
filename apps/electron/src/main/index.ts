@@ -65,6 +65,7 @@ Sentry.setUser({ id: machineId })
 import { join } from 'path'
 import { existsSync } from 'fs'
 import { SessionManager } from './sessions'
+import { BrowserPaneManager } from './browser-pane-manager'
 import { registerIpcHandlers, startCodexModelRefresh, stopCodexModelRefresh } from './ipc'
 import { createApplicationMenu } from './menu'
 import { WindowManager } from './window-manager'
@@ -84,7 +85,7 @@ import log, { isDebugMode, mainLog, getLogFilePath } from './logger'
 import { setPerfEnabled, enableDebug } from '@work-agent/shared/utils'
 import { initNotificationService, clearBadgeCount, initBadgeIcon, initInstanceBadge } from './notifications'
 import { checkForUpdatesOnLaunch, setWindowManager as setAutoUpdateWindowManager, isUpdating } from './auto-update'
-import { validateGitBashPath } from './git-bash'
+import { getBundledUsableGitBashPath, validateGitBashPath } from './git-bash'
 import { initializeBundledSkills, initializeBundledSkillsForExistingWorkspaces } from './bundled-skills'
 
 // Initialize electron-log for renderer process support
@@ -103,6 +104,7 @@ const DEEPLINK_SCHEME = process.env.CRAFT_DEEPLINK_SCHEME || 'workagents'
 
 let windowManager: WindowManager | null = null
 let sessionManager: SessionManager | null = null
+let browserPaneManager: BrowserPaneManager | null = null
 
 // Store pending deep link if app not ready yet (cold start)
 let pendingDeepLink: string | null = null
@@ -297,6 +299,12 @@ app.whenReady().then(async () => {
     sessionManager = new SessionManager()
     sessionManager.setWindowManager(windowManager)
 
+    // Initialize browser pane manager
+    browserPaneManager = new BrowserPaneManager()
+    browserPaneManager.setWindowManager(windowManager)
+    browserPaneManager.registerToolbarIpc()
+    sessionManager.setBrowserPaneManager(browserPaneManager)
+
     // Initialize notification service
     initNotificationService(windowManager)
 
@@ -313,11 +321,17 @@ app.whenReady().then(async () => {
           delete process.env.CLAUDE_CODE_GIT_BASH_PATH
           mainLog.warn(`Cleared invalid persisted Git Bash path: ${gitBashPath}`)
         }
+      } else {
+        const bundledGitBashPath = await getBundledUsableGitBashPath()
+        if (bundledGitBashPath) {
+          process.env.CLAUDE_CODE_GIT_BASH_PATH = bundledGitBashPath
+          mainLog.info(`Using bundled Windows shell for Claude Code: ${bundledGitBashPath}`)
+        }
       }
     }
 
     // Register IPC handlers (must happen before window creation)
-    registerIpcHandlers(sessionManager, windowManager)
+    registerIpcHandlers(sessionManager, windowManager, browserPaneManager)
 
     // Create initial windows (restores from saved state or opens first workspace)
     await createInitialWindows()
@@ -463,6 +477,11 @@ app.on('before-quit', async (event) => {
     }
     // Clean up SessionManager resources (file watchers, timers, etc.)
     sessionManager.cleanup()
+
+    // Clean up browser pane instances
+    if (browserPaneManager) {
+      browserPaneManager.destroyAll()
+    }
 
     // Stop periodic Codex model refresh
     stopCodexModelRefresh()

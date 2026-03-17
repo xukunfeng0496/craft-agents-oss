@@ -7,6 +7,7 @@
 
 export {
   getBundledGitPath,
+  getBundledGitShellPath,
   getBundledPythonPath,
   getBundledToolPath,
   getBundledToolExtraPaths,

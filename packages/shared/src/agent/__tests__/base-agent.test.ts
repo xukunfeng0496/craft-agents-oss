@@ -5,13 +5,17 @@
  * Tests model/thinking configuration, permission mode, source management,
  * and lifecycle management.
  */
-import { describe, it, expect, beforeEach } from 'bun:test';
+import { describe, it, expect, beforeEach, afterEach } from 'bun:test';
+import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
 import {
   TestAgent,
   createMockBackendConfig,
   createMockSource,
   collectEvents,
 } from './test-utils.ts';
+import type { LoadedSkill } from '../../skills/types.ts';
 
 describe('BaseAgent', () => {
   let agent: TestAgent;
@@ -159,6 +163,60 @@ describe('BaseAgent', () => {
     it('should track temporary clarifications', () => {
       agent.setTemporaryClarifications('Test clarification');
       // Clarifications are internal state - verify via PromptBuilder if needed
+    });
+  });
+
+  describe('Skill Context', () => {
+    const testDirs: string[] = [];
+
+    afterEach(() => {
+      for (const dir of testDirs.splice(0)) {
+        rmSync(dir, { recursive: true, force: true });
+      }
+    });
+
+    it('should inject fully-qualified skill names into available skill context', () => {
+      const workspaceRoot = join(tmpdir(), `base-agent-skill-state-${Date.now()}`);
+      testDirs.push(workspaceRoot);
+      mkdirSync(join(workspaceRoot, '.claude-plugin'), { recursive: true });
+      writeFileSync(
+        join(workspaceRoot, '.claude-plugin', 'plugin.json'),
+        JSON.stringify({ name: 'craft-workspace-my-workspace', version: '1.0.0' })
+      );
+
+      agent = new TestAgent(createMockBackendConfig({
+        workspace: {
+          id: 'workspace-uuid',
+          name: 'Test Workspace',
+          rootPath: workspaceRoot,
+          createdAt: Date.now(),
+        },
+      }));
+
+      agent.setCachedSkills([
+        {
+          slug: 'xlsx',
+          metadata: { name: 'XLSX', description: 'Spreadsheet skill' },
+          content: 'workspace skill',
+          path: join(workspaceRoot, 'skills', 'xlsx'),
+          source: 'workspace',
+        },
+        {
+          slug: 'pdf',
+          metadata: { name: 'PDF', description: 'Document skill' },
+          content: 'project skill',
+          path: join(workspaceRoot, '.agents', 'skills', 'pdf'),
+          source: 'project',
+        },
+      ] satisfies LoadedSkill[]);
+
+      const skillState = agent.getFormattedSkillState();
+
+      expect(skillState).toContain('craft-workspace-my-workspace:xlsx');
+      expect(skillState).toContain('.agents:pdf');
+      expect(skillState).toContain('Never invoke a skill with a bare slug');
+      expect(skillState).not.toContain('\n- xlsx:');
+      expect(skillState).not.toContain('\n- pdf:');
     });
   });
 

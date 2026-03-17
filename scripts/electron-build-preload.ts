@@ -8,7 +8,18 @@ import { join } from "path";
 
 const ROOT_DIR = join(import.meta.dir, "..");
 const DIST_DIR = join(ROOT_DIR, "apps/electron/dist");
-const OUTPUT_FILE = join(DIST_DIR, "preload.cjs");
+const PRELOAD_BUILDS = [
+  {
+    label: "main preload",
+    entryPoint: "apps/electron/src/preload/index.ts",
+    outputFile: join(DIST_DIR, "preload.cjs"),
+  },
+  {
+    label: "browser toolbar preload",
+    entryPoint: "apps/electron/src/preload/browser-toolbar.ts",
+    outputFile: join(DIST_DIR, "browser-toolbar-preload.cjs"),
+  },
+];
 
 // Wait for file to stabilize (no size changes)
 async function waitForFileStable(filePath: string, timeoutMs = 10000): Promise<boolean> {
@@ -72,49 +83,64 @@ async function main(): Promise<void> {
     mkdirSync(DIST_DIR, { recursive: true });
   }
 
-  console.log("🔨 Building preload...");
+  console.log("🔨 Building preloads...");
 
-  const proc = spawn({
-    cmd: [
-      "bun", "run", "esbuild",
-      "apps/electron/src/preload/index.ts",
-      "--bundle",
-      "--platform=node",
-      "--format=cjs",
-      "--outfile=apps/electron/dist/preload.cjs",
-      "--external:electron",
-    ],
-    cwd: ROOT_DIR,
-    stdout: "inherit",
-    stderr: "inherit",
-  });
+  for (const build of PRELOAD_BUILDS) {
+    const relativeOutput = build.outputFile.replace(`${ROOT_DIR}/`, "");
+    console.log(`📦 Building ${build.label}...`);
 
-  const exitCode = await proc.exited;
+    const proc = spawn({
+      cmd: [
+        "bun", "run", "esbuild",
+        build.entryPoint,
+        "--bundle",
+        "--platform=node",
+        "--format=cjs",
+        `--outfile=${relativeOutput}`,
+        "--external:electron",
+      ],
+      cwd: ROOT_DIR,
+      stdout: "inherit",
+      stderr: "inherit",
+    });
 
-  if (exitCode !== 0) {
-    console.error("❌ esbuild failed with exit code", exitCode);
-    process.exit(exitCode);
+    const exitCode = await proc.exited;
+
+    if (exitCode !== 0) {
+      console.error(`❌ ${build.label} build failed with exit code`, exitCode);
+      process.exit(exitCode);
+    }
   }
 
-  // Wait for file to stabilize
-  console.log("⏳ Waiting for file to stabilize...");
-  const stable = await waitForFileStable(OUTPUT_FILE);
+  console.log("⏳ Waiting for preload files to stabilize...");
+  const stableResults = await Promise.all(
+    PRELOAD_BUILDS.map(async (build) => ({
+      label: build.label,
+      stable: await waitForFileStable(build.outputFile),
+    })),
+  );
 
-  if (!stable) {
-    console.error("❌ Output file did not stabilize");
+  const unstableBuild = stableResults.find((result) => !result.stable);
+  if (unstableBuild) {
+    console.error(`❌ ${unstableBuild.label} did not stabilize`);
     process.exit(1);
   }
 
-  // Verify the output
-  console.log("🔍 Verifying build output...");
-  const verification = await verifyJsFile(OUTPUT_FILE);
+  console.log("🔍 Verifying preload output...");
+  const verificationResults = await Promise.all(
+    PRELOAD_BUILDS.map(async (build) => ({
+      label: build.label,
+      verification: await verifyJsFile(build.outputFile),
+    })),
+  );
 
-  if (!verification.valid) {
-    console.error("❌ Build verification failed:", verification.error);
+  const failedVerification = verificationResults.find((result) => !result.verification.valid);
+  if (failedVerification) {
+    console.error(`❌ ${failedVerification.label} verification failed:`, failedVerification.verification.error);
     process.exit(1);
   }
 
-  console.log("✅ Preload build complete and verified");
+  console.log("✅ Preload builds complete and verified");
   process.exit(0);
 }
 

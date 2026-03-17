@@ -252,6 +252,26 @@ export const appendMessageAtom = atom(
   }
 )
 
+function findStreamingAssistantMessageIndex(messages: Message[], turnId?: string): number {
+  if (turnId) {
+    const turnMatchIndex = messages.findIndex((message) =>
+      message.role === 'assistant' && message.turnId === turnId && message.isStreaming
+    )
+    if (turnMatchIndex !== -1) {
+      return turnMatchIndex
+    }
+  }
+
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const message = messages[i]
+    if (message.role === 'assistant' && message.isStreaming) {
+      return i
+    }
+  }
+
+  return -1
+}
+
 /**
  * Action atom: update streaming content for a session
  * For text_delta events - appends to the last streaming message
@@ -263,18 +283,16 @@ export const updateStreamingContentAtom = atom(
     const session = get(sessionAtom)
     if (!session) return
 
-    const messages = [...session.messages]
-    const lastMsg = messages[messages.length - 1]
+    const streamingIndex = findStreamingAssistantMessageIndex(session.messages, turnId)
+    if (streamingIndex === -1) return
 
-    // Append to existing streaming message
-    if (lastMsg?.role === 'assistant' && lastMsg.isStreaming &&
-        (!turnId || lastMsg.turnId === turnId)) {
-      messages[messages.length - 1] = {
-        ...lastMsg,
-        content: lastMsg.content + content,
-      }
-      set(sessionAtom, { ...session, messages })
+    const messages = [...session.messages]
+    const streamingMessage = messages[streamingIndex]
+    messages[streamingIndex] = {
+      ...streamingMessage,
+      content: streamingMessage.content + content,
     }
+    set(sessionAtom, { ...session, messages })
   }
 )
 
@@ -586,4 +604,3 @@ export const backgroundTasksAtomFamily = atomFamily(
  * Written by App on workspace switch, read by Root to keep the theme in sync.
  */
 export const windowWorkspaceIdAtom = atom<string | null>(null)
-

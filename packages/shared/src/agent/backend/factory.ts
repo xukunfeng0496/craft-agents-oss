@@ -23,6 +23,7 @@ import {
   getDefaultLlmConnection,
   type LlmConnection,
 } from '../../config/storage.ts';
+import { getConnectionModelCapabilities } from '../../config/llm-connections.ts';
 // Import deprecated type for legacy migration function only
 import type { LlmConnectionType } from '../../config/llm-connections.ts';
 // Import validation helpers for provider-auth combinations and codexPath
@@ -250,6 +251,8 @@ export function createConfigFromConnection(
   const providerType = connection.providerType || (connection.type ? connectionTypeToProvider(connection.type) as unknown as LlmProviderType : 'anthropic');
   const provider = providerTypeToAgentProvider(providerType);
 
+  const resolvedModel = baseConfig.model || connection.defaultModel;
+
   return {
     ...baseConfig,
     provider,
@@ -257,7 +260,10 @@ export function createConfigFromConnection(
     authType: connection.authType,
     connectionSlug: connection.slug,
     // Use connection's default model if no model specified in baseConfig
-    model: baseConfig.model || connection.defaultModel,
+    model: resolvedModel,
+    modelCapabilities: resolvedModel
+      ? getConnectionModelCapabilities(connection, resolvedModel)
+      : undefined,
   };
 }
 
@@ -297,4 +303,3 @@ export function createBackendFromConnection(
   const config = createConfigFromConnection(connection, baseConfig);
   return createBackend(config);
 }
-

@@ -57,6 +57,12 @@ export interface SidebarMenuProps {
   onDeleteView?: (id: string) => void
   /** Workspace root path for EditPopover contexts */
   workspaceRootPath?: string
+  /** Schedule ID for schedule items (reserved for future menu actions) */
+  scheduleId?: string
+  /** Handler for creating a schedule (reserved for future menu actions) */
+  onAddSchedule?: () => void
+  /** Handler for editing schedules (reserved for future menu actions) */
+  onEditSchedules?: () => void
 }
 
 /**
@@ -78,7 +84,15 @@ export function SidebarMenu({
   viewId,
   onDeleteView,
   workspaceRootPath,
+  scheduleId,
+  onAddSchedule,
+  onEditSchedules,
 }: SidebarMenuProps) {
+  void statusId
+  void workspaceRootPath
+  void scheduleId
+  void onAddSchedule
+  void onEditSchedules
   // Get menu components from context (works with both DropdownMenu and ContextMenu)
   const { MenuItem, Separator } = useMenuComponents()
   const { t } = useTranslation(['common'])

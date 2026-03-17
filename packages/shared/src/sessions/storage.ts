@@ -46,6 +46,30 @@ import { sessionPersistenceQueue } from './persistence-queue.ts';
 // Re-export types for convenience
 export type { SessionConfig } from './types.ts';
 
+interface SessionLoadCacheEntry {
+  mtimeMs: number;
+  size: number;
+  session: StoredSession;
+}
+
+const sessionLoadCache = new Map<string, SessionLoadCacheEntry>();
+
+function readSessionFileState(jsonlPath: string): { mtimeMs: number; size: number } | null {
+  try {
+    const stats = statSync(jsonlPath);
+    return {
+      mtimeMs: stats.mtimeMs,
+      size: stats.size,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function invalidateSessionLoadCache(workspaceRootPath: string, sessionId: string): void {
+  sessionLoadCache.delete(getSessionFilePath(workspaceRootPath, sessionId));
+}
+
 // ============================================================
 // Directory Utilities
 // ============================================================
@@ -319,19 +343,42 @@ export { sessionPersistenceQueue } from './persistence-queue.js'
  * Loads session from folder structure in JSONL format.
  */
 export function loadSession(workspaceRootPath: string, sessionId: string): StoredSession | null {
-  const end = perf.start('session.loadSession', { sessionId });
+  const span = perf.span('session.loadSession', { sessionId });
 
   const jsonlPath = getSessionFilePath(workspaceRootPath, sessionId);
-  if (existsSync(jsonlPath)) {
-    const session = readSessionJsonl(jsonlPath);
-    if (session) {
-      end();
-      return session;
-    }
+  const fileState = readSessionFileState(jsonlPath);
+
+  if (!fileState) {
+    invalidateSessionLoadCache(workspaceRootPath, sessionId);
+    span.setMetadata('cacheHit', false);
+    span.setMetadata('exists', false);
+    span.end();
+    return null;
   }
 
-  end();
-  return null;
+  const cached = sessionLoadCache.get(jsonlPath);
+  if (cached && cached.mtimeMs === fileState.mtimeMs && cached.size === fileState.size) {
+    span.setMetadata('cacheHit', true);
+    span.end();
+    return structuredClone(cached.session);
+  }
+
+  const session = readSessionJsonl(jsonlPath);
+  span.setMetadata('cacheHit', false);
+  span.setMetadata('exists', true);
+
+  if (!session) {
+    invalidateSessionLoadCache(workspaceRootPath, sessionId);
+    span.end();
+    return null;
+  }
+
+  sessionLoadCache.set(jsonlPath, {
+    ...fileState,
+    session: structuredClone(session),
+  });
+  span.end();
+  return session;
 }
 
 /**
@@ -454,6 +501,9 @@ function headerToMetadata(header: SessionHeader, workspaceRootPath: string): Ses
  */
 export function deleteSession(workspaceRootPath: string, sessionId: string): boolean {
   try {
+    sessionPersistenceQueue.cancel(sessionId);
+    invalidateSessionLoadCache(workspaceRootPath, sessionId);
+
     // Delete session directory (includes session.json, attachments, plans)
     const sessionDir = getSessionPath(workspaceRootPath, sessionId);
     if (existsSync(sessionDir)) {

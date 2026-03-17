@@ -49,9 +49,17 @@ interface MarkdownMermaidBlockProps {
    *  Set to false when the mermaid block is the first block in a message,
    *  where the TurnCard's own fullscreen button already occupies the same position. */
   showExpandButton?: boolean
+  /** Reserved for embeddings that control fullscreen externally. */
+  tapToOpen?: boolean
+  /** Reserved for embeddings that want a higher readability floor. */
+  minHeight?: number
 }
 
-export function MarkdownMermaidBlock({ code, className, showExpandButton = true }: MarkdownMermaidBlockProps) {
+export function MarkdownMermaidBlock({
+  code,
+  className,
+  showExpandButton = true,
+}: MarkdownMermaidBlockProps) {
   // Render asynchronously using beautiful-mermaid
   // Colors are CSS variable references so the SVG inherits from the app's theme
   // via CSS cascade. Theme switches apply automatically without re-rendering.

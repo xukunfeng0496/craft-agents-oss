@@ -89,6 +89,12 @@ export interface PlatformActions {
   onReadFileBinary?: (path: string) => Promise<Uint8Array>
 
   /**
+   * Read a file and return a data URL (Electron: fs.readFile + mime encode via IPC)
+   * Used by image preview blocks that need browser-displayable inline sources.
+   */
+  onReadFileDataUrl?: (path: string) => Promise<string>
+
+  /**
    * Reveal a file in the system file manager (Electron: shell.showItemInFolder)
    * Web: Not available (menu items hidden when undefined)
    */

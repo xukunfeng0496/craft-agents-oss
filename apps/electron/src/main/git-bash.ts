@@ -1,11 +1,13 @@
 import { stat } from 'fs/promises'
+import { getBundledGitShellPath } from '@work-agent/shared/tools'
 
 /**
  * Basic file-name validation for Git Bash executable paths.
  * Accepts Windows-style and POSIX-style separators to support cross-platform tests.
+ * We allow both `bash.exe` and MinGit's bundled `sh.exe`.
  */
 export function isGitBashExecutablePath(filePath: string): boolean {
-  return /(?:^|[\\/])bash\.exe$/i.test(filePath.trim())
+  return /(?:^|[\\/])(?:bash|sh)\.exe$/i.test(filePath.trim())
 }
 
 /**
@@ -16,7 +18,7 @@ export async function validateGitBashPath(filePath: string): Promise<{ valid: tr
   const trimmedPath = filePath.trim()
 
   if (!isGitBashExecutablePath(trimmedPath)) {
-    return { valid: false, error: 'Path must point to bash.exe' }
+    return { valid: false, error: 'Path must point to bash.exe or sh.exe' }
   }
 
   try {
@@ -36,4 +38,16 @@ export async function validateGitBashPath(filePath: string): Promise<{ valid: tr
 export async function isUsableGitBashPath(filePath: string): Promise<boolean> {
   const result = await validateGitBashPath(filePath)
   return result.valid
+}
+
+/**
+ * Resolve the bundled MinGit shell path when available.
+ */
+export async function getBundledUsableGitBashPath(): Promise<string | null> {
+  const bundledPath = getBundledGitShellPath()
+  if (!bundledPath) {
+    return null
+  }
+
+  return (await isUsableGitBashPath(bundledPath)) ? bundledPath : null
 }

@@ -1,0 +1,164 @@
+{
+  "generatedAt": "2026-03-15T14:15:29.632Z",
+  "baseUrl": "https://navimaxx-cc.test.seewo.com",
+  "authMode": "api-key",
+  "reports": [
+    {
+      "model": "glm-5",
+      "profile": "basic-tool-compatible",
+      "probes": [
+        {
+          "name": "text",
+          "status": "pass",
+          "durationMs": 3219,
+          "summary": "OK_MODEL_PROBE"
+        },
+        {
+          "name": "csv_text",
+          "status": "pass",
+          "durationMs": 3516,
+          "summary": "42"
+        },
+        {
+          "name": "tool_use",
+          "status": "pass",
+          "durationMs": 5450,
+          "summary": "tool_use:echo_probe",
+          "details": "{\"_displayName\":\"echo_probe\",\"_intent\":\"capability testing\",\"value\":\"tool-ok\"}"
+        },
+        {
+          "name": "structured_output",
+          "status": "fail",
+          "durationMs": 14377,
+          "summary": "503 {\"error\":{\"message\":\"所有供应商暂时不可用，请稍后重试 (cch_session_id: sess_7f06f0c0de785595027cfbbece40ab78)\",\"type\":\"service_unavailable_error\",\"code\":\"service_unavailable_error\"}}",
+          "details": "503 {\"error\":{\"message\":\"所有供应商暂时不可用，请稍后重试 (cch_session_id: sess_7f06f0c0de785595027cfbbece40ab78)\",\"type\":\"service_unavailable_error\",\"code\":\"service_unavailable_error\"}}"
+        },
+        {
+          "name": "pdf_document",
+          "status": "fail",
+          "durationMs": 27195,
+          "summary": "Expected \"PDF Capability Probe\", got \"😊 你好！有什么我可以帮你的吗？\"",
+          "details": "Expected \"PDF Capability Probe\", got \"😊 你好！有什么我可以帮你的吗？\""
+        }
+      ]
+    },
+    {
+      "model": "glm-4.7",
+      "profile": "text-only-or-fallback",
+      "probes": [
+        {
+          "name": "text",
+          "status": "pass",
+          "durationMs": 1793,
+          "summary": "OK_MODEL_PROBE"
+        },
+        {
+          "name": "csv_text",
+          "status": "pass",
+          "durationMs": 4699,
+          "summary": "42"
+        },
+        {
+          "name": "tool_use",
+          "status": "fail",
+          "durationMs": 5032,
+          "summary": "Expected tool_use block, got text: \"I need to use the echo_probe tool, but it requires additional parameters beyond just \"value\". The function requires:",
+          "details": "Expected tool_use block, got text: \"I need to use the echo_probe tool, but it requires additional parameters beyond just \"value\". The function requires:\n- value: \"tool-ok\" (provided)\n- _displayName: (missing)\n- _intent: (missing)\n\nCould you please provide the values for _displayName and _intent so I can complete the tool call?\""
+        },
+        {
+          "name": "structured_output",
+          "status": "fail",
+          "durationMs": 15961,
+          "summary": "Expected {\"status\":\"ok\",\"score\":7}, got {\"_status\":\"ok\",\"_score\":\"7\",\"_displayName\":\"structured_output\",\"_intent\":\"Return a structured probe result with status=\\\"ok\\\" and score=7.\"}",
+          "details": "Expected {\"status\":\"ok\",\"score\":7}, got {\"_status\":\"ok\",\"_score\":\"7\",\"_displayName\":\"structured_output\",\"_intent\":\"Return a structured probe result with status=\\\"ok\\\" and score=7.\"}"
+        },
+        {
+          "name": "pdf_document",
+          "status": "fail",
+          "durationMs": 3616,
+          "summary": "Expected \"PDF Capability Probe\", got \"PDF Capability Probe Resume Candidate Alice\"",
+          "details": "Expected \"PDF Capability Probe\", got \"PDF Capability Probe Resume Candidate Alice\""
+        }
+      ]
+    },
+    {
+      "model": "kimi-k2.5",
+      "profile": "text-only-or-fallback",
+      "probes": [
+        {
+          "name": "text",
+          "status": "pass",
+          "durationMs": 906,
+          "summary": "OK_MODEL_PROBE"
+        },
+        {
+          "name": "csv_text",
+          "status": "pass",
+          "durationMs": 839,
+          "summary": "42"
+        },
+        {
+          "name": "tool_use",
+          "status": "fail",
+          "durationMs": 1192,
+          "summary": "Expected tool_use block, got text: \"<empty>\"",
+          "details": "Expected tool_use block, got text: \"<empty>\""
+        },
+        {
+          "name": "structured_output",
+          "status": "fail",
+          "durationMs": 1494,
+          "summary": "Expected structured tool_use block, got text: \"I'll\"",
+          "details": "Expected structured tool_use block, got text: \"I'll\""
+        },
+        {
+          "name": "pdf_document",
+          "status": "pass",
+          "durationMs": 910,
+          "summary": "PDF Capability Probe"
+        }
+      ]
+    },
+    {
+      "model": "minimax-m2.5-highspeed",
+      "profile": "incompatible",
+      "probes": [
+        {
+          "name": "text",
+          "status": "fail",
+          "durationMs": 56,
+          "summary": "503 {\"error\":{\"message\":\"No available providers (cch_session_id: sess_7f06f0c0de785595027cfbbece40ab78)\",\"type\":\"no_available_providers\",\"code\":\"no_available_providers\"}}",
+          "details": "503 {\"error\":{\"message\":\"No available providers (cch_session_id: sess_7f06f0c0de785595027cfbbece40ab78)\",\"type\":\"no_available_providers\",\"code\":\"no_available_providers\"}}"
+        },
+        {
+          "name": "csv_text",
+          "status": "fail",
+          "durationMs": 68,
+          "summary": "503 {\"error\":{\"message\":\"No available providers (cch_session_id: sess_7f06f0c0de785595027cfbbece40ab78)\",\"type\":\"no_available_providers\",\"code\":\"no_available_providers\"}}",
+          "details": "503 {\"error\":{\"message\":\"No available providers (cch_session_id: sess_7f06f0c0de785595027cfbbece40ab78)\",\"type\":\"no_available_providers\",\"code\":\"no_available_providers\"}}"
+        },
+        {
+          "name": "tool_use",
+          "status": "fail",
+          "durationMs": 48,
+          "summary": "503 {\"error\":{\"message\":\"No available providers (cch_session_id: sess_7f06f0c0de785595027cfbbece40ab78)\",\"type\":\"no_available_providers\",\"code\":\"no_available_providers\"}}",
+          "details": "503 {\"error\":{\"message\":\"No available providers (cch_session_id: sess_7f06f0c0de785595027cfbbece40ab78)\",\"type\":\"no_available_providers\",\"code\":\"no_available_providers\"}}"
+        },
+        {
+          "name": "structured_output",
+          "status": "fail",
+          "durationMs": 59,
+          "summary": "503 {\"error\":{\"message\":\"No available providers (cch_session_id: sess_7f06f0c0de785595027cfbbece40ab78)\",\"type\":\"no_available_providers\",\"code\":\"no_available_providers\"}}",
+          "details": "503 {\"error\":{\"message\":\"No available providers (cch_session_id: sess_7f06f0c0de785595027cfbbece40ab78)\",\"type\":\"no_available_providers\",\"code\":\"no_available_providers\"}}"
+        },
+        {
+          "name": "pdf_document",
+          "status": "fail",
+          "durationMs": 59,
+          "summary": "503 {\"error\":{\"message\":\"No available providers (cch_session_id: sess_7f06f0c0de785595027cfbbece40ab78)\",\"type\":\"no_available_providers\",\"code\":\"no_available_providers\"}}",
+          "details": "503 {\"error\":{\"message\":\"No available providers (cch_session_id: sess_7f06f0c0de785595027cfbbece40ab78)\",\"type\":\"no_available_providers\",\"code\":\"no_available_providers\"}}"
+        }
+      ]
+    }
+  ]
+}

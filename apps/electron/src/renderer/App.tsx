@@ -26,12 +26,13 @@ import { NavigationProvider } from '@/contexts/NavigationContext'
 import { navigate, routes } from './lib/navigate'
 import { stripMarkdown } from './utils/text'
 import { extractWorkspaceSlugFromPath } from '@work-agent/shared/utils/workspace-slug'
-import { initRendererPerf } from './lib/perf'
+import { initRendererPerf, rendererPerf } from './lib/perf'
 import {
   initializeSessionsAtom,
   addSessionAtom,
   removeSessionAtom,
   updateSessionAtom,
+  updateStreamingContentAtom,
   sessionAtomFamily,
   sessionMetaMapAtom,
   sessionIdsAtom,
@@ -60,6 +61,11 @@ type AppState = 'loading' | 'onboarding' | 'reauth' | 'ready'
 
 /** Type for the Jotai store returned by useStore() */
 type JotaiStore = ReturnType<typeof getDefaultStore>
+
+interface PendingTextDeltaBatch {
+  delta: string
+  turnId?: string
+}
 
 /**
  * Helper to handle background task events from the agent.
@@ -139,6 +145,29 @@ function handleBackgroundTaskEvent(
   // They are only removed when:
   // 1. Their tool_result comes back (task finished)
   // 2. KillShell succeeds (shell_killed event)
+}
+
+function hasStreamingAssistantMessage(session: Session | null | undefined, turnId?: string): boolean {
+  if (!session) return false
+
+  if (turnId) {
+    const turnMatch = session.messages.some((message) =>
+      message.role === 'assistant' && message.turnId === turnId && message.isStreaming
+    )
+    if (turnMatch) {
+      return true
+    }
+  }
+
+  return session.messages.some((message) => message.role === 'assistant' && message.isStreaming)
+}
+
+function canMergePendingTextDelta(
+  pending: PendingTextDeltaBatch | undefined,
+  turnId?: string
+): pending is PendingTextDeltaBatch {
+  if (!pending) return false
+  return pending.turnId === turnId || pending.turnId === undefined || turnId === undefined
 }
 
 export default function App() {
@@ -265,9 +294,63 @@ export default function App() {
   }, [sessionOptions])
 
   // Event processor hook - handles all agent events through pure functions
-  const { processAgentEvent } = useEventProcessor()
+  const { processAgentEvent, appendStreamingText } = useEventProcessor()
+  const pendingTextDeltaBatchesRef = useRef<Map<string, PendingTextDeltaBatch>>(new Map())
+  const pendingTextDeltaFramesRef = useRef<Map<string, number>>(new Map())
 
   const DRAFT_SAVE_DEBOUNCE_MS = 500
+
+  const flushPendingTextDelta = useCallback((sessionId: string) => {
+    const frameId = pendingTextDeltaFramesRef.current.get(sessionId)
+    if (frameId !== undefined) {
+      cancelAnimationFrame(frameId)
+      pendingTextDeltaFramesRef.current.delete(sessionId)
+    }
+
+    const pending = pendingTextDeltaBatchesRef.current.get(sessionId)
+    if (!pending) return
+    pendingTextDeltaBatchesRef.current.delete(sessionId)
+
+    if (!hasStreamingAssistantMessage(store.get(sessionAtomFamily(sessionId)), pending.turnId)) {
+      return
+    }
+
+    const atomUpdateStart = performance.now()
+    store.set(updateStreamingContentAtom, sessionId, pending.delta, pending.turnId)
+    rendererPerf.recordStreamingAtomUpdate(sessionId, performance.now() - atomUpdateStart)
+  }, [store])
+
+  const queuePendingTextDelta = useCallback((sessionId: string, delta: string, turnId?: string) => {
+    const pending = pendingTextDeltaBatchesRef.current.get(sessionId)
+    const mergedBatch: PendingTextDeltaBatch = canMergePendingTextDelta(pending, turnId)
+      ? {
+          delta: pending.delta + delta,
+          turnId: turnId ?? pending.turnId,
+        }
+      : {
+          delta,
+          turnId,
+        }
+    pendingTextDeltaBatchesRef.current.set(sessionId, mergedBatch)
+
+    if (pendingTextDeltaFramesRef.current.has(sessionId)) {
+      return
+    }
+
+    const frameId = requestAnimationFrame(() => {
+      pendingTextDeltaFramesRef.current.delete(sessionId)
+      flushPendingTextDelta(sessionId)
+    })
+    pendingTextDeltaFramesRef.current.set(sessionId, frameId)
+  }, [flushPendingTextDelta])
+
+  useEffect(() => {
+    return () => {
+      pendingTextDeltaFramesRef.current.forEach((frameId) => cancelAnimationFrame(frameId))
+      pendingTextDeltaFramesRef.current.clear()
+      pendingTextDeltaBatchesRef.current.clear()
+    }
+  }, [])
 
   const resolveDefaultConnectionSlug = useCallback((connections: LlmConnectionWithStatus[]) => {
     if (connections.length === 0) return undefined
@@ -594,10 +677,47 @@ export default function App() {
         return
       }
 
+      if (event.type !== 'text_delta') {
+        flushPendingTextDelta(sessionId)
+      } else {
+        const pendingDelta = pendingTextDeltaBatchesRef.current.get(sessionId)
+        if (pendingDelta && !canMergePendingTextDelta(pendingDelta, event.turnId)) {
+          flushPendingTextDelta(sessionId)
+        }
+      }
+
       // Check if session is currently streaming (atom is source of truth)
       const atomSession = store.get(sessionAtomFamily(sessionId))
       const isStreaming = atomSession?.isProcessing === true
       const isHandoff = handoffEventTypes.has(event.type)
+      const shouldTrackStreamingPerf = rendererPerf.isEnabled() && (
+        isStreaming ||
+        event.type === 'text_delta' ||
+        event.type === 'text_complete' ||
+        event.type === 'complete' ||
+        event.type === 'interrupted' ||
+        event.type === 'error' ||
+        event.type === 'typed_error'
+      )
+      const deltaChars = event.type === 'text_delta' ? event.delta.length : 0
+
+      if (event.type === 'text_delta') {
+        const pendingDelta = pendingTextDeltaBatchesRef.current.get(sessionId)
+        const canUseFastPath = canMergePendingTextDelta(pendingDelta, event.turnId)
+          || hasStreamingAssistantMessage(atomSession, event.turnId)
+
+        if (canUseFastPath) {
+          const processingStart = performance.now()
+          appendStreamingText(sessionId, event.delta, event.turnId)
+          const processingMs = performance.now() - processingStart
+          if (shouldTrackStreamingPerf) {
+            rendererPerf.recordStreamingEventProcessing(sessionId, event.type, processingMs, deltaChars)
+          }
+
+          queuePendingTextDelta(sessionId, event.delta, event.turnId)
+          return
+        }
+      }
 
       // During streaming OR for handoff events: use atom as source of truth
       // This ensures all events during streaming see the complete state
@@ -605,14 +725,24 @@ export default function App() {
         const currentSession = atomSession ?? null
 
         // Process the event
+        const processingStart = performance.now()
         const { session: updatedSession, effects } = processAgentEvent(
           agentEvent,
           currentSession,
           workspaceId
         )
+        const processingMs = performance.now() - processingStart
+        if (shouldTrackStreamingPerf) {
+          rendererPerf.recordStreamingEventProcessing(sessionId, event.type, processingMs, deltaChars)
+        }
 
         // Update atom directly (UI sees update immediately)
+        const atomUpdateStart = performance.now()
         updateSessionDirect(sessionId, () => updatedSession)
+        const atomUpdateMs = performance.now() - atomUpdateStart
+        if (shouldTrackStreamingPerf) {
+          rendererPerf.recordStreamingAtomUpdate(sessionId, atomUpdateMs)
+        }
 
         // Handle side effects
         handleEffects(effects, sessionId, event.type)
@@ -643,17 +773,26 @@ export default function App() {
           }
         }
 
+        if (event.type === 'complete' || event.type === 'interrupted' || event.type === 'error' || event.type === 'typed_error') {
+          rendererPerf.flushStreamingPerf(sessionId)
+        }
+
         return
       }
 
       // Not streaming: use per-session atoms directly (no sessionsAtom)
       const currentSession = store.get(sessionAtomFamily(sessionId))
 
+      const processingStart = performance.now()
       const { session: updatedSession, effects } = processAgentEvent(
         agentEvent,
         currentSession,
         workspaceId
       )
+      const processingMs = performance.now() - processingStart
+      if (shouldTrackStreamingPerf) {
+        rendererPerf.recordStreamingEventProcessing(sessionId, event.type, processingMs, deltaChars)
+      }
 
       // Handle side effects
       handleEffects(effects, sessionId, event.type)
@@ -662,17 +801,35 @@ export default function App() {
       handleBackgroundTaskEvent(store, sessionId, event, agentEvent)
 
       // Update per-session atom
+      const atomUpdateStart = performance.now()
       updateSessionDirect(sessionId, () => updatedSession)
+      const atomUpdateMs = performance.now() - atomUpdateStart
+      if (shouldTrackStreamingPerf) {
+        rendererPerf.recordStreamingAtomUpdate(sessionId, atomUpdateMs)
+      }
 
       // Update metadata map
       const metaMap = store.get(sessionMetaMapAtom)
       const newMetaMap = new Map(metaMap)
       newMetaMap.set(sessionId, extractSessionMeta(updatedSession))
       store.set(sessionMetaMapAtom, newMetaMap)
+
+      if (event.type === 'complete' || event.type === 'interrupted' || event.type === 'error' || event.type === 'typed_error') {
+        rendererPerf.flushStreamingPerf(sessionId)
+      }
     })
 
     return cleanup
-  }, [processAgentEvent, windowWorkspaceId, store, updateSessionDirect, showSessionNotification])
+  }, [
+    appendStreamingText,
+    flushPendingTextDelta,
+    processAgentEvent,
+    queuePendingTextDelta,
+    showSessionNotification,
+    store,
+    updateSessionDirect,
+    windowWorkspaceId,
+  ])
 
   // Listen for menu bar events
   useEffect(() => {
@@ -767,7 +924,9 @@ export default function App() {
    */
   const handleSetActiveViewingSession = useCallback((sessionId: string) => {
     // Optimistic UI update: clear hasUnread immediately
-    updateSessionById(sessionId, { hasUnread: false })
+    updateSessionById(sessionId, (session) => (
+      session.hasUnread ? { hasUnread: false } : {}
+    ))
     // Tell main process user is viewing this session
     window.electronAPI.sessionCommand(sessionId, { type: 'setActiveViewing', workspaceId: windowWorkspaceId ?? '' })
   }, [updateSessionById, windowWorkspaceId])

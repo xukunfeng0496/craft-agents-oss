@@ -9,7 +9,16 @@ declare const CRAFT_AGENT_CLI_VERSION: string | undefined;
 let customPathToClaudeCodeExecutable: string | null = null;
 let customInterceptorPath: string | null = null;
 let customExecutable: string | null = null;
+let customExecutableKind: 'bun' | 'node' = 'bun';
+let customExecutableEnv: Record<string, string> | null = null;
 let claudeConfigChecked = false;
+
+export interface ClaudeCodeRuntimeOverride {
+    executable: string;
+    executableKind: 'bun' | 'node';
+    env?: Record<string, string>;
+    disableInterceptorPreload?: boolean;
+}
 
 // UTF-8 BOM character — Windows editors/processes sometimes prepend this to files.
 // JSON parsers reject BOM, but the file content after BOM may be valid JSON.
@@ -171,8 +180,35 @@ export function setInterceptorPath(path: string) {
  * Set the path to the JavaScript runtime executable (e.g., bun or node).
  * This is needed when bundling a runtime with the app (e.g., in Electron).
  */
-export function setExecutable(path: string) {
+export function setExecutable(path: string, kind: 'bun' | 'node' = 'bun', env?: Record<string, string>) {
     customExecutable = path;
+    customExecutableKind = kind;
+    customExecutableEnv = env ?? null;
+}
+
+export function getExecutableKind(): 'bun' | 'node' {
+    return customExecutableKind;
+}
+
+/**
+ * Switch the SDK subprocess to Electron's embedded Node.js runtime.
+ *
+ * This is used as a compatibility fallback on macOS when the bundled Bun
+ * runtime aborts on startup for a subset of Apple Silicon machines.
+ */
+export function enableElectronNodeRuntimeFallback(): ClaudeCodeRuntimeOverride | null {
+    if (!process.versions.electron) return null;
+
+    const runtimeOverride: ClaudeCodeRuntimeOverride = {
+        executable: process.execPath,
+        executableKind: 'node',
+        env: {
+            ELECTRON_RUN_AS_NODE: '1',
+        },
+        disableInterceptorPreload: true,
+    };
+    debug('[options] Prepared Electron Node.js fallback runtime for Claude Code');
+    return runtimeOverride;
 }
 
 /**
@@ -183,7 +219,10 @@ export function setExecutable(path: string) {
  *   Used to pass per-session config like ANTHROPIC_BASE_URL that would
  *   otherwise be clobbered by concurrent sessions mutating process.env.
  */
-export function getDefaultOptions(envOverrides?: Record<string, string>): Partial<Options> {
+export function getDefaultOptions(
+    envOverrides?: Record<string, string>,
+    runtimeOverride?: ClaudeCodeRuntimeOverride
+): Partial<Options> {
     // Repair corrupted ~/.claude.json before the SDK subprocess reads it
     ensureClaudeConfig();
 
@@ -198,18 +237,27 @@ export function getDefaultOptions(envOverrides?: Record<string, string>): Partia
 
     // If custom path is set (e.g., for Electron), use it with minimal options
     if (customPathToClaudeCodeExecutable) {
+        const executableKind = runtimeOverride?.executableKind ?? customExecutableKind;
+        const executable = runtimeOverride?.executable ?? customExecutable ?? executableKind;
         const executableArgs = [envFileFlag];
-        // Add interceptor preload if path is set (needed for cache TTL patching)
-        if (customInterceptorPath) {
+        // Add interceptor preload only for Bun. Node fallback uses Electron's
+        // embedded runtime, which cannot preload our TypeScript interceptor.
+        if (
+            executableKind === 'bun' &&
+            !runtimeOverride?.disableInterceptorPreload &&
+            customInterceptorPath
+        ) {
             executableArgs.push('--preload', customInterceptorPath);
         }
         return {
             pathToClaudeCodeExecutable: customPathToClaudeCodeExecutable,
-            // Use custom executable if set, otherwise default to 'bun'
-            executable: (customExecutable || 'bun') as 'bun',
+            // Use the per-call runtime when provided, otherwise fall back to the app default.
+            executable: executable as 'bun',
             executableArgs,
             env: {
                 ...process.env,
+                ...(customExecutableEnv ?? {}),
+                ...(runtimeOverride?.env ?? {}),
                 ...envOverrides,
                 // Propagate debug mode from argv flag OR existing env var
                 CRAFT_DEBUG: (process.argv.includes('--debug') || process.env.CRAFT_DEBUG === '1') ? '1' : '0',

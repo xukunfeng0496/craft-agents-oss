@@ -13,6 +13,8 @@ export interface Info_SectionProps {
   title: string
   /** Optional description below title */
   description?: string
+  /** Optional badge shown inline with the title */
+  badge?: React.ReactNode
   /** Optional right-aligned header actions */
   actions?: React.ReactNode
   /** Section content */
@@ -23,6 +25,7 @@ export interface Info_SectionProps {
 export function Info_Section({
   title,
   description,
+  badge,
   actions,
   children,
   className,
@@ -31,9 +34,12 @@ export function Info_Section({
     <section className={cn('space-y-3 pt-2', className)}>
       <div className="flex items-start justify-between pl-1">
         <div className="space-y-0.5">
-          <h3 className="text-base font-semibold">
-            {title}
-          </h3>
+          <div className="flex items-center gap-2">
+            <h3 className="text-base font-semibold">
+              {title}
+            </h3>
+            {badge}
+          </div>
           {description && (
             <p className="text-sm text-muted-foreground">{description}</p>
           )}

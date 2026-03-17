@@ -99,10 +99,15 @@ function formatMessage(scope: string | undefined, message: string, args: unknown
 function output(formatted: string): void {
   const env = detectEnvironment();
 
-  // Mirror debug logs into electron-log when available so they appear in main.log.
+  // In Electron main, prefer electron-log as the single sink.
+  // Its console transport already mirrors to the terminal in debug mode,
+  // so writing to stderr here would duplicate every debug line.
   if (env === 'electron-main') {
     const log = getElectronLog();
-    log?.info?.(formatted.trim());
+    if (log?.info) {
+      log.info(formatted.trim());
+      return;
+    }
   }
 
   if (env === 'electron-renderer') {

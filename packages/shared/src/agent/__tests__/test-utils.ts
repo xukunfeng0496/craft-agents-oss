@@ -11,6 +11,7 @@ import type { Workspace } from '../../config/storage.ts';
 import type { SessionConfig as Session } from '../../sessions/storage.ts';
 import type { LoadedSource } from '../../sources/types.ts';
 import { BaseAgent } from '../base-agent.ts';
+import type { LoadedSkill } from '../../skills/types.ts';
 
 // ============================================================
 // Mock Workspace Factory
@@ -151,6 +152,14 @@ export class TestAgent extends BaseAgent {
 
   async queryLlm(_request: import('../llm-tool.ts').LLMQueryRequest): Promise<import('../llm-tool.ts').LLMQueryResult> {
     return { text: 'Test LLM Response' };
+  }
+
+  setCachedSkills(skills: LoadedSkill[]): void {
+    this.cachedSkills = skills;
+  }
+
+  getFormattedSkillState(): string | null {
+    return this.formatSkillState();
   }
 
   // Helper to reset tracking

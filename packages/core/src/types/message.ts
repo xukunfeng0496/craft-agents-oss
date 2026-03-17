@@ -326,6 +326,7 @@ export type ErrorCode =
   | 'invalid_request'        // API rejected the request (e.g., bad image, invalid content)
   | 'image_too_large'        // Image exceeds API dimension/size limits
   | 'provider_error'         // AI provider experiencing issues (overloaded, unavailable)
+  | 'runtime_crash'          // Local Claude runtime crashed before request execution
   | 'unknown_error';
 
 /**

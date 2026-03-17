@@ -58,6 +58,7 @@ import {
   type AuthRequest,
 } from '@work-agent/session-tools-core';
 import { createLLMTool, type LLMQueryRequest, type LLMQueryResult } from './llm-tool.ts';
+import { createBrowserTools, type BrowserPaneFns } from './browser-tools.ts';
 
 // Re-export types for backward compatibility
 export type {
@@ -106,6 +107,12 @@ export interface SessionScopedToolCallbacks {
    * The UI should display the question and collect the user's response.
    */
   onQuestionRequest?: (request: { requestId: string; questions: import('@work-agent/core/types').UserQuestion[]; sessionId?: string }) => void;
+
+  /**
+   * Browser automation entry point for session-scoped browser_tool exposure.
+   * When unavailable, browser_tool is omitted from the session MCP server.
+   */
+  getBrowserPaneFns?: () => BrowserPaneFns | undefined;
 }
 
 // Registry of callbacks keyed by sessionId
@@ -764,6 +771,14 @@ export function getSessionScopedTools(
     },
   });
 
+  const callbacks = getSessionScopedToolCallbacks(sessionId);
+  const browserTools = callbacks?.getBrowserPaneFns
+    ? createBrowserTools({
+        getBrowserPaneFns: callbacks.getBrowserPaneFns,
+        sessionId,
+      })
+    : [];
+
   // Create tools using shared handlers
   const tools = [
     // SubmitPlan
@@ -905,6 +920,9 @@ export function getSessionScopedTools(
         content: [{ type: 'text' as const, text: lines.join('\n').trim() }],
       };
     }),
+
+    // browser_tool — in-app browser automation exposed via session MCP
+    ...browserTools,
 
   ];
 

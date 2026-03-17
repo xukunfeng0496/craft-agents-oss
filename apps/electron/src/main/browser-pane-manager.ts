@@ -348,6 +348,11 @@ export class BrowserPaneManager {
     const ses = session.fromPartition(SESSION_PARTITION)
     this.setupSessionPermissions(ses)
     this.setupSessionObservers(ses)
+    const toolbarPreloadPath = join(__dirname, 'browser-toolbar-preload.cjs')
+
+    if (!existsSync(toolbarPreloadPath)) {
+      mainLog.error(`[browser-pane] toolbar preload missing: ${toolbarPreloadPath}`)
+    }
 
     // Match background to current OS theme to prevent black/white flash on open
     const bgColor = nativeTheme.shouldUseDarkColors ? '#2b292e' : '#fafafb'
@@ -362,7 +367,7 @@ export class BrowserPaneManager {
       // Fully chromeless — toolbar is rendered via React BrowserControls
       frame: false,
       webPreferences: {
-        preload: join(__dirname, 'browser-toolbar-preload.cjs'),
+        preload: toolbarPreloadPath,
         partition: SESSION_PARTITION,
         session: ses,
         contextIsolation: true,

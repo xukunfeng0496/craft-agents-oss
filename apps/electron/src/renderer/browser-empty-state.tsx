@@ -27,8 +27,8 @@ function BrowserEmptyStateApp() {
     <div className="h-screen w-screen bg-foreground-2 overflow-hidden">
       <div className="h-full w-full bg-background overflow-auto">
         <BrowserEmptyStateCard
-          title="This browser is ready for your Agents - and you ;)"
-          description="Ask any session to use this browser (or open another one) to complete tasks like research, form filling, QA checks, or data extraction."
+          title="这个浏览器已经准备好为你的 Agents 服务了 ;)"
+          description="你可以让任意会话使用这个浏览器（或再打开一个新窗口）来完成信息检索、表单填写、QA 检查、数据提取等任务。"
           prompts={EMPTY_STATE_PROMPT_SAMPLES}
           showExamplePrompts={true}
           showSafetyHint={true}

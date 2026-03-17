@@ -96,6 +96,7 @@ import { buildAgentEnv } from './agent-env'
 export { buildAgentEnv }
 import { detectMissingTools } from './tool-detection'
 import { buildRecoveryMessages } from './session-recovery-context'
+import { createSessionBrowserPaneFns } from './browser-pane-session-fns'
 
 /**
  * Get the path to the bundled Bun executable.
@@ -1068,98 +1069,7 @@ export class SessionManager {
       return undefined
     }
 
-    const browserMgr = this.browserPaneManager
-
-    return {
-      openPanel: async (options?: { background?: boolean }) => {
-        const result = await browserMgr.createForSession(sessionId, { show: !options?.background })
-        return { instanceId: result }
-      },
-      navigate: async (url: string) => {
-        return await browserMgr.navigate(sessionId, url)
-      },
-      snapshot: async () => {
-        return await browserMgr.getAccessibilitySnapshot(sessionId)
-      },
-      click: async (ref: string, _options?: { waitFor?: 'none' | 'navigation' | 'network-idle'; timeoutMs?: number }) => {
-        await browserMgr.clickElement(sessionId, ref)
-      },
-      clickAt: async (x: number, y: number) => {
-        await browserMgr.clickAtCoordinates(sessionId, x, y)
-      },
-      drag: async (x1: number, y1: number, x2: number, y2: number) => {
-        await browserMgr.drag(sessionId, x1, y1, x2, y2)
-      },
-      fill: async (ref: string, value: string) => {
-        await browserMgr.fillElement(sessionId, ref, value)
-      },
-      type: async (text: string) => {
-        await browserMgr.typeText(sessionId, text)
-      },
-      select: async (ref: string, value: string) => {
-        await browserMgr.selectOption(sessionId, ref, value)
-      },
-      setClipboard: async (text: string) => {
-        await browserMgr.setClipboard(sessionId, text)
-      },
-      getClipboard: async () => {
-        return await browserMgr.getClipboard(sessionId)
-      },
-      screenshot: async (args?: any) => {
-        return await browserMgr.screenshot(sessionId, args)
-      },
-      screenshotRegion: async (args: any) => {
-        return await browserMgr.screenshotRegion(sessionId, args)
-      },
-      getConsoleLogs: async (args?: any) => {
-        return await browserMgr.getConsoleLogs(sessionId, args)
-      },
-      windowResize: async (args: any) => {
-        return await browserMgr.windowResize(sessionId, args.width, args.height)
-      },
-      getNetworkLogs: async (args?: any) => {
-        return await browserMgr.getNetworkLogs(sessionId, args)
-      },
-      waitFor: async (args: any) => {
-        return await browserMgr.waitFor(sessionId, args)
-      },
-      sendKey: async (args: any) => {
-        await browserMgr.sendKey(sessionId, args)
-      },
-      getDownloads: async (args?: any) => {
-        return await browserMgr.getDownloads(sessionId, args)
-      },
-      upload: async (ref: string, filePaths: string[]) => {
-        await browserMgr.uploadFile(sessionId, ref, filePaths)
-      },
-      scroll: async (direction: 'up' | 'down' | 'left' | 'right', amount?: number) => {
-        await browserMgr.scroll(sessionId, direction, amount)
-      },
-      goBack: async () => {
-        await browserMgr.goBack(sessionId)
-      },
-      goForward: async () => {
-        await browserMgr.goForward(sessionId)
-      },
-      evaluate: async (expression: string) => {
-        return await browserMgr.evaluate(sessionId, expression)
-      },
-      focusWindow: async (instanceId?: string) => {
-        return await browserMgr.focusWindow(sessionId, instanceId)
-      },
-      releaseControl: async (instanceId?: string) => {
-        return await browserMgr.releaseControl(sessionId, instanceId)
-      },
-      closeWindow: async (instanceId?: string) => {
-        return await browserMgr.closeWindow(sessionId, instanceId)
-      },
-      hideWindow: async (instanceId?: string) => {
-        return await browserMgr.hideWindow(sessionId, instanceId)
-      },
-      listWindows: async () => {
-        return await browserMgr.listWindows(sessionId)
-      },
-    }
+    return createSessionBrowserPaneFns(sessionId, this.browserPaneManager)
   }
 
   /** Returns a strictly increasing timestamp (ms). When Date.now() collides with

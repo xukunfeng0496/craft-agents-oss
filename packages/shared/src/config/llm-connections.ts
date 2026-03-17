@@ -9,6 +9,7 @@
 // Import model types and lists from centralized registry
 import {
   type ModelDefinition,
+  type ModelCapabilityOverrides,
   ANTHROPIC_MODELS,
   OPENAI_MODELS,
 } from './models';
@@ -106,6 +107,16 @@ export interface LlmConnection {
   defaultModel?: string;
 
   /**
+   * Optional per-connection capability overrides for routed or custom models.
+   * Use this when a gateway model ID (for example `CVTE-AUTO`) maps to different
+   * upstream models and the platform has authoritative capability metadata.
+   */
+  capabilities?: {
+    default?: ModelCapabilityOverrides;
+    byModel?: Record<string, ModelCapabilityOverrides>;
+  };
+
+  /**
    * Path to the Codex binary (for 'openai' provider connections).
    * If not set, defaults to 'codex' in PATH.
    *
@@ -147,6 +158,40 @@ export interface LlmConnectionWithStatus extends LlmConnection {
 
   /** Whether this is the global default connection */
   isDefault?: boolean;
+}
+
+function findCapabilityOverride(
+  byModel: Record<string, ModelCapabilityOverrides> | undefined,
+  modelId: string
+): ModelCapabilityOverrides | undefined {
+  if (!byModel) return undefined;
+  if (byModel[modelId]) return byModel[modelId];
+
+  const normalizedId = modelId.toLowerCase();
+  for (const [key, value] of Object.entries(byModel)) {
+    if (key.toLowerCase() === normalizedId) {
+      return value;
+    }
+  }
+
+  return undefined;
+}
+
+export function getConnectionModelCapabilities(
+  connection: Pick<LlmConnection, 'capabilities'> | null | undefined,
+  modelId: string
+): ModelCapabilityOverrides | undefined {
+  const defaults = connection?.capabilities?.default;
+  const specific = findCapabilityOverride(connection?.capabilities?.byModel, modelId);
+
+  if (!defaults && !specific) {
+    return undefined;
+  }
+
+  return {
+    ...defaults,
+    ...specific,
+  };
 }
 
 // ============================================================

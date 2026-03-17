@@ -27,6 +27,7 @@ import { AbortReason, type RecoveryMessage } from '../core/index.ts';
 export { AbortReason, type RecoveryMessage };
 
 import type { ModelProvider } from '../../config/models.ts';
+import type { ModelCapabilityOverrides } from '../../config/models.ts';
 
 // Import LLM connection types for auth
 import type { LlmAuthType, LlmProviderType } from '../../config/llm-connections.ts';
@@ -329,6 +330,9 @@ export interface BackendConfig {
 
   /** Initial model ID */
   model?: string;
+
+  /** Optional capability overrides for the active model/connection. */
+  modelCapabilities?: ModelCapabilityOverrides;
 
   /** Initial thinking level */
   thinkingLevel?: ThinkingLevel;

@@ -22,7 +22,7 @@ import {
   getCredentialCachePath,
   type CredentialCacheEntry,
 } from '@work-agent/shared/codex'
-import { getLlmConnection, getDefaultLlmConnection } from '@work-agent/shared/config'
+import { getConnectionModelCapabilities, getLlmConnection, getDefaultLlmConnection } from '@work-agent/shared/config'
 import { sessionLog, isDebugMode, getLogFilePath, perfLog } from './logger'
 import { InitGate } from './init-gate'
 import { createSdkMcpServer } from '@anthropic-ai/claude-agent-sdk'
@@ -74,11 +74,21 @@ import { loadWorkspaceSources, loadAllSources, getSourcesBySlugs, isSourceUsable
 import { ConfigWatcher, type ConfigWatcherCallbacks } from '@work-agent/shared/config'
 import { getValidClaudeOAuthToken } from '@work-agent/shared/auth'
 import { setPathToClaudeCodeExecutable, setInterceptorPath, setExecutable } from '@work-agent/shared/agent'
-import { toolMetadataStore } from '@work-agent/shared/network-interceptor'
+import { getLastApiError, toolMetadataStore } from '@work-agent/shared/network-interceptor'
 import { getCredentialManager } from '@work-agent/shared/credentials'
 import { CraftMcpClient } from '@work-agent/shared/mcp'
 import { type Session, type Message, type SessionEvent, type FileAttachment, type StoredAttachment, type SendMessageOptions, IPC_CHANNELS, generateMessageId } from '../shared/types'
-import { formatPathsToRelative, formatToolInputPaths, perf, encodeIconToDataUrl, getEmojiIcon, resetSummarizationClient, resolveToolIcon } from '@work-agent/shared/utils'
+import {
+  buildFallbackRegeneratedTitle,
+  buildFallbackTitle,
+  formatPathsToRelative,
+  formatToolInputPaths,
+  perf,
+  encodeIconToDataUrl,
+  getEmojiIcon,
+  resetSummarizationClient,
+  resolveToolIcon,
+} from '@work-agent/shared/utils'
 import { loadAllSkills, loadSkillBySlug, type LoadedSkill } from '@work-agent/shared/skills'
 import type { ToolDisplayMeta } from '@work-agent/core/types'
 import { getToolIconsDir, isCodexModel, getMiniModel, isAnthropicProvider, DEFAULT_MODEL, DEFAULT_CODEX_MODEL } from '@work-agent/shared/config'
@@ -96,6 +106,8 @@ import { buildAgentEnv } from './agent-env'
 export { buildAgentEnv }
 import { detectMissingTools } from './tool-detection'
 import { buildRecoveryMessages } from './session-recovery-context'
+import { processRemoteAttachments } from './remote-attachments'
+import { handleRemoteSendMessage } from './remote-control-send-message'
 import { createSessionBrowserPaneFns } from './browser-pane-session-fns'
 
 /**
@@ -2929,9 +2941,13 @@ export class SessionManager {
 
         // Model resolution: session > connection default (connection always has defaultModel via backfill)
         const resolvedModel = managed.model || connection?.defaultModel || DEFAULT_MODEL
+        const modelCapabilities = connection
+          ? getConnectionModelCapabilities(connection, resolvedModel)
+          : undefined
         managed.agent = new WorkAgent({
           workspace: managed.workspace,
           model: resolvedModel,
+          modelCapabilities,
           miniModel: connection ? (getMiniModel(connection) ?? connection.defaultModel) : undefined,
           // Initialize thinking level at construction to avoid race conditions
           thinkingLevel: managed.thinkingLevel,
@@ -3606,58 +3622,18 @@ export class SessionManager {
                 type: string; name: string; mimeType: string;
                 base64?: string; text?: string; size: number
               }> | undefined
-              let attachments: FileAttachment[] | undefined
-              let storedAttachments: StoredAttachment[] | undefined
-              if (rawAttachments && rawAttachments.length > 0 && managed) {
-                // Server-side validation: cap count and size to prevent abuse
-                const MAX_ATTACHMENTS = 10
-                const MAX_ATTACHMENT_SIZE = 5 * 1024 * 1024 // 5MB per file
-                const ALLOWED_TYPES: ReadonlySet<string> = new Set(['image', 'pdf', 'text', 'unknown'])
-
-                const validAttachments = rawAttachments
-                  .slice(0, MAX_ATTACHMENTS)
-                  .filter(a => ALLOWED_TYPES.has(a.type) && (a.size == null || a.size <= MAX_ATTACHMENT_SIZE))
-
-                if (validAttachments.length < rawAttachments.length) {
-                  sessionLog.warn(`[RemoteControl] Dropped ${rawAttachments.length - validAttachments.length} invalid/oversized attachments for session ${sessionId}`)
-                }
-
-                const attachmentsDir = getSessionAttachmentsPath(managed.workspace.rootPath, sessionId)
-                await mkdir(attachmentsDir, { recursive: true })
-                const pairs = await Promise.all(validAttachments.map(async (a) => {
-                  const id = randomUUID()
-                  const safeName = a.name.replace(/[^a-zA-Z0-9._-]/g, '_')
-                  const storedPath = join(attachmentsDir, `${id}_${safeName}`)
-                  if (a.base64) {
-                    await writeFile(storedPath, Buffer.from(a.base64, 'base64'))
-                  } else if (a.text) {
-                    await writeFile(storedPath, a.text, 'utf8')
-                  }
-                  const fa: FileAttachment = {
-                    type: a.type as FileAttachment['type'],
-                    path: storedPath,
-                    name: a.name,
-                    mimeType: a.mimeType,
-                    base64: a.base64,
-                    text: a.text,
-                    size: a.size,
-                    storedPath,  // agent uses this to reference the file in prompts
-                  }
-                  const sa: StoredAttachment = {
-                    id,
-                    type: a.type as StoredAttachment['type'],
-                    name: a.name,
-                    mimeType: a.mimeType,
-                    size: a.size,
-                    storedPath,
-                    thumbnailBase64: a.type === 'image' && a.base64 ? a.base64 : undefined,
-                  }
-                  return { fa, sa }
-                }))
-                attachments = pairs.map(p => p.fa)
-                storedAttachments = pairs.map(p => p.sa)
+              if (managed) {
+                handleRemoteSendMessage({
+                  sessionId,
+                  workspaceRootPath: managed.workspace.rootPath,
+                  content,
+                  rawAttachments,
+                  logger: sessionLog,
+                  sendMessage: (targetSessionId, message, attachments, storedAttachments) =>
+                    this.sendMessage(targetSessionId, message, attachments, storedAttachments),
+                  processAttachments: processRemoteAttachments,
+                }).catch(() => {})
               }
-              this.sendMessage(sessionId, content, attachments, storedAttachments).catch(() => {})
               break
             }
             case 'cancel_processing': {
@@ -4058,43 +4034,26 @@ export class SessionManager {
     let agent: AgentInstance | null = managed.agent
     let isTemporary = false
 
-    if (!agent && managed.llmConnection) {
+    if (!agent) {
       try {
-        const connection = getLlmConnection(managed.llmConnection)
-        const resolvedMiniModel = connection ? (getMiniModel(connection) ?? connection.defaultModel) : undefined
-
-        // Ensure auth credentials are available for Claude connections
-        if (connection && isAnthropicProvider(connection.providerType)) {
-          await this.reinitializeAuth(connection.slug)
-        }
-        const envOverrides: Record<string, string> = {}
-        if (connection?.baseUrl) {
-          envOverrides.ANTHROPIC_BASE_URL = connection.baseUrl
-        }
-
-        agent = createBackendFromConnection(managed.llmConnection, {
-          workspace: managed.workspace,
-          miniModel: resolvedMiniModel,
-          envOverrides,
-          session: {
-            id: `title-${managed.id}`,
-            workspaceRootPath: managed.workspace.rootPath,
-            llmConnection: managed.llmConnection,
-            createdAt: Date.now(),
-            lastUsedAt: Date.now(),
-          },
-          isHeadless: true,
-        }) as AgentInstance
+        agent = await this.createTemporaryTitleAgent(managed, 'refreshTitle')
         isTemporary = true
-        sessionLog.info(`refreshTitle: Created temporary agent for session ${sessionId}`)
       } catch (error) {
         sessionLog.error(`refreshTitle: Failed to create temporary agent:`, error)
+        const fallbackTitle = await this.applyFallbackRegeneratedTitle(managed, userMessages, assistantResponse, 'refreshTitle:create-agent-failed')
+        if (fallbackTitle) {
+          return { success: true, title: fallbackTitle }
+        }
         return { success: false, error: 'Failed to create agent for title generation' }
       }
     }
 
     if (!agent) {
       sessionLog.warn(`refreshTitle: No agent and no connection for session ${sessionId}`)
+      const fallbackTitle = await this.applyFallbackRegeneratedTitle(managed, userMessages, assistantResponse, 'refreshTitle:no-agent')
+      if (fallbackTitle) {
+        return { success: true, title: fallbackTitle }
+      }
       return { success: false, error: 'No agent available' }
     }
 
@@ -4111,23 +4070,25 @@ export class SessionManager {
       const title = await agent.regenerateTitle(userMessages, assistantResponse, loadStoredConfig()?.language)
       sessionLog.info(`refreshTitle: regenerateTitle returned: ${title ? `"${title}"` : 'null'}`)
       if (title) {
-        managed.name = title
-        this.persistSession(managed)
-        // title_generated will also clear isRegeneratingTitle via the event handler
-        this.sendEvent({ type: 'title_generated', sessionId, title }, managed.workspace.id)
+        await this.setSessionTitle(managed, title)
         sessionLog.info(`Refreshed title for session ${sessionId}: "${title}"`)
         return { success: true, title }
       }
-      // Failed to generate - clear regenerating state
-      this.sendEvent({ type: 'title_regenerating', sessionId, isRegenerating: false }, managed.workspace.id)
+      const fallbackTitle = await this.applyFallbackRegeneratedTitle(managed, userMessages, assistantResponse, 'refreshTitle:null-result')
+      if (fallbackTitle) {
+        return { success: true, title: fallbackTitle }
+      }
       return { success: false, error: 'Failed to generate title' }
     } catch (error) {
-      // Error occurred - clear regenerating state
-      this.sendEvent({ type: 'title_regenerating', sessionId, isRegenerating: false }, managed.workspace.id)
       const message = error instanceof Error ? error.message : 'Unknown error'
       sessionLog.error(`Failed to refresh title for session ${sessionId}:`, error)
+      const fallbackTitle = await this.applyFallbackRegeneratedTitle(managed, userMessages, assistantResponse, 'refreshTitle:error')
+      if (fallbackTitle) {
+        return { success: true, title: fallbackTitle }
+      }
       return { success: false, error: message }
     } finally {
+      this.sendEvent({ type: 'title_regenerating', sessionId, isRegenerating: false }, managed.workspace.id)
       // Clean up temporary agent
       if (isTemporary && agent) {
         agent.destroy()
@@ -5235,63 +5196,38 @@ To view this task's output:
       agent = managed.agent
     }
 
-    // If still no agent, create a temporary one using the session's connection
-    if (!agent && managed.llmConnection) {
+    // If still no agent, create a temporary one using the resolved session connection
+    if (!agent) {
       try {
-        const connection = getLlmConnection(managed.llmConnection)
-
-        // Ensure auth credentials are available for Claude connections
-        if (connection && isAnthropicProvider(connection.providerType)) {
-          await this.reinitializeAuth(connection.slug)
-        }
-        const envOverrides: Record<string, string> = {}
-        if (connection?.baseUrl) {
-          envOverrides.ANTHROPIC_BASE_URL = connection.baseUrl
-        }
-
-        agent = createBackendFromConnection(managed.llmConnection, {
-          workspace: managed.workspace,
-          miniModel: connection ? (getMiniModel(connection) ?? connection.defaultModel) : undefined,
-          envOverrides,
-          session: {
-            id: `title-${managed.id}`,
-            workspaceRootPath: managed.workspace.rootPath,
-            llmConnection: managed.llmConnection,
-            createdAt: Date.now(),
-            lastUsedAt: Date.now(),
-          },
-          isHeadless: true,
-        }) as AgentInstance
+        agent = await this.createTemporaryTitleAgent(managed, '[generateTitle]')
         isTemporary = true
-        sessionLog.info(`[generateTitle] Created temporary agent for session ${managed.id}`)
       } catch (error) {
         sessionLog.error(`[generateTitle] Failed to create temporary agent:`, error)
+        await this.applyFallbackTitle(managed, userMessage, '[generateTitle:create-agent-failed]')
         return
       }
     }
 
     if (!agent) {
       sessionLog.warn(`[generateTitle] No agent and no connection for session ${managed.id}`)
+      await this.applyFallbackTitle(managed, userMessage, '[generateTitle:no-agent]')
       return
     }
 
     try {
       const title = await agent.generateTitle(userMessage, loadStoredConfig()?.language)
       if (title) {
-        managed.name = title
-        this.persistSession(managed)
-        // Flush immediately to ensure disk is up-to-date before notifying renderer.
-        // This prevents race condition where lazy loading reads stale disk data
-        // (the persistence queue has a 500ms debounce).
-        await this.flushSession(managed.id)
-        // Now safe to notify renderer - disk is authoritative
-        this.sendEvent({ type: 'title_generated', sessionId: managed.id, title }, managed.workspace.id)
+        await this.setSessionTitle(managed, title, true)
         sessionLog.info(`Generated title for session ${managed.id}: "${title}"`)
       } else {
         sessionLog.warn(`Title generation returned null for session ${managed.id}`)
+        this.logRecentProviderError(`[generateTitle]`, managed.id)
+        await this.applyFallbackTitle(managed, userMessage, '[generateTitle:null-result]')
       }
     } catch (error) {
       sessionLog.error(`Failed to generate title for session ${managed.id}:`, error)
+      this.logRecentProviderError(`[generateTitle]`, managed.id)
+      await this.applyFallbackTitle(managed, userMessage, '[generateTitle:error]')
 
       // Surface quota/auth errors to the user — these indicate the main chat call will also fail
       const errorMsg = error instanceof Error ? error.message : String(error)
@@ -5314,6 +5250,104 @@ To view this task's output:
         agent.destroy()
       }
     }
+  }
+
+  /**
+   * Resolve the effective LLM connection for a session, including workspace/global defaults.
+   * Title generation can run before the main agent locks the session connection.
+   */
+  private resolveManagedSessionConnection(managed: ManagedSession) {
+    const wsConfig = loadWorkspaceConfig(managed.workspace.rootPath)
+    return resolveSessionConnection(managed.llmConnection, wsConfig?.defaults?.defaultLlmConnection)
+  }
+
+  /**
+   * Create a temporary headless agent for title generation or refresh.
+   * Uses the same connection resolution chain as the main chat path so new sessions
+   * can still generate titles before their first agent instance is fully initialized.
+   */
+  private async createTemporaryTitleAgent(managed: ManagedSession, logPrefix: string): Promise<AgentInstance | null> {
+    const connection = this.resolveManagedSessionConnection(managed)
+    if (!connection) {
+      sessionLog.warn(`${logPrefix}: No resolved LLM connection for session ${managed.id}`)
+      return null
+    }
+
+    const resolvedMiniModel = getMiniModel(connection) ?? connection.defaultModel
+
+    // Ensure auth credentials are available for Claude-compatible connections.
+    if (isAnthropicProvider(connection.providerType)) {
+      await this.reinitializeAuth(connection.slug)
+    }
+
+    const envOverrides: Record<string, string> = {}
+    if (connection.baseUrl) {
+      envOverrides.ANTHROPIC_BASE_URL = connection.baseUrl
+    }
+
+    const agent = createBackendFromConnection(connection.slug, {
+      workspace: managed.workspace,
+      miniModel: resolvedMiniModel,
+      envOverrides,
+      session: {
+        id: `title-${managed.id}`,
+        workspaceRootPath: managed.workspace.rootPath,
+        llmConnection: managed.llmConnection ?? connection.slug,
+        createdAt: Date.now(),
+        lastUsedAt: Date.now(),
+      },
+      isHeadless: true,
+    }) as AgentInstance
+
+    sessionLog.info(`${logPrefix}: Created temporary agent for session ${managed.id} using connection "${connection.slug}"`)
+    return agent
+  }
+
+  private async setSessionTitle(managed: ManagedSession, title: string, flushBeforeNotify = false): Promise<void> {
+    managed.name = title
+    this.persistSession(managed)
+    if (flushBeforeNotify) {
+      await this.flushSession(managed.id)
+    }
+    this.sendEvent({ type: 'title_generated', sessionId: managed.id, title }, managed.workspace.id)
+  }
+
+  private async applyFallbackTitle(managed: ManagedSession, userMessage: string, logPrefix: string): Promise<string | null> {
+    const fallbackTitle = buildFallbackTitle(userMessage)
+    if (!fallbackTitle) {
+      sessionLog.warn(`${logPrefix}: Local fallback title generation returned null for session ${managed.id}`)
+      return null
+    }
+
+    await this.setSessionTitle(managed, fallbackTitle, true)
+    sessionLog.info(`${logPrefix}: Applied local fallback title for session ${managed.id}: "${fallbackTitle}"`)
+    return fallbackTitle
+  }
+
+  private async applyFallbackRegeneratedTitle(
+    managed: ManagedSession,
+    userMessages: string[],
+    assistantResponse: string,
+    logPrefix: string,
+  ): Promise<string | null> {
+    const fallbackTitle = buildFallbackRegeneratedTitle(userMessages, assistantResponse)
+    if (!fallbackTitle) {
+      sessionLog.warn(`${logPrefix}: Local fallback regenerated title returned null for session ${managed.id}`)
+      return null
+    }
+
+    await this.setSessionTitle(managed, fallbackTitle)
+    sessionLog.info(`${logPrefix}: Applied local fallback regenerated title for session ${managed.id}: "${fallbackTitle}"`)
+    return fallbackTitle
+  }
+
+  private logRecentProviderError(logPrefix: string, sessionId: string): void {
+    const apiError = getLastApiError()
+    if (!apiError) return
+
+    sessionLog.warn(
+      `${logPrefix} Recent provider error for session ${sessionId}: ${apiError.status} ${apiError.statusText} ${apiError.message}`
+    )
   }
 
   private processEvent(managed: ManagedSession, event: AgentEvent): void {

@@ -19,7 +19,7 @@ const NavButton = forwardRef<HTMLButtonElement, NavButtonProps>(
       type="button"
       disabled={disabled}
       className={cn(
-        'h-7 w-7 flex items-center justify-center rounded-[6px]',
+        'h-7 w-7 flex items-center justify-center rounded-[6px] titlebar-no-drag',
         'hover:bg-foreground/5 focus:outline-none focus-visible:ring-0',
         'disabled:opacity-30 disabled:pointer-events-none',
         'transition-colors duration-100',
@@ -237,7 +237,7 @@ export function BrowserControls({
 
   /* Shared: URL input form */
   const urlForm = (
-    <form className="flex-1 min-w-0" onSubmit={handleSubmit}>
+    <form className="flex-1 min-w-0 titlebar-no-drag" onSubmit={handleSubmit}>
       <div className="relative">
         <input
           ref={inputRef}
@@ -338,8 +338,8 @@ export function BrowserControls({
         <ChevronRight className="h-[18px] w-[18px] text-foreground/70" style={safeThemeColor ? { color: 'inherit' } : undefined} strokeWidth={1.5} />
       </NavButton>
 
-      <div className="flex-1 flex items-center min-w-0">
-        <div className={cn('mx-auto flex items-center gap-1 w-full', urlBarClassName)}>
+      <div className="flex-1 flex items-center min-w-0 titlebar-no-drag">
+        <div className={cn('mx-auto flex items-center gap-1 w-full titlebar-no-drag', urlBarClassName)}>
           {reloadButton}
           {urlForm}
         </div>

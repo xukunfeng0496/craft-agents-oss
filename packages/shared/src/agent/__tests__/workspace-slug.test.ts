@@ -278,4 +278,27 @@ describe('qualifySkillName with filesystem resolution', () => {
     expect(result.modified).toBe(true)
     expect(result.input).toEqual({ skill: 'my-workspace:ws-only' })
   })
+
+  it('uses plugin.json workspace name instead of workspace id when they differ', () => {
+    const pluginWorkspaceRoot = join(testDir, 'plugin-workspace')
+    const workspaceId = 'workspace-uuid-123'
+
+    mkdirSync(join(pluginWorkspaceRoot, '.claude-plugin'), { recursive: true })
+    writeFileSync(
+      join(pluginWorkspaceRoot, '.claude-plugin', 'plugin.json'),
+      JSON.stringify({ name: 'craft-workspace-my-workspace', version: '1.0.0' })
+    )
+    mkdirSync(join(pluginWorkspaceRoot, 'skills', 'xlsx'), { recursive: true })
+    writeFileSync(
+      join(pluginWorkspaceRoot, 'skills', 'xlsx', 'SKILL.md'),
+      '---\nname: XLSX\ndescription: test\n---\n'
+    )
+
+    const workspaceSlugFromPlugin = extractWorkspaceSlug(pluginWorkspaceRoot, workspaceId)
+    const result = qualifySkillName({ skill: 'xlsx' }, workspaceSlugFromPlugin, pluginWorkspaceRoot)
+
+    expect(workspaceSlugFromPlugin).toBe('craft-workspace-my-workspace')
+    expect(result.modified).toBe(true)
+    expect(result.input).toEqual({ skill: 'craft-workspace-my-workspace:xlsx' })
+  })
 })

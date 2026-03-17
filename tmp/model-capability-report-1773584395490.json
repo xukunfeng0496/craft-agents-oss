@@ -1,0 +1,216 @@
+{
+  "generatedAt": "2026-03-15T14:22:07.020Z",
+  "baseUrl": "https://navimaxx-cc.test.seewo.com",
+  "authMode": "api-key",
+  "reports": [
+    {
+      "model": "glm-5",
+      "profile": "basic-tool-compatible",
+      "probes": [
+        {
+          "name": "text",
+          "status": "pass",
+          "durationMs": 4323,
+          "summary": "OK_MODEL_PROBE"
+        },
+        {
+          "name": "csv_text",
+          "status": "pass",
+          "durationMs": 8990,
+          "summary": "42"
+        },
+        {
+          "name": "tool_use",
+          "status": "pass",
+          "durationMs": 9236,
+          "summary": "tool_use:echo_probe",
+          "details": "{\"_displayName\":\"echo_probe\",\"_intent\":\"testing\",\"value\":\"tool-ok\"}"
+        },
+        {
+          "name": "excel_normalized",
+          "status": "pass",
+          "durationMs": 9317,
+          "summary": "300|West"
+        },
+        {
+          "name": "structured_output",
+          "status": "fail",
+          "durationMs": 14584,
+          "summary": "503 {\"error\":{\"message\":\"所有供应商暂时不可用，请稍后重试 (cch_session_id: sess_7f06f0c0de785595027cfbbece40ab78)\",\"type\":\"service_unavailable_error\",\"code\":\"service_unavailable_error\"}}",
+          "details": "503 {\"error\":{\"message\":\"所有供应商暂时不可用，请稍后重试 (cch_session_id: sess_7f06f0c0de785595027cfbbece40ab78)\",\"type\":\"service_unavailable_error\",\"code\":\"service_unavailable_error\"}}"
+        },
+        {
+          "name": "multi_turn_tool_loop",
+          "status": "fail",
+          "durationMs": 7780,
+          "summary": "Expected \"LOOP_OK\", got \"The echo_probe function has been called with value \"loop-ok\" and returned:",
+          "details": "Expected \"LOOP_OK\", got \"The echo_probe function has been called with value \"loop-ok\" and returned:\n\n**loop-ok**\n\nThe tool executed successfully and echoed back the value as expected.\""
+        },
+        {
+          "name": "pdf_document",
+          "status": "fail",
+          "durationMs": 5570,
+          "summary": "Expected \"PDF Capability Probe\", got \"您好！有什么我可以帮助您的吗？无论是学术问题、生活建议还是创意需求，我都很乐意为您提供支持。请告诉我您的需求吧！\"",
+          "details": "Expected \"PDF Capability Probe\", got \"您好！有什么我可以帮助您的吗？无论是学术问题、生活建议还是创意需求，我都很乐意为您提供支持。请告诉我您的需求吧！\""
+        }
+      ]
+    },
+    {
+      "model": "glm-4.7",
+      "profile": "basic-tool-compatible",
+      "probes": [
+        {
+          "name": "text",
+          "status": "pass",
+          "durationMs": 1174,
+          "summary": "OK_MODEL_PROBE"
+        },
+        {
+          "name": "csv_text",
+          "status": "pass",
+          "durationMs": 2891,
+          "summary": "42"
+        },
+        {
+          "name": "tool_use",
+          "status": "pass",
+          "durationMs": 5001,
+          "summary": "tool_use:echo_probe",
+          "details": "{\"_displayName\":\"Echo Probe\",\"_intent\":\"capability_test\",\"value\":\"tool-ok\"}"
+        },
+        {
+          "name": "excel_normalized",
+          "status": "pass",
+          "durationMs": 4974,
+          "summary": "300|West"
+        },
+        {
+          "name": "structured_output",
+          "status": "pass",
+          "durationMs": 13276,
+          "summary": "structured_output:ok",
+          "details": "{\"status\":\"ok\",\"score\":7}"
+        },
+        {
+          "name": "multi_turn_tool_loop",
+          "status": "fail",
+          "durationMs": 8184,
+          "summary": "Expected \"LOOP_OK\", got \"I've called the echo_probe function with the value \"loop-ok\" and received the expected result: \"loop-ok\". The tool executed successfully. I'm now ready to assist you with any further questions or tasks you'd like me to help with.\"",
+          "details": "Expected \"LOOP_OK\", got \"I've called the echo_probe function with the value \"loop-ok\" and received the expected result: \"loop-ok\". The tool executed successfully. I'm now ready to assist you with any further questions or tasks you'd like me to help with.\""
+        },
+        {
+          "name": "pdf_document",
+          "status": "pass",
+          "durationMs": 26445,
+          "summary": "PDF Capability Probe"
+        }
+      ]
+    },
+    {
+      "model": "kimi-k2.5",
+      "profile": "text-only-or-fallback",
+      "probes": [
+        {
+          "name": "text",
+          "status": "pass",
+          "durationMs": 1492,
+          "summary": "OK_MODEL_PROBE"
+        },
+        {
+          "name": "csv_text",
+          "status": "pass",
+          "durationMs": 893,
+          "summary": "42"
+        },
+        {
+          "name": "tool_use",
+          "status": "fail",
+          "durationMs": 1362,
+          "summary": "Expected tool_use block, got text: \"<empty>\"",
+          "details": "Expected tool_use block, got text: \"<empty>\""
+        },
+        {
+          "name": "excel_normalized",
+          "status": "pass",
+          "durationMs": 1666,
+          "summary": "300|West"
+        },
+        {
+          "name": "structured_output",
+          "status": "fail",
+          "durationMs": 1320,
+          "summary": "Expected structured tool_use block, got text: \"<empty>\"",
+          "details": "Expected structured tool_use block, got text: \"<empty>\""
+        },
+        {
+          "name": "multi_turn_tool_loop",
+          "status": "fail",
+          "durationMs": 1820,
+          "summary": "Expected initial tool_use block, got text: \"I'll\"",
+          "details": "Expected initial tool_use block, got text: \"I'll\""
+        },
+        {
+          "name": "pdf_document",
+          "status": "pass",
+          "durationMs": 845,
+          "summary": "PDF Capability Probe"
+        }
+      ]
+    },
+    {
+      "model": "minimax-m2.5-highspeed",
+      "profile": "incompatible",
+      "probes": [
+        {
+          "name": "text",
+          "status": "fail",
+          "durationMs": 76,
+          "summary": "503 {\"error\":{\"message\":\"No available providers (cch_session_id: sess_7f06f0c0de785595027cfbbece40ab78)\",\"type\":\"no_available_providers\",\"code\":\"no_available_providers\"}}",
+          "details": "503 {\"error\":{\"message\":\"No available providers (cch_session_id: sess_7f06f0c0de785595027cfbbece40ab78)\",\"type\":\"no_available_providers\",\"code\":\"no_available_providers\"}}"
+        },
+        {
+          "name": "csv_text",
+          "status": "fail",
+          "durationMs": 48,
+          "summary": "503 {\"error\":{\"message\":\"No available providers (cch_session_id: sess_7f06f0c0de785595027cfbbece40ab78)\",\"type\":\"no_available_providers\",\"code\":\"no_available_providers\"}}",
+          "details": "503 {\"error\":{\"message\":\"No available providers (cch_session_id: sess_7f06f0c0de785595027cfbbece40ab78)\",\"type\":\"no_available_providers\",\"code\":\"no_available_providers\"}}"
+        },
+        {
+          "name": "tool_use",
+          "status": "fail",
+          "durationMs": 61,
+          "summary": "503 {\"error\":{\"message\":\"No available providers (cch_session_id: sess_7f06f0c0de785595027cfbbece40ab78)\",\"type\":\"no_available_providers\",\"code\":\"no_available_providers\"}}",
+          "details": "503 {\"error\":{\"message\":\"No available providers (cch_session_id: sess_7f06f0c0de785595027cfbbece40ab78)\",\"type\":\"no_available_providers\",\"code\":\"no_available_providers\"}}"
+        },
+        {
+          "name": "excel_normalized",
+          "status": "fail",
+          "durationMs": 53,
+          "summary": "503 {\"error\":{\"message\":\"No available providers (cch_session_id: sess_7f06f0c0de785595027cfbbece40ab78)\",\"type\":\"no_available_providers\",\"code\":\"no_available_providers\"}}",
+          "details": "503 {\"error\":{\"message\":\"No available providers (cch_session_id: sess_7f06f0c0de785595027cfbbece40ab78)\",\"type\":\"no_available_providers\",\"code\":\"no_available_providers\"}}"
+        },
+        {
+          "name": "structured_output",
+          "status": "fail",
+          "durationMs": 44,
+          "summary": "503 {\"error\":{\"message\":\"No available providers (cch_session_id: sess_7f06f0c0de785595027cfbbece40ab78)\",\"type\":\"no_available_providers\",\"code\":\"no_available_providers\"}}",
+          "details": "503 {\"error\":{\"message\":\"No available providers (cch_session_id: sess_7f06f0c0de785595027cfbbece40ab78)\",\"type\":\"no_available_providers\",\"code\":\"no_available_providers\"}}"
+        },
+        {
+          "name": "multi_turn_tool_loop",
+          "status": "fail",
+          "durationMs": 48,
+          "summary": "503 {\"error\":{\"message\":\"No available providers (cch_session_id: sess_7f06f0c0de785595027cfbbece40ab78)\",\"type\":\"no_available_providers\",\"code\":\"no_available_providers\"}}",
+          "details": "503 {\"error\":{\"message\":\"No available providers (cch_session_id: sess_7f06f0c0de785595027cfbbece40ab78)\",\"type\":\"no_available_providers\",\"code\":\"no_available_providers\"}}"
+        },
+        {
+          "name": "pdf_document",
+          "status": "fail",
+          "durationMs": 51,
+          "summary": "503 {\"error\":{\"message\":\"No available providers (cch_session_id: sess_7f06f0c0de785595027cfbbece40ab78)\",\"type\":\"no_available_providers\",\"code\":\"no_available_providers\"}}",
+          "details": "503 {\"error\":{\"message\":\"No available providers (cch_session_id: sess_7f06f0c0de785595027cfbbece40ab78)\",\"type\":\"no_available_providers\",\"code\":\"no_available_providers\"}}"
+        }
+      ]
+    }
+  ]
+}

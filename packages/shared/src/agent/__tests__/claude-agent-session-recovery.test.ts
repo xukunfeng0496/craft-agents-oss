@@ -12,7 +12,7 @@ const getExecutableKindMock = mock(() => 'bun');
 mock.module('@anthropic-ai/claude-agent-sdk', () => ({
   query: queryMock,
   createSdkMcpServer: (config: unknown) => config,
-  tool: (_name: string, _schema: unknown, handler: unknown) => handler,
+  tool: (name: string, _schema: unknown, handler: unknown) => ({ name, handler }),
   AbortError: class AbortError extends Error {},
 }));
 
@@ -40,6 +40,58 @@ async function collectEvents(iterator: AsyncGenerator<any>): Promise<any[]> {
   return events;
 }
 
+async function collectFirstPromptBlock(prompt: unknown): Promise<any> {
+  if (!prompt || typeof prompt === 'string' || !(Symbol.asyncIterator in Object(prompt))) {
+    return null;
+  }
+
+  const iterator = (prompt as AsyncIterable<any>)[Symbol.asyncIterator]();
+  const first = await iterator.next();
+  return first.value;
+}
+
+function successQueryGenerator(text: string, sessionId = 'test-sdk-session') {
+  return (async function* () {
+    yield {
+      type: 'assistant',
+      message: {
+        content: [{ type: 'text', text }],
+        usage: {
+          input_tokens: 1,
+          cache_read_input_tokens: 0,
+          cache_creation_input_tokens: 0,
+        },
+      },
+      parent_tool_use_id: null,
+      session_id: sessionId,
+      isReplay: false,
+    };
+
+    yield {
+      type: 'stream_event',
+      event: {
+        type: 'message_delta',
+        delta: { stop_reason: 'end_turn' },
+      },
+      parent_tool_use_id: null,
+      session_id: sessionId,
+    };
+
+    yield {
+      type: 'result',
+      subtype: 'success',
+      usage: {
+        input_tokens: 1,
+        output_tokens: 1,
+        cache_read_input_tokens: 0,
+        cache_creation_input_tokens: 0,
+      },
+      modelUsage: {},
+      total_cost_usd: 0,
+    };
+  })();
+}
+
 describe('ClaudeAgent session recovery', () => {
   beforeEach(() => {
     queryMock.mockReset();
@@ -52,6 +104,208 @@ describe('ClaudeAgent session recovery', () => {
     }));
     getExecutableKindMock.mockReset();
     getExecutableKindMock.mockImplementation(() => 'bun');
+  });
+
+  it('uses native preset object for regular agents and exposes browser via session MCP', async () => {
+    const queryCalls: Array<{ prompt: unknown; options: Record<string, unknown> }> = [];
+
+    queryMock.mockImplementation(({ prompt, options }: { prompt: unknown; options: Record<string, unknown> }) => {
+      queryCalls.push({ prompt, options });
+      return successQueryGenerator('ok');
+    });
+
+    const agent = new ClaudeAgent({
+      workspace: {
+        id: 'ws-1',
+        name: 'Test Workspace',
+        rootPath: '/tmp',
+        createdAt: Date.now(),
+      },
+      session: {
+        id: 'session-regular',
+        workspaceRootPath: '/tmp',
+        createdAt: Date.now(),
+        lastUsedAt: Date.now(),
+      },
+      model: 'claude-sonnet-4-20250514',
+      isHeadless: false,
+      getBrowserPaneFns: () => undefined,
+    });
+
+    await collectEvents(agent.chat('hello'));
+
+    expect(queryCalls).toHaveLength(1);
+    expect(queryCalls[0]?.options.tools).toEqual({ type: 'preset', preset: 'claude_code' });
+
+    const mcpServers = queryCalls[0]?.options.mcpServers as Record<string, { tools?: Array<{ name?: string }> }> | undefined;
+    const sessionServer = mcpServers?.session;
+    expect(sessionServer?.tools?.some(tool => tool.name === 'browser_tool')).toBe(true);
+
+    agent.destroy();
+  });
+
+  it('keeps mini-agent built-in tools as a string array', async () => {
+    const queryCalls: Array<{ prompt: unknown; options: Record<string, unknown> }> = [];
+
+    queryMock.mockImplementation(({ prompt, options }: { prompt: unknown; options: Record<string, unknown> }) => {
+      queryCalls.push({ prompt, options });
+      return successQueryGenerator('mini ok');
+    });
+
+    const agent = new ClaudeAgent({
+      workspace: {
+        id: 'ws-1',
+        name: 'Test Workspace',
+        rootPath: '/tmp',
+        createdAt: Date.now(),
+      },
+      session: {
+        id: 'session-mini',
+        workspaceRootPath: '/tmp',
+        createdAt: Date.now(),
+        lastUsedAt: Date.now(),
+      },
+      model: 'claude-sonnet-4-20250514',
+      isHeadless: true,
+      systemPromptPreset: 'mini',
+    });
+
+    await collectEvents(agent.chat('hello'));
+
+    expect(queryCalls).toHaveLength(1);
+    expect(queryCalls[0]?.options.tools).toEqual(['Read', 'Edit', 'Write', 'Glob', 'Grep', 'Bash']);
+
+    agent.destroy();
+  });
+
+  it('falls back to path-based PDF handling for non-Claude models', async () => {
+    const queryCalls: Array<{ prompt: unknown; options: Record<string, unknown> }> = [];
+
+    queryMock.mockImplementation(({ prompt, options }: { prompt: unknown; options: Record<string, unknown> }) => {
+      queryCalls.push({ prompt, options });
+      return successQueryGenerator('glm ok');
+    });
+
+    const agent = new ClaudeAgent({
+      workspace: {
+        id: 'ws-1',
+        name: 'Test Workspace',
+        rootPath: '/tmp',
+        createdAt: Date.now(),
+      },
+      session: {
+        id: 'session-glm',
+        workspaceRootPath: '/tmp',
+        createdAt: Date.now(),
+        lastUsedAt: Date.now(),
+      },
+      model: 'glm-5',
+      isHeadless: true,
+    });
+
+    await collectEvents(agent.chat('summarize this pdf', [{
+      type: 'pdf',
+      path: '/tmp/resume.pdf',
+      name: 'resume.pdf',
+      mimeType: 'application/pdf',
+      base64: Buffer.from('pdf').toString('base64'),
+      size: 3,
+      storedPath: '/tmp/resume.pdf',
+    }]));
+
+    expect(queryCalls).toHaveLength(1);
+    expect(typeof queryCalls[0]?.prompt).toBe('string');
+    expect(String(queryCalls[0]?.prompt)).toContain('/tmp/resume.pdf');
+
+    agent.destroy();
+  });
+
+  it('falls back to path-based image handling for routed non-Claude models', async () => {
+    const queryCalls: Array<{ prompt: unknown; options: Record<string, unknown> }> = [];
+
+    queryMock.mockImplementation(({ prompt, options }: { prompt: unknown; options: Record<string, unknown> }) => {
+      queryCalls.push({ prompt, options });
+      return successQueryGenerator('router ok');
+    });
+
+    const agent = new ClaudeAgent({
+      workspace: {
+        id: 'ws-1',
+        name: 'Test Workspace',
+        rootPath: '/tmp',
+        createdAt: Date.now(),
+      },
+      session: {
+        id: 'session-router-image',
+        workspaceRootPath: '/tmp',
+        createdAt: Date.now(),
+        lastUsedAt: Date.now(),
+      },
+      model: 'CVTE-AUTO',
+      isHeadless: true,
+    });
+
+    await collectEvents(agent.chat('describe this image', [{
+      type: 'image',
+      path: '/tmp/screenshot.png',
+      name: 'screenshot.png',
+      mimeType: 'image/png',
+      base64: Buffer.from('png').toString('base64'),
+      size: 3,
+      storedPath: '/tmp/screenshot.png',
+    }]));
+
+    expect(queryCalls).toHaveLength(1);
+    expect(typeof queryCalls[0]?.prompt).toBe('string');
+    expect(String(queryCalls[0]?.prompt)).toContain('/tmp/screenshot.png');
+
+    agent.destroy();
+  });
+
+  it('allows connection-level capability overrides to re-enable inline image blocks', async () => {
+    const queryCalls: Array<{ prompt: unknown; options: Record<string, unknown> }> = [];
+
+    queryMock.mockImplementation(({ prompt, options }: { prompt: unknown; options: Record<string, unknown> }) => {
+      queryCalls.push({ prompt, options });
+      return successQueryGenerator('override ok');
+    });
+
+    const agent = new ClaudeAgent({
+      workspace: {
+        id: 'ws-1',
+        name: 'Test Workspace',
+        rootPath: '/tmp',
+        createdAt: Date.now(),
+      },
+      session: {
+        id: 'session-router-image-override',
+        workspaceRootPath: '/tmp',
+        createdAt: Date.now(),
+        lastUsedAt: Date.now(),
+      },
+      model: 'CVTE-AUTO',
+      modelCapabilities: {
+        supportsVision: true,
+      },
+      isHeadless: true,
+    });
+
+    await collectEvents(agent.chat('describe this image', [{
+      type: 'image',
+      path: '/tmp/screenshot.png',
+      name: 'screenshot.png',
+      mimeType: 'image/png',
+      base64: Buffer.from('png').toString('base64'),
+      size: 3,
+      storedPath: '/tmp/screenshot.png',
+    }]));
+
+    expect(queryCalls).toHaveLength(1);
+    expect(typeof queryCalls[0]?.prompt).not.toBe('string');
+    const sdkUserMessage = await collectFirstPromptBlock(queryCalls[0]?.prompt);
+    expect(sdkUserMessage?.message?.content?.some((block: any) => block.type === 'image')).toBe(true);
+
+    agent.destroy();
   });
 
   it('retries with Electron Node fallback after SIGABRT on macOS arm64', async () => {

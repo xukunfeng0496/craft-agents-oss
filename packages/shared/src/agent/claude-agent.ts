@@ -3,7 +3,6 @@ import { getDefaultOptions, resetClaudeConfigCheck, enableElectronNodeRuntimeFal
 import type { ContentBlockParam } from '@anthropic-ai/sdk/resources';
 import { z } from 'zod';
 import { getSystemPrompt } from '../prompts/system.ts';
-import { createBrowserTools } from './browser-tools.ts';
 import { BaseAgent, type MiniAgentConfig, MINI_AGENT_TOOLS, MINI_AGENT_MCP_KEYS } from './base-agent.ts';
 import type { BackendConfig, PermissionRequestType } from './backend/types.ts';
 // Plan types are used by UI components; not needed in craft-agent.ts since Safe Mode is user-controlled
@@ -13,7 +12,14 @@ import { getLastApiError } from '../network-interceptor.ts';
 import { loadStoredConfig, loadConfigDefaults, type Workspace, type AuthType, getDefaultLlmConnection, getLlmConnection } from '../config/storage.ts';
 import { isLocalMcpEnabled } from '../workspaces/storage.ts';
 import { loadPlanFromPath, type SessionConfig as Session } from '../sessions/storage.ts';
-import { DEFAULT_MODEL, isClaudeModel, getDefaultSummarizationModel } from '../config/models.ts';
+import {
+  DEFAULT_MODEL,
+  getDefaultSummarizationModel,
+  isClaudeModel,
+  type ModelCapabilityOverrides,
+  supportsDocumentBlocks,
+  supportsVision,
+} from '../config/models.ts';
 import { getCredentialManager } from '../credentials/index.ts';
 import { updatePreferences, loadPreferences, formatPreferencesForPrompt, type UserPreferences } from '../config/preferences.ts';
 import type { FileAttachment } from '../utils/files.ts';
@@ -144,6 +150,8 @@ export interface ClaudeAgentConfig {
   miniModel?: string;
   /** Browser automation functions (session-scoped) */
   getBrowserPaneFns?: () => any;
+  /** Optional capability overrides for the active routed/custom model. */
+  modelCapabilities?: ModelCapabilityOverrides;
 }
 
 // Permission request tracking
@@ -490,6 +498,8 @@ export class ClaudeAgent extends BaseAgent {
       getRecoveryMessages: config.getRecoveryMessages,
       envOverrides: config.envOverrides,
       miniModel: config.miniModel,
+      getBrowserPaneFns: config.getBrowserPaneFns,
+      modelCapabilities: config.modelCapabilities,
     };
 
     // Call BaseAgent constructor - initializes model, thinkingLevel, permissionManager, sourceManager, etc.
@@ -543,6 +553,7 @@ export class ClaudeAgent extends BaseAgent {
         this.onDebug?.(`[ClaudeAgent] onQuestionRequest received: ${request.requestId}`);
         this.onQuestionRequest?.(request);
       },
+      getBrowserPaneFns: this.config.getBrowserPaneFns,
     });
 
     // Start config watcher for hot-reloading source changes
@@ -660,6 +671,10 @@ export class ClaudeAgent extends BaseAgent {
 
     try {
       const sessionId = this.config.session?.id || `temp-${Date.now()}`;
+      const model = this._model;
+      const isClaude = isClaudeModel(model);
+      const allowInlineImages = supportsVision(model, this.config.modelCapabilities);
+      const allowInlinePdf = supportsDocumentBlocks(model, this.config.modelCapabilities);
 
       // Pin system prompt components on first chat() call for consistency after compaction
       // The SDK's resume mechanism expects system prompt consistency within a session
@@ -683,8 +698,11 @@ export class ClaudeAgent extends BaseAgent {
         }
       }
 
-      // Check if we have binary attachments that need the AsyncIterable interface
-      const hasBinaryAttachments = attachments?.some(a => a.type === 'image' || a.type === 'pdf');
+      // Only inline-upload PDFs for Claude-native models. Other routed models should
+      // rely on stored path references and native tools instead of Anthropic document blocks.
+      const hasBinaryAttachments = attachments?.some(a =>
+        (a.type === 'image' && allowInlineImages) || (a.type === 'pdf' && allowInlinePdf)
+      );
 
       // Validate we have something to send
       if (!userMessage.trim() && (!attachments || attachments.length === 0)) {
@@ -734,10 +752,6 @@ export class ClaudeAgent extends BaseAgent {
         ? this.filterMcpServersForMiniAgent(fullMcpServers, miniConfig.mcpServerKeys)
         : fullMcpServers;
       
-      // Configure SDK options
-      // Model is always set by caller via connection config
-      const model = this._model;
-
       // Log provider context for diagnostics (custom base URL = third-party provider)
       const defaultConnSlug = getDefaultLlmConnection();
       const defaultConn = defaultConnSlug ? getLlmConnection(defaultConnSlug) : null;
@@ -767,10 +781,6 @@ export class ClaudeAgent extends BaseAgent {
           debug(`[chat] Skill vars overlay created at: ${this.skillVarsOverlay.overlayPath}`);
         }
       }
-
-      // Detect if resolved model is Claude — non-Claude models (via OpenRouter/Ollama) don't
-      // support Anthropic-specific betas or extended thinking parameters
-      const isClaude = isClaudeModel(model);
 
       // Log mini agent mode details (using centralized config)
       if (miniConfig.enabled) {
@@ -833,19 +843,8 @@ export class ClaudeAgent extends BaseAgent {
             debug('[ClaudeAgent] 🔧 Tools configuration (mini):', JSON.stringify(miniConfig.tools));
             return [...miniConfig.tools];
           }
-          // Build tools list: Claude Code preset + browser tools (if available)
-          const toolsList: any[] = [
-            { type: 'preset' as const, preset: 'claude_code' as const },
-          ];
-          if (this.config.getBrowserPaneFns) {
-            const browserTools = createBrowserTools({
-              getBrowserPaneFns: this.config.getBrowserPaneFns,
-              sessionId,
-            });
-            toolsList.push(...browserTools);
-          }
-          debug('[ClaudeAgent] 🔧 Tools configuration:', toolsList.length, 'items (preset + browser:', !!this.config.getBrowserPaneFns, ')');
-          return toolsList;
+          debug('[ClaudeAgent] 🔧 Tools configuration: native Claude Code preset (browser via session MCP:', !!this.config.getBrowserPaneFns, ')');
+          return { type: 'preset' as const, preset: 'claude_code' as const };
         })(),
         // Bypass SDK's built-in permission system - we handle all permissions via PreToolUse hook
         // This allows Safe Mode to properly allow read-only bash commands without SDK interference
@@ -1441,7 +1440,10 @@ export class ClaudeAgent extends BaseAgent {
         debug(`[chat] Detected SDK slash command: ${trimmedMessage}`);
         this.currentQuery = query({ prompt: trimmedMessage, options: optionsWithAbort });
       } else if (hasBinaryAttachments) {
-        const sdkMessage = this.buildSDKUserMessage(userMessage, attachments);
+        const sdkMessage = this.buildSDKUserMessage(userMessage, attachments, {
+          inlineImages: allowInlineImages,
+          inlinePdf: allowInlinePdf,
+        });
         async function* singleMessage(): AsyncIterable<SDKUserMessage> {
           yield sdkMessage;
         }
@@ -2018,8 +2020,14 @@ export class ClaudeAgent extends BaseAgent {
    * Prepends date/time context for prompt caching optimization (keeps system prompt static)
    * Injects session state (including mode state) for every message
    */
-  private buildSDKUserMessage(text: string, attachments?: FileAttachment[]): SDKUserMessage {
+  private buildSDKUserMessage(
+    text: string,
+    attachments?: FileAttachment[],
+    options?: { inlineImages?: boolean; inlinePdf?: boolean }
+  ): SDKUserMessage {
     const contentBlocks: ContentBlockParam[] = [];
+    const inlineImages = options?.inlineImages ?? true;
+    const inlinePdf = options?.inlinePdf ?? true;
 
     // Add context parts using centralized PromptBuilder
     // This includes: date/time, session state (with plansFolderPath),
@@ -2054,7 +2062,7 @@ export class ClaudeAgent extends BaseAgent {
         }
 
         // Only images and PDFs are uploaded inline (agent cannot read these with Read tool)
-        if (attachment.type === 'image' && attachment.base64) {
+        if (inlineImages && attachment.type === 'image' && attachment.base64) {
           const mediaType = this.mapImageMediaType(attachment.mimeType);
           if (mediaType) {
             contentBlocks.push({
@@ -2066,7 +2074,7 @@ export class ClaudeAgent extends BaseAgent {
               },
             });
           }
-        } else if (attachment.type === 'pdf' && attachment.base64) {
+        } else if (inlinePdf && attachment.type === 'pdf' && attachment.base64) {
           contentBlocks.push({
             type: 'document',
             source: {
@@ -2641,6 +2649,7 @@ export class ClaudeAgent extends BaseAgent {
    * Uses the same auth infrastructure as the main agent.
    */
   async runMiniCompletion(prompt: string): Promise<string | null> {
+    let result = '';
     try {
       if (!this.config.miniModel) {
         throw new Error('ClaudeAgent.runMiniCompletion: config.miniModel is required');
@@ -2654,7 +2663,6 @@ export class ClaudeAgent extends BaseAgent {
         systemPrompt: 'Reply with ONLY the requested text. No explanation.', // Minimal - no Claude Code preset
       };
 
-      let result = '';
       for await (const msg of query({ prompt, options })) {
         if (msg.type === 'assistant') {
           for (const block of msg.message.content) {
@@ -2669,6 +2677,12 @@ export class ClaudeAgent extends BaseAgent {
     } catch (error) {
       this.debug(`[runMiniCompletion] Failed: ${error}`);
       debug(`[ClaudeAgent.runMiniCompletion] Failed: ${error}`);
+      const partialResult = result.trim();
+      if (partialResult) {
+        this.debug('[runMiniCompletion] Returning partial result after error');
+        debug('[ClaudeAgent.runMiniCompletion] Returning partial result after error');
+        return partialResult;
+      }
       return null;
     }
   }

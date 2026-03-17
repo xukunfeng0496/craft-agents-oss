@@ -1,0 +1,62 @@
+{
+  "generatedAt": "2026-03-15T14:46:09.234Z",
+  "baseUrl": "https://navimaxx-cc.test.seewo.com",
+  "authMode": "api-key",
+  "reports": [
+    {
+      "model": "minimax-m2.5-highspeed",
+      "profile": "incompatible",
+      "probes": [
+        {
+          "name": "text",
+          "status": "fail",
+          "durationMs": 198,
+          "summary": "503 {\"error\":{\"message\":\"No available providers (cch_session_id: sess_7f06f0c0de785595027cfbbece40ab78)\",\"type\":\"no_available_providers\",\"code\":\"no_available_providers\"}}",
+          "details": "503 {\"error\":{\"message\":\"No available providers (cch_session_id: sess_7f06f0c0de785595027cfbbece40ab78)\",\"type\":\"no_available_providers\",\"code\":\"no_available_providers\"}}"
+        },
+        {
+          "name": "csv_text",
+          "status": "fail",
+          "durationMs": 49,
+          "summary": "503 {\"error\":{\"message\":\"No available providers (cch_session_id: sess_7f06f0c0de785595027cfbbece40ab78)\",\"type\":\"no_available_providers\",\"code\":\"no_available_providers\"}}",
+          "details": "503 {\"error\":{\"message\":\"No available providers (cch_session_id: sess_7f06f0c0de785595027cfbbece40ab78)\",\"type\":\"no_available_providers\",\"code\":\"no_available_providers\"}}"
+        },
+        {
+          "name": "tool_use",
+          "status": "fail",
+          "durationMs": 59,
+          "summary": "503 {\"error\":{\"message\":\"No available providers (cch_session_id: sess_7f06f0c0de785595027cfbbece40ab78)\",\"type\":\"no_available_providers\",\"code\":\"no_available_providers\"}}",
+          "details": "503 {\"error\":{\"message\":\"No available providers (cch_session_id: sess_7f06f0c0de785595027cfbbece40ab78)\",\"type\":\"no_available_providers\",\"code\":\"no_available_providers\"}}"
+        },
+        {
+          "name": "excel_normalized",
+          "status": "fail",
+          "durationMs": 47,
+          "summary": "503 {\"error\":{\"message\":\"No available providers (cch_session_id: sess_7f06f0c0de785595027cfbbece40ab78)\",\"type\":\"no_available_providers\",\"code\":\"no_available_providers\"}}",
+          "details": "503 {\"error\":{\"message\":\"No available providers (cch_session_id: sess_7f06f0c0de785595027cfbbece40ab78)\",\"type\":\"no_available_providers\",\"code\":\"no_available_providers\"}}"
+        },
+        {
+          "name": "structured_output",
+          "status": "fail",
+          "durationMs": 62,
+          "summary": "503 {\"error\":{\"message\":\"No available providers (cch_session_id: sess_7f06f0c0de785595027cfbbece40ab78)\",\"type\":\"no_available_providers\",\"code\":\"no_available_providers\"}}",
+          "details": "503 {\"error\":{\"message\":\"No available providers (cch_session_id: sess_7f06f0c0de785595027cfbbece40ab78)\",\"type\":\"no_available_providers\",\"code\":\"no_available_providers\"}}"
+        },
+        {
+          "name": "multi_turn_tool_loop",
+          "status": "fail",
+          "durationMs": 51,
+          "summary": "503 {\"error\":{\"message\":\"No available providers (cch_session_id: sess_7f06f0c0de785595027cfbbece40ab78)\",\"type\":\"no_available_providers\",\"code\":\"no_available_providers\"}}",
+          "details": "503 {\"error\":{\"message\":\"No available providers (cch_session_id: sess_7f06f0c0de785595027cfbbece40ab78)\",\"type\":\"no_available_providers\",\"code\":\"no_available_providers\"}}"
+        },
+        {
+          "name": "pdf_document",
+          "status": "fail",
+          "durationMs": 50,
+          "summary": "503 {\"error\":{\"message\":\"No available providers (cch_session_id: sess_7f06f0c0de785595027cfbbece40ab78)\",\"type\":\"no_available_providers\",\"code\":\"no_available_providers\"}}",
+          "details": "503 {\"error\":{\"message\":\"No available providers (cch_session_id: sess_7f06f0c0de785595027cfbbece40ab78)\",\"type\":\"no_available_providers\",\"code\":\"no_available_providers\"}}"
+        }
+      ]
+    }
+  ]
+}

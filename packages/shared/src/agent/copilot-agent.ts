@@ -110,6 +110,7 @@ import {
 // Path utilities
 import { join } from 'path';
 import { homedir } from 'os';
+import { extractWorkspaceSlug } from '../utils/workspace.ts';
 
 // Session storage (plans folder path)
 import { getSessionPlansPath, getSessionPath } from '../sessions/storage.ts';
@@ -870,9 +871,10 @@ export class CopilotAgent extends BaseAgent {
     }
 
     // Skill qualification
+    const workspaceSlug = extractWorkspaceSlug(this.config.workspace.rootPath, this.config.workspace.id);
     const skillResult = qualifySkillName(
       pathResult.modified ? pathResult.input : inputObj,
-      this.config.workspace.id,
+      workspaceSlug,
       this.config.workspace.rootPath,
       this.config.session?.workingDirectory,
       (msg) => this.debug(msg)

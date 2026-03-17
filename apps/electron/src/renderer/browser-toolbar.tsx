@@ -96,9 +96,8 @@ function BrowserToolbarApp() {
     void api?.stop()
   }, [api])
 
-  const handleOpenWindowMenu = useCallback((e: React.MouseEvent<HTMLButtonElement>) => {
-    const rect = e.currentTarget.getBoundingClientRect()
-    void api?.openWindowMenu(Math.round(rect.left), Math.round(rect.bottom))
+  const handleCloseWindow = useCallback(() => {
+    void api?.closeWindowEntirely()
   }, [api])
 
   return (
@@ -116,10 +115,11 @@ function BrowserToolbarApp() {
         <div className="ml-2 flex items-center gap-1.5">
           <HeaderIconButton
             icon={<X className="h-3.5 w-3.5" />}
-            aria-label="Browser window options"
+            aria-label="Close browser window"
+            tooltip="Close window"
             className={themeColor ? '' : 'bg-background shadow-minimal hover:bg-foreground/5'}
             style={themeColor ? { color: 'var(--tb-fg)' } : undefined}
-            onClick={handleOpenWindowMenu}
+            onClick={handleCloseWindow}
           />
         </div>
       )}

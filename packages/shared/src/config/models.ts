@@ -38,6 +38,24 @@ export interface ModelDefinition {
   contextWindow: number;
   /** Whether this model supports thinking/reasoning effort. Defaults to true when undefined. */
   supportsThinking?: boolean;
+  /** Whether this model supports inline image/vision blocks. */
+  supportsVision?: boolean;
+  /** Whether this model supports Anthropic-style inline PDF/document blocks. */
+  supportsDocumentBlocks?: boolean;
+  /** Whether this model reliably supports tool-use requests. */
+  supportsToolUse?: boolean;
+  /** Whether this model reliably supports schema-constrained structured output. */
+  supportsStructuredOutput?: boolean;
+  /** Whether this model reliably completes multi-step tool loops. */
+  supportsMultiTurnToolLoop?: boolean;
+}
+
+export interface ModelCapabilityOverrides {
+  supportsVision?: boolean;
+  supportsDocumentBlocks?: boolean;
+  supportsToolUse?: boolean;
+  supportsStructuredOutput?: boolean;
+  supportsMultiTurnToolLoop?: boolean;
 }
 
 // ============================================
@@ -84,6 +102,11 @@ export const MODEL_REGISTRY: ModelDefinition[] = [
     description: 'Most capable for complex work',
     provider: 'anthropic',
     contextWindow: 200_000,
+    supportsVision: true,
+    supportsDocumentBlocks: true,
+    supportsToolUse: true,
+    supportsStructuredOutput: true,
+    supportsMultiTurnToolLoop: true,
   },
   {
     id: 'claude-opus-4-5-20251101',
@@ -92,6 +115,11 @@ export const MODEL_REGISTRY: ModelDefinition[] = [
     description: 'Previous generation flagship model',
     provider: 'anthropic',
     contextWindow: 200_000,
+    supportsVision: true,
+    supportsDocumentBlocks: true,
+    supportsToolUse: true,
+    supportsStructuredOutput: true,
+    supportsMultiTurnToolLoop: true,
   },
   {
     id: 'claude-sonnet-4-5-20250929',
@@ -100,6 +128,11 @@ export const MODEL_REGISTRY: ModelDefinition[] = [
     description: 'Best for everyday tasks',
     provider: 'anthropic',
     contextWindow: 200_000,
+    supportsVision: true,
+    supportsDocumentBlocks: true,
+    supportsToolUse: true,
+    supportsStructuredOutput: true,
+    supportsMultiTurnToolLoop: true,
   },
   {
     id: 'claude-haiku-4-5-20251001',
@@ -108,6 +141,11 @@ export const MODEL_REGISTRY: ModelDefinition[] = [
     description: 'Fastest for quick answers',
     provider: 'anthropic',
     contextWindow: 200_000,
+    supportsVision: true,
+    supportsDocumentBlocks: true,
+    supportsToolUse: true,
+    supportsStructuredOutput: true,
+    supportsMultiTurnToolLoop: true,
   },
 
   // ----------------------------------------
@@ -286,6 +324,83 @@ export function isClaudeModel(modelId: string): boolean {
 }
 
 /**
+ * Check whether a model should receive Anthropic-style inline PDF document blocks.
+ * Defaults conservatively to false unless the registry or model naming indicates
+ * a Claude-native path.
+ */
+export function supportsDocumentBlocks(modelId: string, overrides?: ModelCapabilityOverrides): boolean {
+  if (typeof overrides?.supportsDocumentBlocks === 'boolean') {
+    return overrides.supportsDocumentBlocks;
+  }
+  const model = getModelById(modelId);
+  if (typeof model?.supportsDocumentBlocks === 'boolean') {
+    return model.supportsDocumentBlocks;
+  }
+  return isClaudeModel(modelId);
+}
+
+/**
+ * Check whether a model should receive inline image blocks.
+ * Defaults conservatively to false unless the registry or model naming indicates
+ * a Claude-native path.
+ */
+export function supportsVision(modelId: string, overrides?: ModelCapabilityOverrides): boolean {
+  if (typeof overrides?.supportsVision === 'boolean') {
+    return overrides.supportsVision;
+  }
+  const model = getModelById(modelId);
+  if (typeof model?.supportsVision === 'boolean') {
+    return model.supportsVision;
+  }
+  return isClaudeModel(modelId);
+}
+
+/**
+ * Check whether a model reliably supports tool-use requests.
+ * Defaults conservatively to false for unknown routed models.
+ */
+export function supportsToolUse(modelId: string, overrides?: ModelCapabilityOverrides): boolean {
+  if (typeof overrides?.supportsToolUse === 'boolean') {
+    return overrides.supportsToolUse;
+  }
+  const model = getModelById(modelId);
+  if (typeof model?.supportsToolUse === 'boolean') {
+    return model.supportsToolUse;
+  }
+  return isClaudeModel(modelId);
+}
+
+/**
+ * Check whether a model reliably supports schema-constrained structured output.
+ * Defaults conservatively to false for unknown routed models.
+ */
+export function supportsStructuredOutput(modelId: string, overrides?: ModelCapabilityOverrides): boolean {
+  if (typeof overrides?.supportsStructuredOutput === 'boolean') {
+    return overrides.supportsStructuredOutput;
+  }
+  const model = getModelById(modelId);
+  if (typeof model?.supportsStructuredOutput === 'boolean') {
+    return model.supportsStructuredOutput;
+  }
+  return isClaudeModel(modelId);
+}
+
+/**
+ * Check whether a model reliably completes multi-step tool loops.
+ * Defaults conservatively to false for unknown routed models.
+ */
+export function supportsMultiTurnToolLoop(modelId: string, overrides?: ModelCapabilityOverrides): boolean {
+  if (typeof overrides?.supportsMultiTurnToolLoop === 'boolean') {
+    return overrides.supportsMultiTurnToolLoop;
+  }
+  const model = getModelById(modelId);
+  if (typeof model?.supportsMultiTurnToolLoop === 'boolean') {
+    return model.supportsMultiTurnToolLoop;
+  }
+  return isClaudeModel(modelId);
+}
+
+/**
  * Check if a model ID refers to a Codex/OpenAI model.
  * Matches patterns like 'gpt-5.3-codex', 'gpt-5.1-codex-mini', etc.
  */
@@ -308,4 +423,3 @@ export function isCopilotModel(modelId: string): boolean {
 export function getModelProvider(modelId: string): ModelProvider | undefined {
   return getModelById(modelId)?.provider;
 }
-

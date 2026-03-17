@@ -3,29 +3,291 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data:; connect-src 'self' http://localhost:* ws://localhost:* http://127.0.0.1:* ws://127.0.0.1:*; font-src 'self' https://fonts.gstatic.com;">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' http://localhost:* ws://localhost:* http://127.0.0.1:* ws://127.0.0.1:*;">
   <title>Browser Toolbar</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;14..32,500&display=swap" rel="stylesheet">
   <script>
-    // Sync theme class before first paint to prevent light/dark flash
     if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
       document.documentElement.classList.replace('light', 'dark')
     }
   </script>
   <style>
-    /* Prevent any flash of unstyled content */
-    html, body { margin: 0; padding: 0; overflow: hidden; height: 48px; background: #fafafb; }
-    @media (prefers-color-scheme: dark) {
-      html, body { background: #2b292e; }
+    :root {
+      color-scheme: light dark;
+      --bg: #fafafb;
+      --border: rgba(38, 36, 42, 0.08);
+      --fg: rgba(28, 25, 32, 0.92);
+      --muted: rgba(38, 36, 42, 0.54);
+      --hover: rgba(38, 36, 42, 0.08);
+      --input-bg: rgba(255, 255, 255, 0.92);
+      --input-border: rgba(38, 36, 42, 0.12);
+      --focus: #2563eb;
     }
-    /* Interactive elements must not be draggable within the titlebar-drag-region */
-    button, input { -webkit-app-region: no-drag; app-region: no-drag; }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #2b292e;
+        --border: rgba(255, 255, 255, 0.08);
+        --fg: rgba(255, 255, 255, 0.92);
+        --muted: rgba(255, 255, 255, 0.58);
+        --hover: rgba(255, 255, 255, 0.10);
+        --input-bg: rgba(15, 23, 42, 0.28);
+        --input-border: rgba(255, 255, 255, 0.12);
+        --focus: #60a5fa;
+      }
+    }
+    * {
+      box-sizing: border-box;
+    }
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 48px;
+      overflow: hidden;
+      background: var(--bg);
+      color: var(--fg);
+      font: 13px/1.2 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    body {
+      -webkit-app-region: drag;
+      app-region: drag;
+    }
+    .toolbar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      width: 100%;
+      height: 48px;
+      padding: 8px 12px;
+      background: var(--bg);
+      border-bottom: 1px solid var(--border);
+    }
+    .mac-spacer {
+      flex: 0 0 8px;
+    }
+    .is-mac .mac-spacer {
+      flex-basis: 72px;
+    }
+    .nav,
+    .address,
+    .meta {
+      -webkit-app-region: no-drag;
+      app-region: no-drag;
+    }
+    .nav,
+    .meta {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 28px;
+      height: 28px;
+      border: 0;
+      border-radius: 8px;
+      background: transparent;
+      color: var(--fg);
+      font: inherit;
+      cursor: pointer;
+      user-select: none;
+    }
+    /* Electron only honors clicks inside explicit no-drag islands. */
+    .button,
+    .address input,
+    .address button {
+      -webkit-app-region: no-drag;
+      app-region: no-drag;
+    }
+    .button:hover:not(:disabled) {
+      background: var(--hover);
+    }
+    .button:disabled {
+      opacity: 0.38;
+      cursor: default;
+    }
+    .address {
+      flex: 1;
+      min-width: 140px;
+    }
+    .address input {
+      width: 100%;
+      height: 32px;
+      padding: 0 12px;
+      border: 1px solid var(--input-border);
+      border-radius: 10px;
+      outline: 0;
+      background: var(--input-bg);
+      color: var(--fg);
+      font: inherit;
+    }
+    .address input::placeholder {
+      color: var(--muted);
+    }
+    .address input:focus {
+      border-color: var(--focus);
+      box-shadow: 0 0 0 3px color-mix(in srgb, var(--focus) 18%, transparent);
+    }
+    .title {
+      max-width: 220px;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+      color: var(--muted);
+      font-size: 12px;
+    }
   </style>
 </head>
 <body>
-  <div id="root"></div>
-  <script type="module" src="./browser-toolbar.tsx"></script>
+  <div class="toolbar" id="toolbar">
+    <div class="mac-spacer" aria-hidden="true"></div>
+    <div class="nav">
+      <button id="back" class="button" type="button" aria-label="Go back" title="Go back">‹</button>
+      <button id="forward" class="button" type="button" aria-label="Go forward" title="Go forward">›</button>
+      <button id="reload" class="button" type="button" aria-label="Reload page" title="Reload page">↻</button>
+    </div>
+    <form id="address-form" class="address">
+      <input
+        id="address-input"
+        type="text"
+        inputmode="url"
+        autocomplete="off"
+        autocapitalize="off"
+        spellcheck="false"
+        placeholder="Enter URL or search"
+        aria-label="Address bar"
+      >
+    </form>
+    <div class="meta">
+      <div id="title" class="title">New Tab</div>
+      <button id="close" class="button" type="button" aria-label="Close browser window" title="Close browser window">×</button>
+    </div>
+  </div>
+  <script>
+    const api = window.browserToolbar
+    const state = {
+      url: 'about:blank',
+      title: 'New Tab',
+      isLoading: false,
+      canGoBack: false,
+      canGoForward: false,
+    }
+
+    const isMac = /Mac|iPhone|iPad|iPod/i.test(navigator.userAgent)
+    if (isMac) {
+      document.body.classList.add('is-mac')
+    }
+
+    const backBtn = document.getElementById('back')
+    const forwardBtn = document.getElementById('forward')
+    const reloadBtn = document.getElementById('reload')
+    const closeBtn = document.getElementById('close')
+    const titleEl = document.getElementById('title')
+    const inputEl = document.getElementById('address-input')
+    const formEl = document.getElementById('address-form')
+    let editing = false
+
+    function syncInput() {
+      if (!editing && inputEl) {
+        inputEl.value = state.url === 'about:blank' ? '' : (state.url || '')
+      }
+    }
+
+    function render() {
+      syncInput()
+      if (backBtn) backBtn.disabled = !state.canGoBack
+      if (forwardBtn) forwardBtn.disabled = !state.canGoForward
+      if (reloadBtn) {
+        reloadBtn.textContent = state.isLoading ? '×' : '↻'
+        reloadBtn.title = state.isLoading ? 'Stop loading' : 'Reload page'
+        reloadBtn.setAttribute('aria-label', reloadBtn.title)
+      }
+      if (titleEl) {
+        titleEl.textContent = state.title || 'New Tab'
+        titleEl.title = state.title || 'New Tab'
+      }
+    }
+
+    function submitNavigation() {
+      if (!inputEl) return
+      const value = inputEl.value.trim()
+      if (!value) {
+        syncInput()
+        return
+      }
+      editing = false
+      void api?.navigate?.(value)
+    }
+
+    backBtn?.addEventListener('click', () => {
+      void api?.goBack?.()
+    })
+
+    forwardBtn?.addEventListener('click', () => {
+      void api?.goForward?.()
+    })
+
+    reloadBtn?.addEventListener('click', () => {
+      if (state.isLoading) {
+        void api?.stop?.()
+      } else {
+        void api?.reload?.()
+      }
+    })
+
+    closeBtn?.addEventListener('click', () => {
+      void api?.closeWindowEntirely?.()
+    })
+
+    inputEl?.addEventListener('focus', () => {
+      editing = true
+      inputEl.select()
+    })
+
+    inputEl?.addEventListener('blur', () => {
+      editing = false
+      syncInput()
+    })
+
+    inputEl?.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape') {
+        editing = false
+        syncInput()
+        inputEl.blur()
+      }
+    })
+
+    formEl?.addEventListener('submit', (event) => {
+      event.preventDefault()
+      submitNavigation()
+    })
+
+    window.addEventListener('keydown', (event) => {
+      const modifier = isMac ? event.metaKey : event.ctrlKey
+      if (modifier && event.key.toLowerCase() === 'l' && inputEl) {
+        event.preventDefault()
+        editing = true
+        inputEl.focus()
+        inputEl.select()
+      }
+    })
+
+    api?.onStateUpdate?.((nextState) => {
+      state.url = nextState?.url || 'about:blank'
+      state.title = nextState?.title || 'New Tab'
+      state.isLoading = !!nextState?.isLoading
+      state.canGoBack = !!nextState?.canGoBack
+      state.canGoForward = !!nextState?.canGoForward
+      render()
+    })
+
+    api?.onThemeColor?.((color) => {
+      if (!color) return
+      document.documentElement.style.setProperty('--bg', color)
+    })
+
+    render()
+  </script>
 </body>
 </html>

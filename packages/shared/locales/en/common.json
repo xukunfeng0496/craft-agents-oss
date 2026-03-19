@@ -363,7 +363,16 @@
       "description": "Skills are reusable instructions that teach your agent specialized behaviors.",
       "learnMore": "Learn more",
       "addSkill": "Add Skill"
-    }
+    },
+    "searchPlaceholder": "Search skills...",
+    "filterAll": "All",
+    "filterInstalled": "Installed",
+    "filterNotInstalled": "Not Installed",
+    "install": "Install",
+    "installing": "Installing",
+    "installed": "Installed",
+    "noMatch": "No matching skills",
+    "noSkills": "No skills available"
   },
   "taskActions": {
     "title": "Click for task actions",

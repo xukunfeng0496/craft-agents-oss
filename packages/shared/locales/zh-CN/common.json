@@ -363,7 +363,16 @@
       "description": "技能是可复用的指令，帮助你的助手掌握特定能力。",
       "learnMore": "了解更多",
       "addSkill": "添加技能"
-    }
+    },
+    "searchPlaceholder": "搜索技能...",
+    "filterAll": "全部",
+    "filterInstalled": "已安装",
+    "filterNotInstalled": "未安装",
+    "install": "安装",
+    "installing": "安装中",
+    "installed": "已安装",
+    "noMatch": "未找到匹配的技能",
+    "noSkills": "暂无可用技能"
   },
   "taskActions": {
     "title": "点击查看任务操作",

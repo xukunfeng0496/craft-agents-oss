@@ -57,7 +57,9 @@
     "./tools": "./src/tools/index.ts",
     "./codex": "./src/codex/index.ts",
     "./mentions": "./src/mentions/index.ts",
+    "./skills": "./src/skills/index.ts",
     "./skills/types": "./src/skills/types.ts",
+    "./marketplace": "./src/marketplace/index.ts",
     "./hooks-simple/crud": "./src/hooks-simple/crud.ts"
   },
   "dependencies": {

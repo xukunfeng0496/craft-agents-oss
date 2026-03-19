@@ -3420,6 +3420,42 @@ export function registerIpcHandlers(sessionManager: SessionManager, windowManage
   })
 
   // ============================================================
+  // Skills Marketplace
+  // ============================================================
+
+  ipcMain.handle(IPC_CHANNELS.MARKETPLACE_GET_REGISTRY, async () => {
+    const { MarketplaceClient } = await import('@work-agent/shared/marketplace')
+    const client = new MarketplaceClient()
+    return client.getRegistry()
+  })
+
+  ipcMain.handle(IPC_CHANNELS.MARKETPLACE_INSTALL_SKILL, async (_event, workspaceId: string, skillName: string) => {
+    const workspace = getWorkspaceByNameOrId(workspaceId)
+    if (!workspace) throw new Error('Workspace not found')
+
+    const { MarketplaceClient } = await import('@work-agent/shared/marketplace')
+    const { getWorkspaceSkillsPath } = await import('@work-agent/shared/workspaces')
+
+    const client = new MarketplaceClient()
+    const files = await client.getSkillFiles(skillName)
+    const skillsDir = getWorkspaceSkillsPath(workspace.rootPath)
+    const skillDir = join(skillsDir, skillName)
+
+    if (!existsSync(skillDir)) {
+      mkdirSync(skillDir, { recursive: true })
+    }
+
+    for (const file of files) {
+      const filePath = join(skillDir, file.path)
+      const dir = dirname(filePath)
+      if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
+      writeFileSync(filePath, file.content, 'utf-8')
+    }
+
+    ipcLog.info(`MARKETPLACE_INSTALL: Installed ${skillName} (${files.length} files) to ${skillDir}`)
+  })
+
+  // ============================================================
   // Status Management (Workspace-scoped)
   // ============================================================
 

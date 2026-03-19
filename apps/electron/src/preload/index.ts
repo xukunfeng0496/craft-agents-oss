@@ -339,6 +339,12 @@ const api: ElectronAPI = {
   deleteSchedulerHook: (workspaceId: string, hookId: string) =>
     ipcRenderer.invoke(IPC_CHANNELS.HOOKS_DELETE, workspaceId, hookId),
 
+  // Skills Marketplace
+  getMarketplaceRegistry: () =>
+    ipcRenderer.invoke(IPC_CHANNELS.MARKETPLACE_GET_REGISTRY),
+  installMarketplaceSkill: (workspaceId: string, skillName: string) =>
+    ipcRenderer.invoke(IPC_CHANNELS.MARKETPLACE_INSTALL_SKILL, workspaceId, skillName),
+
   // Skills change listener (live updates when skills are added/removed/modified)
   onSkillsChanged: (callback: (skills: import('@work-agent/shared/skills').LoadedSkill[]) => void) => {
     const handler = (_event: Electron.IpcRendererEvent, skills: import('@work-agent/shared/skills').LoadedSkill[]) => {

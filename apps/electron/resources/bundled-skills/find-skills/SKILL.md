@@ -1,6 +1,8 @@
 ---
 name: find-skills
 description: Discover and install skills from the open agent skills ecosystem. Helps users find specialized capabilities and tools for their AI agents.
+version: "1.0.0"
+author: vercel-labs
 ---
 
 # Find Skills

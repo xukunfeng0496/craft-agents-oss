@@ -1,0 +1,24 @@
+.github/workflows/build.yml
+  56e1c8c1c0c899cc 10
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.16",
+  "base_commit_sha": "a7ee083e6f1540677bddabd01e5e4251b5ee4596",
+  "prompts": {
+    "56e1c8c1c0c899cc": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fb9a4a20-b22f-47e0-be27-f2b7a2d47d49",
+        "model": "glm-5"
+      },
+      "human_author": "xukunfeng <xukunfeng@cvte.com>",
+      "messages": [],
+      "total_additions": 1,
+      "total_deletions": 1,
+      "accepted_lines": 1,
+      "overriden_lines": 0,
+      "messages_url": "https://gitai.gz.cvte.cn/cas/9e603f80f7ab6fd00c0034bc81a1c93a4174accec182dc929f25d1e0facf1e59"
+    }
+  }
+}

@@ -391,14 +391,6 @@ export function stopCodexModelRefresh(): void {
   }
 }
 
-/**
- * Generic file access stays scoped to trusted roots only.
- * This is intentionally stricter than attachment/upload access.
- */
-function getTrustedFileAccessRoots(): string[] {
-  return getWorkspaces().map(workspace => workspace.rootPath)
-}
-
 export function registerIpcHandlers(sessionManager: SessionManager, windowManager: WindowManager, browserPaneManager: BrowserPaneManager | null): void {
   // Get all sessions for the calling window's workspace
   // Waits for initialization to complete so sessions are never returned empty during startup
@@ -752,7 +744,7 @@ export function registerIpcHandlers(sessionManager: SessionManager, windowManage
   ipcMain.handle(IPC_CHANNELS.READ_FILE, async (_event, path: string) => {
     try {
       const safePath = await validateTrustedFileAccessPath(path, {
-        allowedRoots: getTrustedFileAccessRoots(),
+        allowedRoots: sessionManager.getTrustedFileAccessRoots(),
       })
       const content = await readFile(safePath, 'utf-8')
       return content
@@ -769,7 +761,7 @@ export function registerIpcHandlers(sessionManager: SessionManager, windowManage
   ipcMain.handle(IPC_CHANNELS.READ_FILE_DATA_URL, async (_event, path: string) => {
     try {
       const safePath = await validateTrustedFileAccessPath(path, {
-        allowedRoots: getTrustedFileAccessRoots(),
+        allowedRoots: sessionManager.getTrustedFileAccessRoots(),
       })
       const buffer = await readFile(safePath)
       const ext = safePath.split('.').pop()?.toLowerCase() ?? ''
@@ -803,7 +795,7 @@ export function registerIpcHandlers(sessionManager: SessionManager, windowManage
   ipcMain.handle(IPC_CHANNELS.READ_FILE_BINARY, async (_event, path: string) => {
     try {
       const safePath = await validateTrustedFileAccessPath(path, {
-        allowedRoots: getTrustedFileAccessRoots(),
+        allowedRoots: sessionManager.getTrustedFileAccessRoots(),
       })
       const buffer = await readFile(safePath)
       // Return as Uint8Array (serializes to ArrayBuffer over IPC)
@@ -1223,7 +1215,7 @@ export function registerIpcHandlers(sessionManager: SessionManager, windowManage
       // Resolve relative paths to absolute before validation
       const absolutePath = resolve(path)
       const safePath = await validateTrustedFileAccessPath(absolutePath, {
-        allowedRoots: getTrustedFileAccessRoots(),
+        allowedRoots: sessionManager.getTrustedFileAccessRoots(),
       })
       // openPath opens file with default application (e.g., VS Code for .ts files)
       const result = await shell.openPath(safePath)
@@ -1244,7 +1236,7 @@ export function registerIpcHandlers(sessionManager: SessionManager, windowManage
       // Resolve relative paths to absolute before validation
       const absolutePath = resolve(path)
       const safePath = await validateTrustedFileAccessPath(absolutePath, {
-        allowedRoots: getTrustedFileAccessRoots(),
+        allowedRoots: sessionManager.getTrustedFileAccessRoots(),
       })
       shell.showItemInFolder(safePath)
     } catch (error) {
@@ -3374,6 +3366,39 @@ export function registerIpcHandlers(sessionManager: SessionManager, windowManage
     const { MarketplaceClient } = await import('@work-agent/shared/marketplace')
     const client = new MarketplaceClient()
     return client.getRegistry()
+  })
+
+  ipcMain.handle(IPC_CHANNELS.MARKETPLACE_GET_SKILL_PREVIEW, async (_event, skillName: string) => {
+    const { MarketplaceClient } = await import('@work-agent/shared/marketplace')
+    const { parseSkillFile } = await import('@work-agent/shared/skills')
+
+    const client = new MarketplaceClient()
+    const registry = await client.getRegistry()
+    const remoteSkill = registry.skills.find((skill) => skill.name === skillName)
+    if (!remoteSkill) {
+      throw new Error('Skill not found in marketplace')
+    }
+
+    const files = await client.getSkillFiles(skillName)
+    const skillFile = files.find((file) => basename(file.path) === 'SKILL.md')
+    if (!skillFile) {
+      throw new Error('Marketplace skill is missing SKILL.md')
+    }
+
+    const parsed = parseSkillFile(skillFile.content)
+    if (!parsed) {
+      throw new Error('Marketplace skill has invalid SKILL.md')
+    }
+
+    return {
+      slug: skillName,
+      metadata: parsed.metadata,
+      content: parsed.body,
+      author: remoteSkill.author,
+      tags: remoteSkill.tags,
+      version: remoteSkill.version,
+      updatedAt: remoteSkill.updatedAt,
+    }
   })
 
   ipcMain.handle(IPC_CHANNELS.MARKETPLACE_INSTALL_SKILL, async (_event, workspaceId: string, skillName: string) => {

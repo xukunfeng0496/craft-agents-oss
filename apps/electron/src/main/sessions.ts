@@ -2180,6 +2180,22 @@ export class SessionManager {
       .sort((a, b) => (b.lastMessageAt ?? 0) - (a.lastMessageAt ?? 0))
   }
 
+  getTrustedFileAccessRoots(): string[] {
+    const roots = new Set<string>()
+
+    for (const managed of this.sessions.values()) {
+      roots.add(managed.workspace.rootPath)
+      roots.add(getSessionStoragePath(managed.workspace.rootPath, managed.id))
+      roots.add(this.resolveManagedRuntimeDirectory(managed))
+      roots.add(this.resolveManagedOutputDirectory(managed))
+      if (managed.workingDirectory) {
+        roots.add(managed.workingDirectory)
+      }
+    }
+
+    return Array.from(roots).filter(Boolean)
+  }
+
   /**
    * Get a single session by ID with all messages loaded.
    * Used for lazy loading session messages when session is selected.

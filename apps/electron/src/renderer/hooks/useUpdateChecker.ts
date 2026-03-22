@@ -26,7 +26,7 @@ interface UseUpdateCheckerResult {
   isReadyToInstall: boolean
   /** Whether auto-update failed and user must download manually */
   isManualDownload: boolean
-  /** GitHub release URL for manual download */
+  /** Direct release URL for manual download */
   releaseUrl: string | undefined
   /** Download progress (0-100) */
   downloadProgress: number
@@ -118,7 +118,19 @@ export function useUpdateChecker(): UseUpdateCheckerResult {
       if (dismissedVersion === info.latestVersion) return
 
       if (info.downloadState === 'ready') {
-        showUpdateToast(info.latestVersion, installUpdate)
+        if (info.silentMode) {
+          // Silent mode: show a brief non-intrusive toast (no restart button)
+          if (shownToastVersionRef.current !== info.latestVersion) {
+            shownToastVersionRef.current = info.latestVersion
+            toast.success(`Update v${info.latestVersion} downloaded`, {
+              id: UPDATE_TOAST_ID,
+              description: 'It will be installed automatically when the app quits.',
+              duration: 5000,
+            })
+          }
+        } else {
+          showUpdateToast(info.latestVersion, installUpdate)
+        }
       } else if (info.downloadState === 'manual-download' && info.releaseUrl) {
         showManualDownloadToast(info.latestVersion, info.releaseUrl)
       }
@@ -164,8 +176,15 @@ export function useUpdateChecker(): UseUpdateCheckerResult {
           duration: 3000,
         })
       } else if (info.downloadState === 'ready' && info.latestVersion) {
-        shownToastVersionRef.current = null
-        showUpdateToast(info.latestVersion, installUpdate)
+        if (info.silentMode) {
+          toast.success(`Update v${info.latestVersion} downloaded`, {
+            description: 'It will be installed automatically when the app quits.',
+            duration: 4000,
+          })
+        } else {
+          shownToastVersionRef.current = null
+          showUpdateToast(info.latestVersion, installUpdate)
+        }
       } else if (info.downloadState === 'manual-download' && info.latestVersion && info.releaseUrl) {
         shownToastVersionRef.current = null
         showManualDownloadToast(info.latestVersion, info.releaseUrl)

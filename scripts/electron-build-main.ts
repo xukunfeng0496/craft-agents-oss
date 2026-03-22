@@ -53,6 +53,11 @@ function getBuildDefines(): string[] {
     "MICROSOFT_OAUTH_CLIENT_ID",
     "MICROSOFT_OAUTH_CLIENT_SECRET",
     "SENTRY_ELECTRON_INGEST_URL",
+    "AUTO_UPDATE_SERVER_URL",
+    "AUTO_UPDATE_PRODUCT_ID",
+    "AUTO_UPDATE_CHANNEL",
+    "AUTO_UPDATE_SILENT",
+    "AUTO_UPDATE_ENABLE_DEV",
   ];
 
   return definedVars.map((varName) => {

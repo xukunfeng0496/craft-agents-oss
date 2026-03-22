@@ -1356,6 +1356,8 @@ export interface ClaudeOAuthResult {
 export interface UpdateInfo {
   /** Whether an update is available */
   available: boolean
+  /** Whether automatic updates should stay silent and install on quit */
+  silentMode: boolean
   /** Current installed version */
   currentVersion: string
   /** Latest available version (null if check failed) */
@@ -1368,7 +1370,7 @@ export interface UpdateInfo {
   supportsProgress: boolean
   /** Error message if download/install failed */
   error?: string
-  /** GitHub release URL for manual download (set when downloadState is 'manual-download') */
+  /** Direct release download URL for manual fallback (set when downloadState is 'manual-download') */
   releaseUrl?: string
 }
 

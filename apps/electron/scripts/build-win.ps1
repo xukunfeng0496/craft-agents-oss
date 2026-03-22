@@ -249,6 +249,21 @@ if ($env:SLACK_OAUTH_CLIENT_SECRET) {
 if ($env:MICROSOFT_OAUTH_CLIENT_ID) {
     $MainArgs += "--define:process.env.MICROSOFT_OAUTH_CLIENT_ID=`"'$env:MICROSOFT_OAUTH_CLIENT_ID'`""
 }
+if ($env:AUTO_UPDATE_SERVER_URL) {
+    $MainArgs += "--define:process.env.AUTO_UPDATE_SERVER_URL=`"'$env:AUTO_UPDATE_SERVER_URL'`""
+}
+if ($env:AUTO_UPDATE_PRODUCT_ID) {
+    $MainArgs += "--define:process.env.AUTO_UPDATE_PRODUCT_ID=`"'$env:AUTO_UPDATE_PRODUCT_ID'`""
+}
+if ($env:AUTO_UPDATE_CHANNEL) {
+    $MainArgs += "--define:process.env.AUTO_UPDATE_CHANNEL=`"'$env:AUTO_UPDATE_CHANNEL'`""
+}
+if ($env:AUTO_UPDATE_SILENT) {
+    $MainArgs += "--define:process.env.AUTO_UPDATE_SILENT=`"'$env:AUTO_UPDATE_SILENT'`""
+}
+if ($env:AUTO_UPDATE_ENABLE_DEV) {
+    $MainArgs += "--define:process.env.AUTO_UPDATE_ENABLE_DEV=`"'$env:AUTO_UPDATE_ENABLE_DEV'`""
+}
 Push-Location $RootDir
 try {
     & npx esbuild @MainArgs

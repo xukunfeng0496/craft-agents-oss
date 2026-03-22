@@ -38,6 +38,8 @@
     "electron:dist:mac": "bun run electron:build && electron-builder --config electron-builder.yml --project apps/electron --mac",
     "electron:dist:win": "cd apps/electron && bun run tools:download && bun run tools:setup-pip && bun run tools:configure-pip-mirror && bun run tools:preinstall-packages && cd ../.. && bun run electron:build && electron-builder --config electron-builder.yml --project apps/electron --win",
     "electron:dist:linux": "bun run electron:build && electron-builder --config electron-builder.yml --project apps/electron --linux",
+    "fast-update:upload": "bun run scripts/upload-fast-update-release.ts",
+    "test:ota": "bun run scripts/test-ota-flow.ts",
     "viewer:dev": "lsof -ti:5174 | xargs kill -9 2>/dev/null; vite dev --config apps/viewer/vite.config.ts --open /s/tz5-13I84pwK_he",
     "viewer:build": "vite build --config apps/viewer/vite.config.ts",
     "viewer:preview": "vite preview --config apps/viewer/vite.config.ts",

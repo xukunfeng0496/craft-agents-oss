@@ -8,8 +8,13 @@ import { createHash } from 'crypto'
 import { hostname, homedir } from 'os'
 import * as Sentry from '@sentry/electron/main'
 
+const sentryDsn = process.env.SENTRY_ELECTRON_INGEST_URL
+const sentryDevEnabled = process.env.SENTRY_ELECTRON_ENABLE_DEV === '1'
+const sentryEnabled = !!sentryDsn && (app.isPackaged || sentryDevEnabled)
+
 // Initialize Sentry error tracking as early as possible after app import.
-// Only enabled in production (packaged) builds to avoid noise during development.
+// Enabled for packaged builds by default; development can opt in with
+// SENTRY_ELECTRON_ENABLE_DEV=1 for local verification without changing code.
 // DSN is baked in at build time via esbuild --define (same pattern as OAuth secrets).
 //
 // NOTE: Source map upload is intentionally disabled. Stack traces in Sentry will show
@@ -18,11 +23,10 @@ import * as Sentry from '@sentry/electron/main'
 //   2. Re-enable the @sentry/vite-plugin in vite.config.ts (handles renderer maps)
 //   3. Add @sentry/esbuild-plugin to scripts/electron-build-main.ts (handles main process maps)
 Sentry.init({
-  dsn: process.env.SENTRY_ELECTRON_INGEST_URL,
+  dsn: sentryDsn,
   environment: app.isPackaged ? 'production' : 'development',
   release: app.getVersion(),
-  // Only enable in production (packaged) builds to avoid noise during development
-  enabled: app.isPackaged && !!process.env.SENTRY_ELECTRON_INGEST_URL,
+  enabled: sentryEnabled,
 
   // Scrub sensitive data before sending to Sentry.
   // Removes authorization headers, API keys/tokens, and credential-like values.
@@ -84,12 +88,26 @@ import { registerThumbnailScheme, registerThumbnailHandler } from './thumbnail-p
 import log, { isDebugMode, mainLog, getLogFilePath } from './logger'
 import { setPerfEnabled, enableDebug } from '@work-agent/shared/utils'
 import { initNotificationService, clearBadgeCount, initBadgeIcon, initInstanceBadge } from './notifications'
-import { checkForUpdatesOnLaunch, setWindowManager as setAutoUpdateWindowManager, isUpdating } from './auto-update'
+import {
+  checkForUpdatesOnLaunch,
+  setWindowManager as setAutoUpdateWindowManager,
+  isUpdating,
+  shouldCheckForUpdatesOnLaunch,
+} from './auto-update'
 import { getBundledUsableGitBashPath, validateGitBashPath } from './git-bash'
 import { initializeBundledSkills, initializeBundledSkillsForExistingWorkspaces } from './bundled-skills'
 
 // Initialize electron-log for renderer process support
 log.initialize()
+
+if (sentryEnabled) {
+  mainLog.info(`[sentry] Enabled (${app.isPackaged ? 'packaged' : 'dev opt-in'})`)
+} else {
+  const sentryDisabledReason = !sentryDsn
+    ? 'missing SENTRY_ELECTRON_INGEST_URL'
+    : 'disabled in development by default (set SENTRY_ELECTRON_ENABLE_DEV=1 to test locally)'
+  mainLog.info(`[sentry] Disabled: ${sentryDisabledReason}`)
+}
 
 // Enable debug/perf in dev mode (running from source)
 if (isDebugMode) {
@@ -377,10 +395,10 @@ app.whenReady().then(async () => {
       mainLog.warn('Failed to set Sentry context tags:', err)
     }
 
-    // Initialize auto-update (check immediately on launch)
-    // Skip in dev mode to avoid replacing /Applications app and launching it instead
+    // Initialize auto-update (check immediately on launch).
+    // Development builds stay disabled unless AUTO_UPDATE_ENABLE_DEV=1 is set.
     setAutoUpdateWindowManager(windowManager)
-    if (app.isPackaged) {
+    if (shouldCheckForUpdatesOnLaunch()) {
       checkForUpdatesOnLaunch().catch(err => {
         mainLog.error('[auto-update] Launch check failed:', err)
       })

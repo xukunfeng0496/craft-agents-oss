@@ -4,13 +4,16 @@
  */
 
 import { spawn, type Subprocess } from "bun";
-import { existsSync, rmSync, cpSync, readFileSync, statSync, mkdirSync } from "fs";
+import { existsSync, rmSync, cpSync, readFileSync, statSync, mkdirSync, writeFileSync } from "fs";
 import { join, basename } from "path";
 import * as esbuild from "esbuild";
 
 const ROOT_DIR = join(import.meta.dir, "..");
 const ELECTRON_DIR = join(ROOT_DIR, "apps/electron");
 const DIST_DIR = join(ELECTRON_DIR, "dist");
+const DEV_APP_UPDATE_YML = join(ELECTRON_DIR, "dev-app-update.yml");
+const ELECTRON_PACKAGE = JSON.parse(readFileSync(join(ELECTRON_DIR, "package.json"), "utf-8")) as { name: string };
+const DEV_UPDATER_CACHE_DIR = `${ELECTRON_PACKAGE.name.replace(/\//g, "")}-updater`;
 
 // MCP server paths (for Codex sessions)
 const SESSION_SERVER_DIR = join(ROOT_DIR, "packages/session-mcp-server");
@@ -147,6 +150,34 @@ function copyResources(): void {
   }
 }
 
+function writeDevAppUpdateConfig(): void {
+  if (process.env.AUTO_UPDATE_ENABLE_DEV !== "1") {
+    if (existsSync(DEV_APP_UPDATE_YML)) {
+      rmSync(DEV_APP_UPDATE_YML, { force: true });
+    }
+    return;
+  }
+
+  const serverUrl = (process.env.AUTO_UPDATE_SERVER_URL || "").trim();
+  if (!serverUrl) {
+    if (existsSync(DEV_APP_UPDATE_YML)) {
+      rmSync(DEV_APP_UPDATE_YML, { force: true });
+    }
+    return;
+  }
+
+  const productId = (process.env.AUTO_UPDATE_PRODUCT_ID || "work-agents").trim();
+  const channel = (process.env.AUTO_UPDATE_CHANNEL || "stable").trim();
+  const url = `${serverUrl.replace(/\/+$/, "")}/api/v1/${productId}/download/${channel}`;
+
+  writeFileSync(
+    DEV_APP_UPDATE_YML,
+    `provider: generic\nurl: "${url}"\nchannel: ${channel}\nupdaterCacheDirName: "${DEV_UPDATER_CACHE_DIR}"\n`,
+    "utf-8",
+  );
+  console.log(`📝 Wrote dev-app-update.yml for updater testing (${url})`);
+}
+
 // Build MCP servers for Codex sessions (one-time, no watch needed)
 async function buildMcpServers(): Promise<void> {
   console.log("🌉 Building MCP servers for Codex sessions...");
@@ -188,19 +219,24 @@ async function buildMcpServers(): Promise<void> {
   }
 }
 
-// Get OAuth defines for esbuild API
-function getOAuthDefines(): Record<string, string> {
-  const oauthVars = [
+// Get build-time defines for esbuild API
+function getBuildDefines(): Record<string, string> {
+  const definedVars = [
     "GOOGLE_OAUTH_CLIENT_ID",
     "GOOGLE_OAUTH_CLIENT_SECRET",
     "SLACK_OAUTH_CLIENT_ID",
     "SLACK_OAUTH_CLIENT_SECRET",
     "MICROSOFT_OAUTH_CLIENT_ID",
     "MICROSOFT_OAUTH_CLIENT_SECRET",
+    "AUTO_UPDATE_SERVER_URL",
+    "AUTO_UPDATE_PRODUCT_ID",
+    "AUTO_UPDATE_CHANNEL",
+    "AUTO_UPDATE_SILENT",
+    "AUTO_UPDATE_ENABLE_DEV",
   ];
 
   const defines: Record<string, string> = {};
-  for (const varName of oauthVars) {
+  for (const varName of definedVars) {
     const value = process.env[varName] || "";
     defines[`process.env.${varName}`] = JSON.stringify(value);
   }
@@ -306,6 +342,7 @@ async function main(): Promise<void> {
   detectInstance();
   loadEnvFile();
   cleanViteCache();
+  writeDevAppUpdateConfig();
 
   // Ensure dist directory exists
   if (!existsSync(DIST_DIR)) {
@@ -318,7 +355,7 @@ async function main(): Promise<void> {
   await buildMcpServers();
 
   const vitePort = process.env.CRAFT_VITE_PORT || "5173";
-  const oauthDefines = getOAuthDefines();
+  const buildDefines = getBuildDefines();
 
   // Kill any existing process on the Vite port
   await killProcessOnPort(vitePort);
@@ -342,7 +379,7 @@ async function main(): Promise<void> {
     runEsbuild(
       "apps/electron/src/main/index.ts",
       "apps/electron/dist/main.cjs",
-      oauthDefines
+      buildDefines
     ),
     runEsbuild(
       "apps/electron/src/preload/index.ts",
@@ -434,7 +471,7 @@ async function main(): Promise<void> {
     format: "cjs",
     outfile: join(ROOT_DIR, "apps/electron/dist/main.cjs"),
     external: ["electron"],
-    define: oauthDefines,
+    define: buildDefines,
     logLevel: "info",
   });
   await mainContext.watch();
@@ -499,6 +536,13 @@ async function main(): Promise<void> {
         proc.kill();
       } catch {
         // Process may already be dead
+      }
+    }
+    if (existsSync(DEV_APP_UPDATE_YML)) {
+      try {
+        rmSync(DEV_APP_UPDATE_YML, { force: true });
+      } catch {
+        // Ignore cleanup failures for generated updater config
       }
     }
     process.exit(0);

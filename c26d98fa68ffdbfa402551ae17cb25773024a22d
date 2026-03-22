@@ -1,0 +1,67 @@
+apps/electron/package.json
+  2d5d308d9c4b3ba1 3
+packages/shared/package.json
+  2d5d308d9c4b3ba1 3
+apps/electron/RELEASE_NOTES.md
+  2d5d308d9c4b3ba1 1,4-5,8-13,16-18
+packages/core/package.json
+  2d5d308d9c4b3ba1 3
+package.json
+  2d5d308d9c4b3ba1 3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.18",
+  "base_commit_sha": "c26d98fa68ffdbfa402551ae17cb25773024a22d",
+  "prompts": {
+    "2d5d308d9c4b3ba1": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "087fe351-f424-46de-88e0-bb260449d3a1",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "xukunfeng <xukunfeng@cvte.com>",
+      "messages": [],
+      "total_additions": 16,
+      "total_deletions": 13,
+      "accepted_lines": 16,
+      "overriden_lines": 0,
+      "messages_url": "https://gitai.gz.cvte.cn/cas/0413f007468034e5f7a141e53beb3bdaabefad0b031e2cf759e54f4b037d7706",
+      "token_usage": {
+        "input_tokens": 182222,
+        "output_tokens": 2561,
+        "cache_read_tokens": 921722,
+        "cache_creation_tokens": 0,
+        "total_cost": null
+      }
+    },
+    "e6e5d7c9a9eea14e": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019d150c-120b-7260-8d91-d7e6a497cfe9",
+        "model": "gpt-5.4"
+      },
+      "human_author": "xukunfeng <xukunfeng@cvte.com>",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 4,
+      "overriden_lines": 0,
+      "messages_url": "https://gitai.gz.cvte.cn/cas/811ae157ad00b1b3a581800eb11cfb09b1a6aaa817a6b5dfe2e9a4a031ac1ac8"
+    },
+    "f95356287efc754b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019d1621-b00a-76b0-b2ea-159b65ed2501",
+        "model": "gpt-5.4"
+      },
+      "human_author": "xukunfeng <xukunfeng@cvte.com>",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 0,
+      "overriden_lines": 0,
+      "messages_url": "https://gitai.gz.cvte.cn/cas/c1c4dab5e87fe3c685a9cda1f12b514b45b906f32007ac5f29d59b0b8c258a6c"
+    }
+  }
+}

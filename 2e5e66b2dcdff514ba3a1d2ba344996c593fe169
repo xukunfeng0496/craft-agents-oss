@@ -1,0 +1,26 @@
+apps/electron/RELEASE_NOTES.md
+  56e1c8c1c0c899cc 1,4-6,9-11,14-15
+apps/electron/src/renderer/pages/settings/AppSettingsPage.tsx
+  56e1c8c1c0c899cc 78,88,114
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.16",
+  "base_commit_sha": "2e5e66b2dcdff514ba3a1d2ba344996c593fe169",
+  "prompts": {
+    "56e1c8c1c0c899cc": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fb9a4a20-b22f-47e0-be27-f2b7a2d47d49",
+        "model": "glm-5"
+      },
+      "human_author": "xukunfeng <xukunfeng@cvte.com>",
+      "messages": [],
+      "total_additions": 12,
+      "total_deletions": 13,
+      "accepted_lines": 16,
+      "overriden_lines": 0,
+      "messages_url": "https://gitai.gz.cvte.cn/cas/5c0ebf5ec29c88d34028033d8428c95e31ec968366fad62fa03ebef8cf213f5e"
+    }
+  }
+}

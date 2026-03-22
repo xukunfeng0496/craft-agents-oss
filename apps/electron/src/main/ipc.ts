@@ -1,7 +1,7 @@
 import { app, ipcMain, nativeTheme, nativeImage, dialog, shell, BrowserWindow } from 'electron'
 import { readFile, readdir, stat, realpath, mkdir, writeFile, unlink, rm } from 'fs/promises'
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs'
-import { normalize, isAbsolute, join, basename, dirname, resolve, relative, sep } from 'path'
+import { normalize, isAbsolute, join, basename, dirname, resolve, relative } from 'path'
 import { homedir, tmpdir } from 'os'
 import { execSync } from 'child_process'
 import { SessionManager } from './sessions'
@@ -417,24 +417,14 @@ async function validateFilePath(filePath: string): Promise<string> {
     realPath = normalizedPath
   }
 
-  // Define allowed base directories
-  const allowedDirs = [
-    homedir(),  // User's home directory
-    tmpdir(),   // Platform-appropriate temp directory
-  ]
+  // Allow any absolute path on the local filesystem.
+  // Security is enforced by the sensitive file patterns below, not by directory allowlist.
+  // Previous homedir-only restriction blocked files on external drives (macOS /Volumes/),
+  // non-system partitions (Windows D:\, E:\), and other valid user locations.
 
-  // Check if the real path is within an allowed directory (cross-platform)
-  const isAllowed = allowedDirs.some(dir => {
-    const normalizedDir = normalize(dir)
-    const normalizedReal = normalize(realPath)
-    return normalizedReal.startsWith(normalizedDir + sep) || normalizedReal === normalizedDir
-  })
-
-  if (!isAllowed) {
-    throw new Error('Access denied: file path is outside allowed directories')
-  }
-
-  // Block sensitive files even within home directory
+  // Block sensitive files even within allowed directories
+  // Normalize to forward slashes for consistent pattern matching on Windows
+  const pathForPatterns = realPath.replace(/\\/g, '/')
   const sensitivePatterns = [
     /\.ssh\//,
     /\.gnupg\//,
@@ -451,7 +441,7 @@ async function validateFilePath(filePath: string): Promise<string> {
     /credentials\.enc$/,
   ]
 
-  if (sensitivePatterns.some(pattern => pattern.test(realPath))) {
+  if (sensitivePatterns.some(pattern => pattern.test(pathForPatterns))) {
     throw new Error('Access denied: cannot read sensitive files')
   }
 

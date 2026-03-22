@@ -19,12 +19,13 @@
     "build:main:win": "esbuild src/main/index.ts --bundle --platform=node --format=cjs --outfile=dist/main.cjs --external:electron",
     "build:preload": "esbuild src/preload/index.ts --bundle --platform=node --format=cjs --outfile=dist/preload.cjs --external:electron",
     "build:preload-toolbar": "esbuild src/preload/browser-toolbar.ts --bundle --platform=node --format=cjs --outfile=dist/browser-toolbar-preload.cjs --external:electron",
+    "build:network-interceptor": "esbuild ../../packages/shared/src/network-interceptor.ts --bundle --platform=node --format=cjs --outfile=dist/network-interceptor.cjs",
     "build:copilot-interceptor": "esbuild ../../packages/shared/src/copilot-network-interceptor.ts --bundle --platform=node --format=cjs --outfile=dist/copilot-interceptor.cjs",
     "build:renderer": "vite build",
     "build:copy": "bun scripts/copy-assets.ts",
     "build:validate": "bun scripts/validate-assets.ts",
-    "build": "bun run lint && bun run build:main && bun run build:preload && bun run build:preload-toolbar && bun run build:copilot-interceptor && bun run build:renderer && bun run build:copy && bun run build:validate",
-    "build:win": "bun run build:main:win && bun run build:preload && bun run build:preload-toolbar && bun run build:copilot-interceptor && bun run build:renderer && bun run build:copy && bun run build:validate",
+    "build": "bun run lint && bun run build:main && bun run build:preload && bun run build:preload-toolbar && bun run build:network-interceptor && bun run build:copilot-interceptor && bun run build:renderer && bun run build:copy && bun run build:validate",
+    "build:win": "bun run build:main:win && bun run build:preload && bun run build:preload-toolbar && bun run build:network-interceptor && bun run build:copilot-interceptor && bun run build:renderer && bun run build:copy && bun run build:validate",
     "start": "bun run build && electron .",
     "start:win": "bun run build:win && electron .",
     "dev": "vite dev",
@@ -36,6 +37,7 @@
     "lint": "eslint src/",
     "lint:fix": "eslint src/ --fix",
     "tools:download": "node scripts/download-tools.cjs",
+    "tools:prepare-host": "node scripts/prepare-windows-tools.cjs",
     "tools:setup-pip": "node scripts/setup-embedded-pip.cjs",
     "tools:configure-pip-mirror": "node scripts/configure-pip-mirror.cjs",
     "tools:preinstall-packages": "node scripts/preinstall-packages.cjs",
@@ -45,6 +47,7 @@
     "@work-agent/core": "workspace:*",
     "@work-agent/shared": "workspace:*",
     "@work-agent/ui": "workspace:*",
+    "adm-zip": "^0.5.10",
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
@@ -76,8 +79,5 @@
     "strip-markdown": "^6.0.0",
     "unist-util-visit": "^5.0.0",
     "vaul": "^1.1.2"
-  },
-  "devDependencies": {
-    "adm-zip": "^0.5.10"
   }
 }

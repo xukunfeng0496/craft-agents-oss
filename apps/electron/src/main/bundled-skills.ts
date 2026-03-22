@@ -10,6 +10,7 @@ import { app } from 'electron';
 import { join } from 'path';
 import { existsSync, mkdirSync, cpSync, readdirSync, writeFileSync, readFileSync } from 'fs';
 import log from './logger';
+import { getPackagedContentPath } from './packaged-paths';
 
 /** Marker file to track bundled skills installation */
 const BUNDLED_SKILLS_MARKER = '.bundled-skills-installed';
@@ -20,8 +21,8 @@ const BUNDLED_SKILLS_MARKER = '.bundled-skills-installed';
  */
 function getBundledSkillsPath(): string {
   if (app.isPackaged) {
-    // Production: resources are in app.asar or app directory
-    return join(process.resourcesPath, 'app', 'resources', 'bundled-skills');
+    // Production: bundled skills live with the rest of dist/resources.
+    return getPackagedContentPath('dist', 'resources', 'bundled-skills');
   } else {
     // Development: resources are in the source tree
     return join(app.getAppPath(), 'resources', 'bundled-skills');

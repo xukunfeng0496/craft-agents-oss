@@ -96,6 +96,8 @@ import {
 } from './auto-update'
 import { getBundledUsableGitBashPath, validateGitBashPath } from './git-bash'
 import { initializeBundledSkills, initializeBundledSkillsForExistingWorkspaces } from './bundled-skills'
+import { getPackagedFilesystemPath } from './packaged-paths'
+import { ensureBundledWindowsToolsReady } from './windows-bundled-tools'
 
 // Initialize electron-log for renderer process support
 log.initialize()
@@ -255,11 +257,17 @@ app.whenReady().then(async () => {
 
   // Register vendor root so the Codex binary resolver can find bundled binaries
   // (Codex binary resolves via resolveCodexBinary() which checks vendor/codex/)
-  setVendorRoot(__dirname)
+  setVendorRoot(app.isPackaged ? getPackagedFilesystemPath() : __dirname)
 
   // Register PowerShell validator root so it can find the bundled parser script
   // (Windows only: validates PowerShell commands in Explore mode using AST analysis)
-  setPowerShellValidatorRoot(join(__dirname, 'resources'))
+  setPowerShellValidatorRoot(
+    app.isPackaged ? getPackagedFilesystemPath('dist', 'resources') : join(__dirname, 'resources')
+  )
+
+  if (process.platform === 'win32') {
+    await ensureBundledWindowsToolsReady()
+  }
 
   // Initialize bundled docs
   initializeDocs()

@@ -10,6 +10,8 @@ import { join } from "path";
 const ROOT_DIR = join(import.meta.dir, "..");
 const DIST_DIR = join(ROOT_DIR, "apps/electron/dist");
 const OUTPUT_FILE = join(DIST_DIR, "main.cjs");
+const NETWORK_INTERCEPTOR_SOURCE = join(ROOT_DIR, "packages/shared/src/network-interceptor.ts");
+const NETWORK_INTERCEPTOR_OUTPUT = join(DIST_DIR, "network-interceptor.cjs");
 const COPILOT_INTERCEPTOR_SOURCE = join(ROOT_DIR, "packages/shared/src/copilot-network-interceptor.ts");
 const COPILOT_INTERCEPTOR_OUTPUT = join(DIST_DIR, "copilot-interceptor.cjs");
 const BRIDGE_SERVER_DIR = join(ROOT_DIR, "packages/bridge-mcp-server");
@@ -137,18 +139,21 @@ function verifySessionToolsCore(): void {
   console.log("✅ Session tools core verified");
 }
 
-// Build the Copilot network interceptor (bundled CJS loaded via NODE_OPTIONS="--require ..." into Copilot CLI subprocess)
-async function buildCopilotInterceptor(): Promise<void> {
-  console.log("🔌 Building Copilot network interceptor...");
+async function buildBundledNodeEntrypoint(
+  label: string,
+  sourcePath: string,
+  outputPath: string,
+): Promise<void> {
+  console.log(`🔌 Building ${label}...`);
 
   const proc = spawn({
     cmd: [
       "bun", "run", "esbuild",
-      COPILOT_INTERCEPTOR_SOURCE,
+      sourcePath,
       "--bundle",
       "--platform=node",
       "--format=cjs",
-      `--outfile=${COPILOT_INTERCEPTOR_OUTPUT}`,
+      `--outfile=${outputPath}`,
     ],
     cwd: ROOT_DIR,
     stdout: "inherit",
@@ -158,16 +163,34 @@ async function buildCopilotInterceptor(): Promise<void> {
   const exitCode = await proc.exited;
 
   if (exitCode !== 0) {
-    console.error("❌ Copilot interceptor build failed with exit code", exitCode);
+    console.error(`❌ ${label} build failed with exit code`, exitCode);
     process.exit(exitCode);
   }
 
-  if (!existsSync(COPILOT_INTERCEPTOR_OUTPUT)) {
-    console.error("❌ Copilot interceptor output not found at", COPILOT_INTERCEPTOR_OUTPUT);
+  if (!existsSync(outputPath)) {
+    console.error(`❌ ${label} output not found at`, outputPath);
     process.exit(1);
   }
 
-  console.log("✅ Copilot interceptor built successfully");
+  console.log(`✅ ${label} built successfully`);
+}
+
+// Build the Claude SDK network interceptor (bundled CJS loaded via Bun --preload)
+async function buildNetworkInterceptor(): Promise<void> {
+  await buildBundledNodeEntrypoint(
+    "Claude SDK network interceptor",
+    NETWORK_INTERCEPTOR_SOURCE,
+    NETWORK_INTERCEPTOR_OUTPUT,
+  );
+}
+
+// Build the Copilot network interceptor (bundled CJS loaded via NODE_OPTIONS="--require ..." into Copilot CLI subprocess)
+async function buildCopilotInterceptor(): Promise<void> {
+  await buildBundledNodeEntrypoint(
+    "Copilot network interceptor",
+    COPILOT_INTERCEPTOR_SOURCE,
+    COPILOT_INTERCEPTOR_OUTPUT,
+  );
 }
 
 // Build the Bridge MCP Server (used for API sources in Codex sessions)
@@ -265,6 +288,9 @@ async function main(): Promise<void> {
   // Build session server (provides session-scoped tools like SubmitPlan for Codex sessions)
   // Depends on session-tools-core being built first
   await buildSessionServer();
+
+  // Build Claude SDK network interceptor (CJS bundle for Bun --preload)
+  await buildNetworkInterceptor();
 
   // Build Copilot network interceptor (CJS bundle for Node.js --require)
   await buildCopilotInterceptor();

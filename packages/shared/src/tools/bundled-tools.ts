@@ -1,5 +1,7 @@
 import path from 'node:path';
 
+const BUNDLED_TOOLS_DIR_ENV = 'WORK_AGENT_BUNDLED_TOOLS_DIR';
+
 /**
  * Type for supported bundled tools
  */
@@ -14,6 +16,11 @@ function getBundledToolsDir(): string | null {
   // Only on Windows
   if (process.platform !== 'win32') {
     return null;
+  }
+
+  const envToolsDir = process.env[BUNDLED_TOOLS_DIR_ENV];
+  if (envToolsDir) {
+    return envToolsDir;
   }
 
   // Check if we're in Electron environment

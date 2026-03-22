@@ -198,27 +198,18 @@ Write-Host "Copying SDK..."
 New-Item -ItemType Directory -Force -Path "$ElectronDir\node_modules\@anthropic-ai" | Out-Null
 Copy-Item -Recurse -Force $SdkSource "$ElectronDir\node_modules\@anthropic-ai\"
 
-# 5. Copy interceptor and its dependencies
-$InterceptorSource = "$RootDir\packages\shared\src\network-interceptor.ts"
-if (-not (Test-Path $InterceptorSource)) {
-    Write-Host "ERROR: Interceptor not found at $InterceptorSource" -ForegroundColor Red
-    exit 1
+# 5. Build packaged interceptor entrypoints
+Write-Host "Building packaged interceptor entrypoints..."
+Push-Location $ElectronDir
+try {
+    bun run build:network-interceptor
+    if ($LASTEXITCODE -ne 0) { throw "Claude SDK interceptor build failed" }
+
+    bun run build:copilot-interceptor
+    if ($LASTEXITCODE -ne 0) { throw "Copilot interceptor build failed" }
+} finally {
+    Pop-Location
 }
-$InterceptorCommonSource = "$RootDir\packages\shared\src\interceptor-common.ts"
-if (-not (Test-Path $InterceptorCommonSource)) {
-    Write-Host "ERROR: interceptor-common.ts not found at $InterceptorCommonSource" -ForegroundColor Red
-    exit 1
-}
-$FeatureFlagsSource = "$RootDir\packages\shared\src\feature-flags.ts"
-if (-not (Test-Path $FeatureFlagsSource)) {
-    Write-Host "ERROR: feature-flags.ts not found at $FeatureFlagsSource" -ForegroundColor Red
-    exit 1
-}
-Write-Host "Copying interceptor and dependencies..."
-New-Item -ItemType Directory -Force -Path "$ElectronDir\packages\shared\src" | Out-Null
-Copy-Item $InterceptorSource "$ElectronDir\packages\shared\src\"
-Copy-Item $InterceptorCommonSource "$ElectronDir\packages\shared\src\"
-Copy-Item $FeatureFlagsSource "$ElectronDir\packages\shared\src\"
 
 # 6. Build Electron app
 Write-Host "Building Electron app..."
@@ -307,10 +298,8 @@ try {
 Write-Host "  Copying resources..."
 Push-Location $RootDir
 try {
-    $ResourcesSrc = "$ElectronDir\resources"
-    $ResourcesDst = "$ElectronDir\dist\resources"
-    if (Test-Path $ResourcesDst) { Remove-Item -Recurse -Force $ResourcesDst }
-    Copy-Item -Recurse $ResourcesSrc $ResourcesDst
+    bun run electron:build:resources
+    if ($LASTEXITCODE -ne 0) { throw "Resource copy failed" }
 } finally {
     Pop-Location
 }

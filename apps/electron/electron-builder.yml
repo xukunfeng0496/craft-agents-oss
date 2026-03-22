@@ -16,19 +16,6 @@ files:
   - "!dist/renderer/src/**"
   - "!**/*.map"
   - package.json
-  # Include bundled MCP servers (bridge + session) for Codex sessions
-  - resources/bridge-mcp-server/**/*
-  - resources/session-mcp-server/**/*
-  # Include bundled tools directory (Windows only, contains git, gh, etc.)
-  - resources/tools/**/*
-  # Include bundled skills (pre-installed skills for first launch)
-  - resources/bundled-skills/**/*
-  # Note: Bundled assets (docs, themes, permissions, tool-icons) are in resources/
-  # and copied to dist/resources/ by build:copy. They're included via dist/**/* above.
-  # Include network interceptor for API error capture and MCP schema injection
-  - packages/shared/src/network-interceptor.ts
-  - packages/shared/src/interceptor-common.ts
-  - packages/shared/src/feature-flags.ts
   # Include bundled Bun runtime (platform-specific, set by build script)
   - vendor/bun/**/*
   # Include bundled Codex binary (platform-specific, downloaded by build script)
@@ -53,12 +40,8 @@ publish:
   owner: xukunfeng0496
   repo: craft-agents-oss
 
-# Disable ASAR to avoid decompression overhead and click delays
+# Keep macOS/Linux as loose files for now; Windows overrides this to ASAR below
 asar: false
-
-# Keep tools directory uncompressed so executables work properly
-asarUnpack:
-  - "resources/tools/**/*"
 
 mac:
   category: public.app-category.productivity
@@ -118,6 +101,7 @@ dmg:
 
 win:
   icon: resources/icon.ico
+  asar: true
   target:
     - target: nsis
       arch:
@@ -138,6 +122,14 @@ win:
     - "!vendor/bun/**/*"
     - "!vendor/codex/**/*"
     - "!vendor/copilot/**/*"
+    # External runtimes cannot read entrypoints from app.asar.
+    # Ship these only via extraResources so packaged subprocesses use real files.
+    - "!dist/resources/bridge-mcp-server/**/*"
+    - "!dist/resources/session-mcp-server/**/*"
+    - "!dist/resources/powershell-parser.ps1"
+    - "!dist/network-interceptor.cjs"
+    - "!dist/copilot-interceptor.cjs"
+    - "!dist/tools-archives/**/*"
   # Copy executables as extraResources to avoid EBUSY file locking (see comment above)
   extraResources:
     - from: node_modules/@anthropic-ai/claude-agent-sdk
@@ -154,8 +146,18 @@ win:
       to: app/vendor/codex/win32-x64
     - from: vendor/copilot/win32-x64
       to: app/vendor/copilot/win32-x64
-    - from: resources/tools
-      to: tools
+    - from: dist/network-interceptor.cjs
+      to: app/dist/network-interceptor.cjs
+    - from: dist/copilot-interceptor.cjs
+      to: app/dist/copilot-interceptor.cjs
+    - from: dist/resources/bridge-mcp-server
+      to: app/dist/resources/bridge-mcp-server
+    - from: dist/resources/session-mcp-server
+      to: app/dist/resources/session-mcp-server
+    - from: dist/resources/powershell-parser.ps1
+      to: app/dist/resources/powershell-parser.ps1
+    - from: dist/tools-archives
+      to: tools-archives
       filter: ["**/*"]
 
 nsis:

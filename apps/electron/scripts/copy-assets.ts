@@ -11,11 +11,82 @@
  * Run: bun scripts/copy-assets.ts
  */
 
-import { cpSync, copyFileSync, mkdirSync } from 'fs';
-import { join } from 'path';
+import { createHash } from 'crypto';
+import AdmZip from 'adm-zip';
+import { cpSync, copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'fs';
+import { join, relative, resolve, sep } from 'path';
 
-// Copy all resources (icons, themes, docs, permissions, tool-icons, etc.)
-cpSync('resources', 'dist/resources', { recursive: true });
+const RESOURCES_SRC = resolve('resources');
+const DIST_RESOURCES_DEST = 'dist/resources';
+const TOOLS_SRC = join(RESOURCES_SRC, 'tools');
+const DIST_TOOLS_ARCHIVES_DEST = 'dist/tools-archives';
+
+function shouldCopyResource(src: string): boolean {
+  const relativePath = relative(RESOURCES_SRC, resolve(src));
+  if (!relativePath || relativePath === '') {
+    return true;
+  }
+
+  const normalizedPath = relativePath.split(sep).join('/');
+
+  // Windows bundled tools are packaged separately via electron-builder extraResources.
+  // Keeping them out of dist/resources avoids shipping an extra copy inside the app bundle.
+  if (normalizedPath === 'tools' || normalizedPath.startsWith('tools/')) {
+    return false;
+  }
+
+  return true;
+}
+
+function createWindowsToolArchives(): void {
+  rmSync(DIST_TOOLS_ARCHIVES_DEST, { recursive: true, force: true });
+
+  if (!existsSync(TOOLS_SRC)) {
+    console.log('ℹ No resources/tools directory found; skipping Windows tool archive build');
+    return;
+  }
+
+  mkdirSync(DIST_TOOLS_ARCHIVES_DEST, { recursive: true });
+
+  const archives = ['mingit', 'python']
+    .map((name) => {
+      const sourceDir = join(TOOLS_SRC, name);
+      if (!existsSync(sourceDir)) {
+        return null;
+      }
+
+      const zipPath = join(DIST_TOOLS_ARCHIVES_DEST, `${name}.zip`);
+      const zip = new AdmZip();
+      zip.addLocalFolder(sourceDir, name);
+      zip.writeZip(zipPath);
+
+      const archiveBuffer = readFileSync(zipPath);
+      return {
+        name,
+        file: `${name}.zip`,
+        size: archiveBuffer.length,
+        sha256: createHash('sha256').update(archiveBuffer).digest('hex'),
+      };
+    })
+    .filter((archive): archive is { name: string; file: string; size: number; sha256: string } => archive !== null);
+
+  if (archives.length === 0) {
+    console.log('ℹ No Windows bundled tools found; skipping archive manifest');
+    return;
+  }
+
+  writeFileSync(
+    join(DIST_TOOLS_ARCHIVES_DEST, 'manifest.json'),
+    `${JSON.stringify({ schemaVersion: 1, archives }, null, 2)}\n`,
+    'utf8',
+  );
+
+  console.log('✓ Created Windows tool archives → dist/tools-archives/');
+}
+
+// Copy bundled app resources used at runtime (icons, themes, docs, permissions, tool-icons, etc.)
+rmSync(DIST_RESOURCES_DEST, { recursive: true, force: true });
+cpSync(RESOURCES_SRC, DIST_RESOURCES_DEST, { recursive: true, filter: shouldCopyResource });
 
 console.log('✓ Copied resources/ → dist/resources/');
 
@@ -38,3 +109,5 @@ try {
   // Only warn - PowerShell validation is optional on non-Windows platforms
   console.log('⚠ powershell-parser.ps1 copy skipped (not critical on non-Windows)');
 }
+
+createWindowsToolArchives();

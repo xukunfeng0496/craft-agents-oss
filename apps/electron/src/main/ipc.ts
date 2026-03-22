@@ -32,6 +32,7 @@ import {
 } from './i18n-labels'
 import { storeAttachmentOnDisk } from './attachment-storage'
 import { validateAttachmentPath, validateTrustedFileAccessPath } from './file-path-validation'
+import { getPackagedFilesystemPath } from './packaged-paths'
 
 /**
  * Get workspace by ID or name, throwing if not found.
@@ -139,7 +140,7 @@ async function fetchAndStoreCopilotModels(slug: string, accessToken: string): Pr
   const binaryName = platform === 'win32' ? 'copilot.exe' : 'copilot'
 
   const copilotCliPath = app.isPackaged
-    ? join(basePath, 'vendor', 'copilot', `${platform}-${arch}`, binaryName)
+    ? getPackagedFilesystemPath('vendor', 'copilot', `${platform}-${arch}`, binaryName)
     : join(basePath, 'node_modules', '@github', `copilot-${platform}-${arch}`, binaryName)
 
   const debugLines: string[] = []

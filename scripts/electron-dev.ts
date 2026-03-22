@@ -5,7 +5,7 @@
 
 import { spawn, type Subprocess } from "bun";
 import { existsSync, rmSync, cpSync, readFileSync, statSync, mkdirSync, writeFileSync } from "fs";
-import { join, basename } from "path";
+import { join, basename, relative, resolve, sep } from "path";
 import * as esbuild from "esbuild";
 
 const ROOT_DIR = join(import.meta.dir, "..");
@@ -141,11 +141,26 @@ function cleanViteCache(): void {
 }
 
 // Copy resources to dist
+function shouldCopyElectronResource(srcDir: string, src: string): boolean {
+  const relativePath = relative(srcDir, resolve(src));
+  if (!relativePath || relativePath === "") {
+    return true;
+  }
+
+  const normalizedPath = relativePath.split(sep).join("/");
+  return normalizedPath !== "tools" && !normalizedPath.startsWith("tools/");
+}
+
 function copyResources(): void {
-  const srcDir = join(ELECTRON_DIR, "resources");
+  const srcDir = resolve(ELECTRON_DIR, "resources");
   const destDir = join(ELECTRON_DIR, "dist/resources");
   if (existsSync(srcDir)) {
-    cpSync(srcDir, destDir, { recursive: true, force: true });
+    rmSync(destDir, { recursive: true, force: true });
+    cpSync(srcDir, destDir, {
+      recursive: true,
+      force: true,
+      filter: (src) => shouldCopyElectronResource(srcDir, src),
+    });
     console.log("📦 Copied resources to dist");
   }
 }

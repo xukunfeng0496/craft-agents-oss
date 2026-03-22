@@ -1,0 +1,31 @@
+apps/electron/src/main/ipc.ts
+  56e1c8c1c0c899cc 4,420-423,425-427,444
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.18",
+  "base_commit_sha": "1a539ed45e7c4641b2296c704e6997702fecd1bb",
+  "prompts": {
+    "56e1c8c1c0c899cc": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fb9a4a20-b22f-47e0-be27-f2b7a2d47d49",
+        "model": "glm-5"
+      },
+      "human_author": "xukunfeng <xukunfeng@cvte.com>",
+      "messages": [],
+      "total_additions": 18,
+      "total_deletions": 28,
+      "accepted_lines": 9,
+      "overriden_lines": 0,
+      "messages_url": "https://gitai.gz.cvte.cn/cas/ef91075f061c53076cdcc78994ba357918404a105cb17d35ccf3f38e4dda3a18",
+      "token_usage": {
+        "input_tokens": 4792629,
+        "output_tokens": 94168,
+        "cache_read_tokens": 65562560,
+        "cache_creation_tokens": 73270,
+        "total_cost": null
+      }
+    }
+  }
+}

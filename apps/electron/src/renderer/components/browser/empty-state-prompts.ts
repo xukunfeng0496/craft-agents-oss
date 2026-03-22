@@ -38,7 +38,7 @@ const PROMPTS_ZH_CN: readonly BrowserEmptyPromptSample[] = [
     full: '使用浏览器访问 https://www.mi.com 和 https://consumer.huawei.com/cn/phones/ ，挑选两款在售旗舰手机，整理参数对比表，包含芯片、屏幕、影像、续航和价格。',
   },
   {
-    short: '京东：办公显��器选购对比',
+    short: '京东：办公显示器选购对比',
     full: '使用浏览器访问 https://www.jd.com ，搜索 27 英寸办公显示器，筛选 6 个适合办公和轻度设计的型号，并按价格、分辨率、色域和接口做对比。',
   },
 ] as const

@@ -937,9 +937,8 @@ export function FreeFormInput({
     e.stopPropagation()
   }
 
-  // File size threshold for converting to path reference instead of inline content
-  // 20MB chosen as balance: large enough for most images/PDFs, small enough to avoid UI jank
-  // Must match MAX_FILE_SIZE in packages/shared/src/utils/files.ts
+  // File size threshold for pathless attachments that must be read in the renderer.
+  // Local files with real paths can go through Electron IPC and be stored without eager inline loading.
   const MAX_EMBED_SIZE = 20 * 1024 * 1024 // 20MB
 
   // Chunk size for base64 encoding - balances call stack depth and iteration overhead
@@ -1085,23 +1084,7 @@ export function FreeFormInput({
         filePath = (file as File & { path?: string }).path || null
       }
 
-      // Check if file is too large for inline embedding
-      if (file.size > MAX_EMBED_SIZE) {
-        // Large file: convert to path reference instead of embedding
-        if (filePath) {
-          // Insert file path reference into input
-          const fileRef = `[file:${filePath}]`
-          setInput(prev => prev ? `${prev} ${fileRef}` : fileRef)
-          toast.info(`Large file added as path reference: ${file.name}`)
-        } else {
-          // No path available (e.g., from browser drag)
-          toast.error(`File too large to embed and no path available: ${file.name} (${Math.round(file.size / 1024 / 1024)}MB)`)
-        }
-        setLoadingCount(prev => prev - 1)
-        continue
-      }
-
-      // Small file: try IPC path first, then fallback to FileReader
+      // Prefer IPC path-based attachment for real local files, even when large.
       if (filePath && hasElectronAPI) {
         try {
           const attachment = await window.electronAPI.readFileAttachment(filePath)
@@ -1113,6 +1096,18 @@ export function FreeFormInput({
         } catch (error) {
           console.error('[FreeFormInput] Failed to read via IPC:', error)
         }
+      }
+
+      if (file.size > MAX_EMBED_SIZE) {
+        if (filePath) {
+          const fileRef = `[file:${filePath}]`
+          setInput(prev => prev ? `${prev} ${fileRef}` : fileRef)
+          toast.info(`Large file added as path reference: ${file.name}`)
+        } else {
+          toast.error(`File too large to embed and no path available: ${file.name} (${Math.round(file.size / 1024 / 1024)}MB)`)
+        }
+        setLoadingCount(prev => prev - 1)
+        continue
       }
 
       try {

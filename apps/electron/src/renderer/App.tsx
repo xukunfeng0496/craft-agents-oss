@@ -1100,7 +1100,7 @@ export default function App() {
               ...att,
               storedPath: stored.storedPath,
               markdownPath: stored.markdownPath,
-              base64: stored.resizedBase64 ?? att.base64,
+              base64: stored.resizedBase64 ?? stored.inlineBase64 ?? att.base64,
             }
           })
         )

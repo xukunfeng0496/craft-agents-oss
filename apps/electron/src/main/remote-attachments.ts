@@ -64,7 +64,7 @@ export async function processRemoteAttachments(
       path: stored.storedPath,
       storedPath: stored.storedPath,
       markdownPath: stored.markdownPath,
-      base64: stored.resizedBase64 ?? inputAttachment.base64,
+      base64: stored.resizedBase64 ?? stored.inlineBase64 ?? inputAttachment.base64,
     }
 
     return { attachment, stored }

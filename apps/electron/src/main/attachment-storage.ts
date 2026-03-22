@@ -1,5 +1,7 @@
 import { nativeImage } from 'electron'
-import { writeFile, unlink, mkdir } from 'fs/promises'
+import { copyFile, readFile, writeFile, unlink, mkdir } from 'fs/promises'
+import { existsSync } from 'fs'
+import { isAbsolute } from 'path'
 import { join } from 'path'
 import { randomUUID } from 'crypto'
 import { Worker } from 'worker_threads'
@@ -96,9 +98,9 @@ export async function storeAttachmentOnDisk({
     let wasResized = false
     let finalSize = attachment.size
     let resizedBase64: string | undefined
+    let inlineBase64: string | undefined
 
-    if (attachment.base64) {
-      let decoded: Buffer = Buffer.from(attachment.base64, 'base64')
+    const writeBinaryAttachment = async (decoded: Buffer) => {
       if (Math.abs(decoded.length - attachment.size) > 100) {
         throw new Error(`Attachment corrupted: size mismatch (expected ${attachment.size}, got ${decoded.length})`)
       }
@@ -148,16 +150,31 @@ export async function storeAttachmentOnDisk({
 
           logger.info(`Image resized: ${attachment.size} -> ${finalSize} bytes (${Math.round((1 - finalSize / attachment.size) * 100)}% reduction)`)
           resizedBase64 = decoded.toString('base64')
+        } else {
+          inlineBase64 = decoded.toString('base64')
         }
+      } else if (attachment.type === 'pdf') {
+        inlineBase64 = decoded.toString('base64')
       }
 
       await writeFile(storedPath, decoded)
       filesToCleanup.push(storedPath)
+    }
+
+    if (attachment.base64) {
+      await writeBinaryAttachment(Buffer.from(attachment.base64, 'base64'))
     } else if (attachment.text) {
       await writeFile(storedPath, attachment.text, 'utf-8')
       filesToCleanup.push(storedPath)
+    } else if (attachment.path && isAbsolute(attachment.path) && existsSync(attachment.path)) {
+      if (attachment.type === 'image' || attachment.type === 'pdf') {
+        await writeBinaryAttachment(await readFile(attachment.path))
+      } else {
+        await copyFile(attachment.path, storedPath)
+        filesToCleanup.push(storedPath)
+      }
     } else {
-      throw new Error('Attachment has no content (neither base64 nor text)')
+      throw new Error('Attachment has no content (neither base64, text, nor readable source path)')
     }
 
     let thumbnailPath: string | undefined
@@ -213,6 +230,7 @@ export async function storeAttachmentOnDisk({
       markdownPath,
       wasResized,
       resizedBase64,
+      inlineBase64,
     }
   } catch (error) {
     if (filesToCleanup.length > 0) {

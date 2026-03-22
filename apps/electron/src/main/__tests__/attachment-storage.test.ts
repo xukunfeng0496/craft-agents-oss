@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, mock } from 'bun:test'
-import { existsSync, mkdtempSync, readFileSync, rmSync } from 'fs'
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
 
@@ -89,5 +89,34 @@ describe('storeAttachmentOnDisk', () => {
     expect(result.markdownPath).toBeDefined()
     expect(result.markdownPath && existsSync(result.markdownPath)).toBe(true)
     expect(readFileSync(result.markdownPath!, 'utf-8')).toContain('Converted office content')
+  })
+
+  it('copies contentless local attachments from source path', async () => {
+    const workspaceRootPath = mkdtempSync(join(tmpdir(), 'work-agent-att-test-'))
+    cleanupPaths.push(workspaceRootPath)
+
+    const sourcePath = join(workspaceRootPath, 'server.log')
+    writeFileSync(sourcePath, 'hello from disk')
+
+    const attachment = {
+      type: 'text' as const,
+      path: sourcePath,
+      name: 'server.log',
+      mimeType: 'text/plain',
+      size: Buffer.byteLength('hello from disk'),
+    }
+
+    const result = await storeAttachmentOnDisk({
+      workspaceRootPath,
+      sessionId: '260316-test-session',
+      attachment,
+      logger: {
+        info: () => {},
+        warn: () => {},
+      },
+    })
+
+    expect(existsSync(result.storedPath)).toBe(true)
+    expect(readFileSync(result.storedPath, 'utf-8')).toBe('hello from disk')
   })
 })

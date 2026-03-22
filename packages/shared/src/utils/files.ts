@@ -96,7 +96,7 @@ const OFFICE_EXTENSIONS: Record<string, string> = {
   '.ppt': 'application/vnd.ms-powerpoint',
 };
 
-const MAX_FILE_SIZE = 20 * 1024 * 1024; // 20MB limit
+const MAX_INLINE_FILE_SIZE = 20 * 1024 * 1024; // 20MB eager-load limit for local attachments
 const MAX_TEXT_SIZE = 100 * 1024; // 100KB for text files
 
 // Claude API image limits - images exceeding these will fail silently
@@ -342,13 +342,10 @@ export function readFileAttachment(filePath: string): FileAttachment | null {
       return null;
     }
 
-    if (stats.size > MAX_FILE_SIZE) {
-      throw new Error(`File too large: ${basename(resolved)} (${Math.round(stats.size / 1024 / 1024)}MB > 20MB limit)`);
-    }
-
     const type = getFileType(resolved);
     const mimeType = getMimeType(resolved);
     const name = basename(resolved);
+    const shouldInlineContent = stats.size <= MAX_INLINE_FILE_SIZE;
 
     const attachment: FileAttachment = {
       type,
@@ -358,11 +355,11 @@ export function readFileAttachment(filePath: string): FileAttachment | null {
       size: stats.size,
     };
 
-    if (type === 'image') {
+    if (type === 'image' && shouldInlineContent) {
       // Read as base64 for images
       const buffer = readFileSync(resolved);
       attachment.base64 = buffer.toString('base64');
-    } else if (type === 'text') {
+    } else if (type === 'text' && shouldInlineContent) {
       // Read as text for text files (with size limit)
       if (stats.size > MAX_TEXT_SIZE) {
         // Read only first part of large text files
@@ -372,11 +369,11 @@ export function readFileAttachment(filePath: string): FileAttachment | null {
       } else {
         attachment.text = readFileSync(resolved, 'utf-8');
       }
-    } else if (type === 'pdf') {
+    } else if (type === 'pdf' && shouldInlineContent) {
       // Read PDF as base64
       const buffer = readFileSync(resolved);
       attachment.base64 = buffer.toString('base64');
-    } else if (type === 'office') {
+    } else if (type === 'office' && shouldInlineContent) {
       // Read Office files as base64 (will be converted to markdown later)
       const buffer = readFileSync(resolved);
       attachment.base64 = buffer.toString('base64');
@@ -384,9 +381,6 @@ export function readFileAttachment(filePath: string): FileAttachment | null {
 
     return attachment;
   } catch (error) {
-    if (error instanceof Error && error.message.startsWith('File too large')) {
-      throw error;
-    }
     return null;
   }
 }

@@ -1,0 +1,29 @@
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.18",
+  "base_commit_sha": "469f7e64fa3e40558fe00d9fca8c703e179cdbb3",
+  "prompts": {
+    "3aa7196329b92738": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3570f125-d1f8-460b-819e-d9678598dc1d",
+        "model": "claude-opus-4-6"
+      },
+      "human_author": "xukunfeng <xukunfeng@cvte.com>",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 29,
+      "overriden_lines": 0,
+      "messages_url": "https://gitai.gz.cvte.cn/cas/462d86586ff173989508f76eb2daa101a2b6e281a5438f2e7b02b9e8ff8dde7e",
+      "token_usage": {
+        "input_tokens": 384609,
+        "output_tokens": 14519,
+        "cache_read_tokens": 7289235,
+        "cache_creation_tokens": 0,
+        "total_cost": null
+      }
+    }
+  }
+}

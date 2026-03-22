@@ -177,7 +177,7 @@ export function getWorkingDirectoryContext(
   if (isSessionRoot) {
     // Add context explaining this is the session folder, not a code project
     parts.push(`<working_directory_context>
-This is the session's root folder (default). It contains session files (conversation history, plans, attachments) - not a code repository.
+This is the session's root folder (default). It contains session state and generated artifacts for this conversation - not a code repository.
 You can access any files the user attaches here. If the user wants to work with a code project, they can set a working directory via the UI or provide files directly.
 </working_directory_context>`);
   } else {
@@ -685,7 +685,7 @@ For datasets with 20+ rows, use the \`transform_data\` tool to write data to a f
 The file should contain \`{"rows": [...]}\` or just a rows array \`[...]\`. Inline \`columns\` and \`title\` take precedence over values in the file.
 
 **\`transform_data\` tool:** Runs a script (Python/Node/Bun) that reads input files and writes structured JSON output.
-- Input files: relative to session dir (e.g., \`long_responses/tool_result_abc.txt\`)
+- Input files: relative to the session runtime folder (e.g., \`long_responses/tool_result_abc.txt\`)
 - Output file: written to session \`data/\` dir
 - Runs in isolated subprocess (no API keys, 30s timeout)
 - Available in all permission modes including Explore

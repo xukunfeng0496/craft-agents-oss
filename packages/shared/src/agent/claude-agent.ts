@@ -51,7 +51,7 @@ import {
   SAFE_MODE_CONFIG,
 } from './mode-manager.ts';
 import { type PermissionsContext, permissionsConfigCache } from './permissions-config.ts';
-import { getSessionPlansPath, getSessionPath } from '../sessions/storage.ts';
+import { getSessionPath } from '../sessions/storage.ts';
 import { existsSync, readFileSync } from 'fs';
 import { join } from 'node:path';
 import { homedir } from 'node:os';
@@ -733,7 +733,7 @@ export class ClaudeAgent extends BaseAgent {
       const fullMcpServers: Options['mcpServers'] = {
         preferences: getPreferencesServer(false),
         // Session-scoped tools (SubmitPlan, source_test, etc.)
-        session: getSessionScopedTools(sessionId, this.workspaceRootPath),
+        session: getSessionScopedTools(sessionId, this.workspaceRootPath, undefined, this.getRuntimeDirectory(sessionId)),
         // Work Agents documentation - always available for searching setup guides
         // This is a public Mintlify MCP server, no auth needed
         'work-agents-docs': {
@@ -891,7 +891,7 @@ export class ClaudeAgent extends BaseAgent {
 
               // In 'allow-all' mode, still check for explicitly blocked tools
               if (permissionMode === 'allow-all') {
-                const plansFolderPath = sessionId ? getSessionPlansPath(this.workspaceRootPath, sessionId) : undefined;
+                const plansFolderPath = sessionId ? this.getPlansFolderPath(sessionId) : undefined;
                 const result = shouldAllowToolInMode(
                   input.tool_name,
                   input.tool_input,
@@ -911,7 +911,7 @@ export class ClaudeAgent extends BaseAgent {
 
               // In 'ask' mode, still check for explicitly blocked tools
               if (permissionMode === 'ask') {
-                const plansFolderPath = sessionId ? getSessionPlansPath(this.workspaceRootPath, sessionId) : undefined;
+                const plansFolderPath = sessionId ? this.getPlansFolderPath(sessionId) : undefined;
                 const result = shouldAllowToolInMode(
                   input.tool_name,
                   input.tool_input,
@@ -929,7 +929,7 @@ export class ClaudeAgent extends BaseAgent {
 
               // In 'safe' mode, check against read-only allowlist
               if (permissionMode === 'safe') {
-                const plansFolderPath = sessionId ? getSessionPlansPath(this.workspaceRootPath, sessionId) : undefined;
+                const plansFolderPath = sessionId ? this.getPlansFolderPath(sessionId) : undefined;
                 const result = shouldAllowToolInMode(
                   input.tool_name,
                   input.tool_input,
@@ -1177,7 +1177,7 @@ export class ClaudeAgent extends BaseAgent {
               // For MCP mutation tools in 'ask' mode, prompt for permission
               if (input.tool_name.startsWith('mcp__') && permissionMode === 'ask') {
                 // Check if this is a mutation tool by testing against safe mode's read-only patterns
-                const plansFolderPath = sessionId ? getSessionPlansPath(this.workspaceRootPath, sessionId) : undefined;
+                const plansFolderPath = sessionId ? this.getPlansFolderPath(sessionId) : undefined;
                 const safeModeResult = shouldAllowToolInMode(
                   input.tool_name,
                   input.tool_input,
@@ -1456,7 +1456,7 @@ export class ClaudeAgent extends BaseAgent {
 
       // Initialize event adapter for this turn
       // Session directory prevents race condition when concurrent sessions clobber toolMetadataStore.
-      const metadataSessionDir = getSessionPath(this.workspaceRootPath, sessionId);
+      const metadataSessionDir = this.getRuntimeDirectory(sessionId);
       this.eventAdapter.updateSessionDir(metadataSessionDir);
       this.eventAdapter.startTurn();
 
@@ -1983,7 +1983,7 @@ export class ClaudeAgent extends BaseAgent {
     // This includes: date/time, session state (with plansFolderPath),
     // workspace capabilities, and working directory context
     const contextParts = this.promptBuilder.buildContextParts(
-      { plansFolderPath: getSessionPlansPath(this.workspaceRootPath, this.modeSessionId) },
+      { plansFolderPath: this.getPlansFolderPath(this.modeSessionId) },
       this.sourceManager.formatSourceState()
     );
 
@@ -2033,7 +2033,7 @@ export class ClaudeAgent extends BaseAgent {
     // This includes: date/time, session state (with plansFolderPath),
     // workspace capabilities, and working directory context
     const contextParts = this.promptBuilder.buildContextParts(
-      { plansFolderPath: getSessionPlansPath(this.workspaceRootPath, this.modeSessionId) },
+      { plansFolderPath: this.getPlansFolderPath(this.modeSessionId) },
       this.sourceManager.formatSourceState()
     );
 
@@ -2460,10 +2460,8 @@ export class ClaudeAgent extends BaseAgent {
    * Update the working directory for this agent's session.
    * Called when user changes the working directory in the UI.
    */
-  updateWorkingDirectory(path: string): void {
-    if (this.config.session) {
-      this.config.session.workingDirectory = path;
-    }
+  updateWorkingDirectory(path: string, runtimeDirectory?: string): void {
+    super.updateWorkingDirectory(path, runtimeDirectory);
   }
 
   /**

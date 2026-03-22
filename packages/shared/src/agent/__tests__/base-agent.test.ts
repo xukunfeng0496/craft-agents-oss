@@ -12,7 +12,9 @@ import { tmpdir } from 'node:os';
 import {
   TestAgent,
   createMockBackendConfig,
+  createMockSession,
   createMockSource,
+  createMockWorkspace,
   collectEvents,
 } from './test-utils.ts';
 import type { LoadedSkill } from '../../skills/types.ts';
@@ -115,6 +117,52 @@ describe('BaseAgent', () => {
     it('should allow setting session ID', () => {
       agent.setSessionId('new-session-id');
       expect(agent.getSessionId()).toBe('new-session-id');
+    });
+
+    it('should derive runtime directory from working directory', () => {
+      agent = new TestAgent(createMockBackendConfig({
+        session: createMockSession({
+          id: 'runtime-session',
+          workingDirectory: '/tmp/project',
+        }),
+      }));
+
+      expect(agent.getRuntimeDirectoryForTest()).toBe('/tmp/project/.craft-agent/sessions/runtime-session');
+      expect(agent.getSessionConfigForTest()?.runtimeDirectory).toBe('/tmp/project/.craft-agent/sessions/runtime-session');
+      expect(agent.getPlansFolderPathForTest()).toBe('/tmp/project/.craft-agent/sessions/runtime-session/plans');
+      expect(agent.getDataFolderPathForTest()).toBe('/tmp/project/.craft-agent/sessions/runtime-session/data');
+    });
+
+    it('should fall back to session storage when working directory is unset', () => {
+      agent = new TestAgent(createMockBackendConfig({
+        workspace: createMockWorkspace({ rootPath: '/tmp/workspace' }),
+        session: createMockSession({
+          id: 'fallback-session',
+          workspaceRootPath: '/tmp/workspace',
+          workingDirectory: undefined,
+        }),
+      }));
+
+      expect(agent.getRuntimeDirectoryForTest()).toBe('/tmp/workspace/sessions/fallback-session');
+      expect(agent.getPlansFolderPathForTest()).toBe('/tmp/workspace/sessions/fallback-session/plans');
+      expect(agent.getDataFolderPathForTest()).toBe('/tmp/workspace/sessions/fallback-session/data');
+    });
+
+    it('should update runtime, plans, and data paths when working directory changes', () => {
+      agent = new TestAgent(createMockBackendConfig({
+        session: createMockSession({
+          id: 'moving-session',
+          workingDirectory: '/tmp/original',
+        }),
+      }));
+
+      agent.updateWorkingDirectory('/tmp/updated');
+
+      expect(agent.getSessionConfigForTest()?.workingDirectory).toBe('/tmp/updated');
+      expect(agent.getSessionConfigForTest()?.runtimeDirectory).toBe('/tmp/updated/.craft-agent/sessions/moving-session');
+      expect(agent.getRuntimeDirectoryForTest()).toBe('/tmp/updated/.craft-agent/sessions/moving-session');
+      expect(agent.getPlansFolderPathForTest()).toBe('/tmp/updated/.craft-agent/sessions/moving-session/plans');
+      expect(agent.getDataFolderPathForTest()).toBe('/tmp/updated/.craft-agent/sessions/moving-session/data');
     });
   });
 

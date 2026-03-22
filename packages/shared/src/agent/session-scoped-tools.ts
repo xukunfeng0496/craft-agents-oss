@@ -25,7 +25,7 @@
 import { createSdkMcpServer, tool } from '@anthropic-ai/claude-agent-sdk';
 import { z } from 'zod';
 import { randomUUID } from 'node:crypto';
-import { getSessionPlansPath, getSessionDataPath, getSessionPath } from '../sessions/storage.ts';
+import { getSessionDataPath, getSessionPlansPath, getSessionRuntimePath } from '../sessions/storage.ts';
 import { debug } from '../utils/debug.ts';
 import { DOC_REFS } from '../docs/index.ts';
 import { createClaudeContext } from './claude-context.ts';
@@ -219,15 +219,15 @@ export function clearPendingQuestions(sessionId: string): void {
 /**
  * Get the plans directory for a session
  */
-export function getSessionPlansDir(workspacePath: string, sessionId: string): string {
-  return getSessionPlansPath(workspacePath, sessionId);
+export function getSessionPlansDir(workspacePath: string, sessionId: string, runtimeDirectory?: string): string {
+  return getSessionPlansPath(workspacePath, sessionId, runtimeDirectory);
 }
 
 /**
  * Check if a path is within a session's plans directory
  */
-export function isPathInPlansDir(path: string, workspacePath: string, sessionId: string): boolean {
-  const plansDir = getSessionPlansDir(workspacePath, sessionId);
+export function isPathInPlansDir(path: string, workspacePath: string, sessionId: string, runtimeDirectory?: string): boolean {
+  const plansDir = getSessionPlansDir(workspacePath, sessionId, runtimeDirectory);
   return path.startsWith(plansDir);
 }
 
@@ -256,7 +256,11 @@ const sessionScopedToolsCache = new Map<string, ReturnType<typeof createSdkMcpSe
  * Clean up cached tools for a session
  */
 export function cleanupSessionScopedTools(sessionId: string): void {
-  sessionScopedToolsCache.delete(sessionId);
+  for (const key of sessionScopedToolsCache.keys()) {
+    if (key.startsWith(`${sessionId}::`)) {
+      sessionScopedToolsCache.delete(key);
+    }
+  }
 }
 
 // ============================================================
@@ -316,7 +320,7 @@ const renderTemplateSchema = {
 const transformDataSchema = {
   language: z.enum(['python3', 'node', 'bun']).describe('Script runtime to use'),
   script: z.string().describe('Transform script source code. Receives input file paths as command-line args (sys.argv[1:] or process.argv.slice(2)), last arg is the output file path.'),
-  inputFiles: z.array(z.string()).describe('Input file paths relative to session dir (e.g., "long_responses/stripe_txns.txt")'),
+  inputFiles: z.array(z.string()).describe('Input file paths relative to the session runtime folder (e.g., "long_responses/stripe_txns.txt")'),
   outputFile: z.string().describe('Output file name relative to session data/ dir (e.g., "transactions.json")'),
 };
 
@@ -514,6 +518,7 @@ const TRANSFORM_DATA_TIMEOUT_MS = 30_000;
 async function handleTransformData(
   sessionId: string,
   workspaceRootPath: string,
+  runtimeDirectory: string | undefined,
   args: {
     language: 'python3' | 'node' | 'bun';
     script: string;
@@ -521,8 +526,8 @@ async function handleTransformData(
     outputFile: string;
   }
 ): Promise<{ content: Array<{ type: 'text'; text: string }>; isError?: boolean }> {
-  const sessionDir = getSessionPath(workspaceRootPath, sessionId);
-  const dataDir = getSessionDataPath(workspaceRootPath, sessionId);
+  const sessionDir = getSessionRuntimePath(workspaceRootPath, sessionId, runtimeDirectory);
+  const dataDir = getSessionDataPath(workspaceRootPath, sessionId, runtimeDirectory);
 
   // Validate outputFile doesn't escape data/ directory
   const resolvedOutput = resolve(dataDir, args.outputFile);
@@ -533,7 +538,7 @@ async function handleTransformData(
     };
   }
 
-  // Resolve and validate input files (relative to session dir)
+  // Resolve and validate input files (relative to the session runtime folder)
   const resolvedInputs: string[] = [];
   for (const inputFile of args.inputFiles) {
     const resolvedInput = resolve(sessionDir, inputFile);
@@ -662,6 +667,7 @@ async function handleTransformData(
 async function handleRenderTemplate(
   sessionId: string,
   workspaceRootPath: string,
+  runtimeDirectory: string | undefined,
   args: {
     source: string;
     template: string;
@@ -703,7 +709,7 @@ async function handleRenderTemplate(
   }
 
   // Write output to session data folder
-  const dataDir = getSessionDataPath(workspaceRootPath, sessionId);
+  const dataDir = getSessionDataPath(workspaceRootPath, sessionId, runtimeDirectory);
   if (!existsSync(dataDir)) {
     mkdirSync(dataDir, { recursive: true });
   }
@@ -745,9 +751,10 @@ async function handleRenderTemplate(
 export function getSessionScopedTools(
   sessionId: string,
   workspaceRootPath: string,
-  workspaceId?: string
+  workspaceId?: string,
+  runtimeDirectory?: string
 ): ReturnType<typeof createSdkMcpServer> {
-  const cacheKey = `${sessionId}::${workspaceRootPath}`;
+  const cacheKey = `${sessionId}::${workspaceRootPath}::${runtimeDirectory ?? ''}`;
 
   // Return cached if available
   let cached = sessionScopedToolsCache.get(cacheKey);
@@ -760,6 +767,7 @@ export function getSessionScopedTools(
     sessionId,
     workspacePath: workspaceRootPath,
     workspaceId: workspaceId || basename(workspaceRootPath) || '',
+    runtimeDirectory,
     onPlanSubmitted: (planPath: string) => {
       setLastPlanFilePath(sessionId, planPath);
       const callbacks = getSessionScopedToolCallbacks(sessionId);
@@ -850,13 +858,13 @@ export function getSessionScopedTools(
 
     // transform_data
     tool('transform_data', TOOL_DESCRIPTIONS.transform_data, transformDataSchema, async (args) => {
-      return handleTransformData(sessionId, workspaceRootPath, args);
+      return handleTransformData(sessionId, workspaceRootPath, runtimeDirectory, args);
     }),
 
     // render_template (feature-flagged)
     ...(FEATURE_FLAGS.sourceTemplates ? [
       tool('render_template', TOOL_DESCRIPTIONS.render_template, renderTemplateSchema, async (args) => {
-        return handleRenderTemplate(sessionId, workspaceRootPath, args);
+        return handleRenderTemplate(sessionId, workspaceRootPath, runtimeDirectory, args);
       }),
     ] : []),
 

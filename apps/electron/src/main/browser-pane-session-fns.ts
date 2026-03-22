@@ -28,12 +28,12 @@ export interface SessionBrowserPaneManagerLike {
   screenshot(id: string, args?: any): Promise<any>
   screenshotRegion(id: string, args: any): Promise<any>
   getConsoleLogs(id: string, args?: any): any
-  windowResize(id: string, width: number, height: number): Promise<{ width: number; height: number }>
+  windowResize(id: string, width: number, height: number): Promise<{ width: number; height: number }> | { width: number; height: number }
   getNetworkLogs(id: string, args?: any): any
   waitFor(id: string, args: any): Promise<{ ok: true; kind: string; elapsedMs: number; detail: string }>
   sendKey(id: string, args: any): Promise<void>
   getDownloads(id: string, args?: any): Promise<any>
-  uploadFile(id: string, ref: string, filePaths: string[]): Promise<void>
+  uploadFile(id: string, ref: string, filePaths: string[]): Promise<unknown>
   scroll(id: string, direction: 'up' | 'down' | 'left' | 'right', amount?: number): Promise<void>
   goBack(id: string): Promise<void>
   goForward(id: string): Promise<void>

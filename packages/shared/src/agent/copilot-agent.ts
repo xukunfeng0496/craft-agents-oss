@@ -113,8 +113,6 @@ import { homedir } from 'os';
 import { extractWorkspaceSlug } from '../utils/workspace.ts';
 
 // Session storage (plans folder path)
-import { getSessionPlansPath, getSessionPath } from '../sessions/storage.ts';
-
 // Error typing
 import { parseError, type AgentError } from './errors.ts';
 
@@ -536,7 +534,7 @@ export class CopilotAgent extends BaseAgent {
       // This includes: date/time, session state (with plansFolderPath),
       // workspace capabilities, and working directory context
       const contextParts = this.promptBuilder.buildContextParts(
-        { plansFolderPath: getSessionPlansPath(this.config.workspace.rootPath, this._sessionId) },
+        { plansFolderPath: this.getPlansFolderPath(this._sessionId) },
         sourceContext
       );
 
@@ -788,7 +786,7 @@ export class CopilotAgent extends BaseAgent {
 
     // Check permission mode
     const check = shouldAllowToolInMode(sdkToolName, inputObj, permissionMode, {
-      plansFolderPath: getSessionPlansPath(this.config.workspace.rootPath, this._sessionId),
+      plansFolderPath: this.getPlansFolderPath(this._sessionId),
       permissionsContext: {
         workspaceRootPath: this.workingDirectory,
         activeSourceSlugs: Array.from(this.sourceManager.getActiveSlugs()),
@@ -941,7 +939,7 @@ export class CopilotAgent extends BaseAgent {
 
     try {
       const inputObj = this.parseCopilotToolArgs(toolArgs);
-      const sessionPath = getSessionPath(this.config.workspace.rootPath, this._sessionId);
+      const sessionPath = this.getRuntimeDirectory();
 
       const result = await handleLargeResponse({
         text: resultText,

@@ -55,8 +55,10 @@ import {
   markCompactionComplete as markStoredCompactionComplete,
   clearPendingPlanExecution as clearStoredPendingPlanExecution,
   getPendingPlanExecution as getStoredPendingPlanExecution,
+  ensureSessionRuntimeDir,
   getSessionAttachmentsPath,
   getSessionPath as getSessionStoragePath,
+  getSessionRuntimePathForWorkingDirectory,
   sessionPersistenceQueue,
   // Sub-session functions
   createSubSession as createStoredSubSession,
@@ -154,7 +156,7 @@ export const AGENT_FLAGS = {
  * When auth errors occur, updates source configs to reflect actual state.
  *
  * @param sources - Sources to build servers for
- * @param sessionPath - Optional path to session folder for saving large API responses
+ * @param sessionPath - Optional runtime path for saving large API responses
  * @param tokenRefreshManager - Optional TokenRefreshManager for OAuth token refresh
  */
 async function buildServersFromSources(
@@ -191,7 +193,7 @@ async function buildServersFromSources(
     return undefined
   }
 
-  // Pass sessionPath to enable saving large API responses to session folder
+  // Pass runtime path so large API responses and downloads land with other session artifacts
   const result = await serverBuilder.buildAll(sourcesWithCreds, getTokenForSource, sessionPath, summarize)
   span.mark('servers.built')
   span.setMetadata('mcpCount', Object.keys(result.mcpServers).length)
@@ -327,7 +329,7 @@ async function writeFileSecure(targetPath: string, content: string, mode: number
  * Set up Codex session configuration.
  * Creates .codex-home directory with config.toml for per-session MCP server configuration.
  *
- * @param sessionPath - Path to the session folder
+ * @param sessionPath - Path to the session runtime folder
  * @param sources - Enabled sources for this session
  * @param mcpServerConfigs - Pre-built MCP server configs (from buildServersFromSources)
  * @param sessionId - Session ID for session-scoped tools
@@ -380,7 +382,7 @@ async function setupCodexSessionConfig(
 
   // Plans folder path for SubmitPlan tool
   const plansFolderPath = sessionId && workspaceRootPath
-    ? join(workspaceRootPath, 'sessions', sessionId, 'plans')
+    ? join(sessionPath, 'plans')
     : undefined
 
   const configResult = generateCodexConfig({
@@ -738,6 +740,8 @@ interface ManagedSession {
   labels?: string[]
   // Working directory for this session (used by agent for bash commands)
   workingDirectory?: string
+  // Hidden runtime directory for session-generated artifacts
+  runtimeDirectory?: string
   // SDK cwd for session storage - set once at creation, never changes.
   // Ensures SDK can find session transcripts regardless of workingDirectory changes.
   sdkCwd?: string
@@ -1013,6 +1017,7 @@ export class SessionManager {
 
   setBrowserPaneManager(bpm: BrowserPaneManager): void {
     this.browserPaneManager = bpm
+    bpm.setSessionPathResolver((sessionId) => this.getSessionRuntimePath(sessionId))
   }
 
   private getDeltaPerfWindow(sessionId: string): DeltaPerfWindow {
@@ -1419,22 +1424,21 @@ export class SessionManager {
     const enabledSources = allSources.filter(s =>
       enabledSlugs.includes(s.config.slug) && isSourceUsable(s)
     )
-    // Pass session path so large API responses can be saved to session folder
-    const sessionPath = getSessionStoragePath(workspaceRootPath, managed.id)
-    const { mcpServers, apiServers } = await buildServersFromSources(enabledSources, sessionPath, managed.tokenRefreshManager, managed.agent?.getSummarizeCallback())
+    const runtimePath = this.resolveManagedRuntimeDirectory(managed)
+    const { mcpServers, apiServers } = await buildServersFromSources(enabledSources, runtimePath, managed.tokenRefreshManager, managed.agent?.getSummarizeCallback())
     const intendedSlugs = enabledSources.map(s => s.config.slug)
 
     // For Codex backend, regenerate config.toml and reconnect
     if (managed.agent instanceof CodexBackend) {
       await regenCodexConfigAndReconnect(
-        managed.agent, sessionPath, enabledSources, mcpServers,
+        managed.agent, runtimePath, enabledSources, mcpServers,
         managed.id, workspaceRootPath, 'source reload'
       )
     }
 
     // For Copilot backend, write bridge config for API sources
     if (managed.agent instanceof CopilotAgent) {
-      const copilotConfigDir = join(sessionPath, '.copilot-config')
+      const copilotConfigDir = join(runtimePath, '.copilot-config')
       await setupCopilotBridgeConfig(copilotConfigDir, enabledSources)
     }
 
@@ -1664,6 +1668,8 @@ export class SessionManager {
         const wsDefaultWorkingDir = wsConfig?.defaults?.workingDirectory
 
         for (const meta of sessionMetadata) {
+          const effectiveWorkingDirectory = meta.workingDirectory ?? wsDefaultWorkingDir
+
           // Create managed session from metadata only (messages lazy-loaded on demand)
           // This dramatically reduces memory usage at startup - messages are loaded
           // when getSession() is called for a specific session
@@ -1692,7 +1698,11 @@ export class SessionManager {
             hasUnread: meta.hasUnread,  // Explicit unread flag for NEW badge state machine
             enabledSourceSlugs: undefined,  // Loaded with messages
             labels: meta.labels,
-            workingDirectory: meta.workingDirectory ?? wsDefaultWorkingDir,
+            workingDirectory: effectiveWorkingDirectory,
+            runtimeDirectory: meta.runtimeDirectory
+              ?? (effectiveWorkingDirectory
+                ? getSessionRuntimePathForWorkingDirectory(effectiveWorkingDirectory, meta.id)
+                : getSessionStoragePath(workspaceRootPath, meta.id)),
             sdkCwd: meta.sdkCwd,
             model: meta.model,
             llmConnection: meta.llmConnection,
@@ -1778,6 +1788,7 @@ export class SessionManager {
       enabledSourceSlugs: managed.enabledSourceSlugs,
       labels: managed.labels,
       workingDirectory: managed.workingDirectory,
+      runtimeDirectory: managed.runtimeDirectory,
       sdkCwd: managed.sdkCwd,
       sharedUrl: managed.sharedUrl,
       sharedId: managed.sharedId,
@@ -2011,17 +2022,17 @@ export class SessionManager {
     // For Codex backend: regenerate config.toml with new credentials and reconnect
     if (result.success && result.sourceSlug && managed.agent instanceof CodexBackend) {
       const workspaceRootPath = managed.workspace.rootPath
-      const sessionPath = getSessionStoragePath(workspaceRootPath, managed.id)
+      const runtimePath = this.resolveManagedRuntimeDirectory(managed)
       const enabledSlugs = managed.enabledSourceSlugs || []
       const allSources = loadAllSources(workspaceRootPath)
       const enabledSources = allSources.filter(s =>
         enabledSlugs.includes(s.config.slug) && isSourceUsable(s)
       )
       const { mcpServers } = await buildServersFromSources(
-        enabledSources, sessionPath, managed.tokenRefreshManager
+        enabledSources, runtimePath, managed.tokenRefreshManager
       )
       await regenCodexConfigAndReconnect(
-        managed.agent, sessionPath, enabledSources, mcpServers,
+        managed.agent, runtimePath, enabledSources, mcpServers,
         managed.id, workspaceRootPath, 'source auth'
       )
     }
@@ -2228,6 +2239,13 @@ export class SessionManager {
       managed.enabledSourceSlugs = storedSession.enabledSourceSlugs
       managed.sharedUrl = storedSession.sharedUrl
       managed.sharedId = storedSession.sharedId
+      if (storedSession.workingDirectory !== undefined) {
+        managed.workingDirectory = storedSession.workingDirectory
+      }
+      managed.runtimeDirectory = storedSession.runtimeDirectory
+        ?? (managed.workingDirectory
+          ? getSessionRuntimePathForWorkingDirectory(managed.workingDirectory, managed.id)
+          : getSessionStoragePath(managed.workspace.rootPath, managed.id))
       // Sync name from disk - ensures title persistence across lazy loading
       managed.name = storedSession.name
       // Restore LLM connection state - ensures correct provider on resume
@@ -2276,12 +2294,31 @@ export class SessionManager {
   }
 
   /**
+   * Get the filesystem path to a session's runtime folder.
+   */
+  getSessionRuntimePath(sessionId: string): string | null {
+    const managed = this.sessions.get(sessionId)
+    if (!managed) return null
+    return this.resolveManagedRuntimeDirectory(managed)
+  }
+
+  /**
    * Get the working directory for a session (where the agent executes commands)
    */
   getWorkingDirectory(sessionId: string): string | null {
     const managed = this.sessions.get(sessionId)
     if (!managed) return null
     return managed.workingDirectory ?? null
+  }
+
+  private resolveManagedRuntimeDirectory(managed: Pick<ManagedSession, 'id' | 'workspace' | 'workingDirectory' | 'runtimeDirectory'>): string {
+    if (managed.runtimeDirectory) {
+      return managed.runtimeDirectory
+    }
+    if (managed.workingDirectory) {
+      return getSessionRuntimePathForWorkingDirectory(managed.workingDirectory, managed.id)
+    }
+    return getSessionStoragePath(managed.workspace.rootPath, managed.id)
   }
 
   async createSession(workspaceId: string, options?: import('../shared/types').CreateSessionOptions): Promise<Session> {
@@ -2324,28 +2361,19 @@ export class SessionManager {
       resolvedWorkingDir = options.workingDirectory
     }
 
+    const isolateSessionDir = wsConfig?.defaults?.isolateSessionDirectory ?? true
+
     // Use storage layer to create and persist the session
     const storedSession = await createStoredSession(workspaceRootPath, {
       permissionMode: defaultPermissionMode,
       workingDirectory: resolvedWorkingDir,
+      isolateSessionDirectory: isolateSessionDir,
       hidden: options?.hidden,
       sessionStatus: options?.sessionStatus,
       labels: options?.labels,
       isFlagged: options?.isFlagged,
       triggeredBy: options?.triggeredBy,
     })
-
-    // If isolation is enabled and a working directory is configured, create a
-    // session-specific subdirectory and update the session's workingDirectory.
-    const isolateSessionDir = wsConfig?.defaults?.isolateSessionDirectory ?? true
-    if (isolateSessionDir && resolvedWorkingDir) {
-      const isolatedDir = join(resolvedWorkingDir, storedSession.id)
-      await mkdir(isolatedDir, { recursive: true })
-      await updateSessionMetadata(workspaceRootPath, storedSession.id, {
-        workingDirectory: isolatedDir,
-      })
-      resolvedWorkingDir = isolatedDir
-    }
 
     // Resolve connection to determine provider for model compatibility check
     const sessionConnection = resolveSessionConnection(
@@ -2385,7 +2413,8 @@ export class SessionManager {
       sessionStatus: options?.sessionStatus,
       labels: options?.labels,
       permissionMode: defaultPermissionMode,
-      workingDirectory: resolvedWorkingDir,
+      workingDirectory: storedSession.workingDirectory,
+      runtimeDirectory: storedSession.runtimeDirectory,
       sdkCwd: storedSession.sdkCwd,
       // Session-specific model takes priority, then workspace default
       model: resolvedModel,
@@ -2431,7 +2460,7 @@ export class SessionManager {
       permissionMode: defaultPermissionMode,
       sessionStatus: options?.sessionStatus,
       labels: options?.labels,
-      workingDirectory: resolvedWorkingDir,
+      workingDirectory: storedSession.workingDirectory,
       enabledSourceSlugs: defaultEnabledSourceSlugs,
       model: managed.model,
       thinkingLevel: defaultThinkingLevel,
@@ -2487,6 +2516,7 @@ export class SessionManager {
       labels: options?.labels,
       permissionMode: defaultPermissionMode,
       workingDirectory: storedSession.workingDirectory,
+      runtimeDirectory: storedSession.runtimeDirectory,
       sdkCwd: storedSession.sdkCwd,
       model: options?.model || storedSession.model,
       thinkingLevel: defaultThinkingLevel,
@@ -2673,7 +2703,8 @@ export class SessionManager {
       // Set session directory for tool metadata cross-process sharing.
       // The SDK subprocess reads CRAFT_SESSION_DIR to write tool-metadata.json;
       // the main process reads it via toolMetadataStore.setSessionDir().
-      const sessionDirForMetadata = getSessionStoragePath(managed.workspace.rootPath, managed.id)
+      const runtimePath = this.resolveManagedRuntimeDirectory(managed)
+      const sessionDirForMetadata = runtimePath
       process.env.CRAFT_SESSION_DIR = sessionDirForMetadata
       toolMetadataStore.setSessionDir(sessionDirForMetadata)
 
@@ -2706,8 +2737,8 @@ export class SessionManager {
         const codexModel = (rawCodexModel && isCodexModel(rawCodexModel)) ? rawCodexModel : (connection?.defaultModel || DEFAULT_CODEX_MODEL)
 
         // Set up per-session Codex configuration (MCP servers, etc.)
-        // This creates .codex-home/config.toml in the session folder
-        const sessionPath = getSessionStoragePath(managed.workspace.rootPath, managed.id)
+        // This creates .codex-home/config.toml in the runtime folder
+        const sessionPath = runtimePath
         const enabledSlugs = managed.enabledSourceSlugs || []
         const allSources = loadAllSources(managed.workspace.rootPath)
         const enabledSources = allSources.filter(s =>
@@ -2731,6 +2762,7 @@ export class SessionManager {
             createdAt: managed.lastMessageAt,
             lastUsedAt: managed.lastMessageAt,
             workingDirectory: managed.workingDirectory,
+            runtimeDirectory: managed.runtimeDirectory,
             sdkCwd: managed.sdkCwd,
             model: managed.model,
             llmConnection: managed.llmConnection,
@@ -2818,7 +2850,7 @@ export class SessionManager {
         const copilotModel = rawCopilotModel || 'gpt-5'
 
         // Load sources for MCP config
-        const sessionPath = getSessionStoragePath(managed.workspace.rootPath, managed.id)
+        const sessionPath = runtimePath
         const enabledSlugs = managed.enabledSourceSlugs || []
         const allSources = loadAllSources(managed.workspace.rootPath)
         const enabledSources = allSources.filter(s =>
@@ -2867,6 +2899,7 @@ export class SessionManager {
             createdAt: managed.lastMessageAt,
             lastUsedAt: managed.lastMessageAt,
             workingDirectory: managed.workingDirectory,
+            runtimeDirectory: managed.runtimeDirectory,
             sdkCwd: managed.sdkCwd,
             model: managed.model,
             llmConnection: managed.llmConnection,
@@ -2969,6 +3002,7 @@ export class SessionManager {
             createdAt: managed.lastMessageAt,
             lastUsedAt: managed.lastMessageAt,
             workingDirectory: managed.workingDirectory,
+            runtimeDirectory: managed.runtimeDirectory,
             sdkCwd: managed.sdkCwd,
             model: managed.model,
             llmConnection: managed.llmConnection,
@@ -3209,8 +3243,7 @@ export class SessionManager {
 
         // Build server configs for all enabled sources
         const allEnabledSources = getSourcesBySlugs(workspaceRootPath, managed.enabledSourceSlugs || [])
-        // Pass session path so large API responses can be saved to session folder
-        const sessionPath = getSessionStoragePath(workspaceRootPath, managed.id)
+        const sessionPath = this.resolveManagedRuntimeDirectory(managed)
         const { mcpServers, apiServers, errors } = await buildServersFromSources(allEnabledSources, sessionPath, managed.tokenRefreshManager, managed.agent?.getSummarizeCallback())
 
         if (errors.length > 0) {
@@ -3824,8 +3857,7 @@ export class SessionManager {
     // If agent exists, build and apply servers immediately
     if (managed.agent) {
       const sources = getSourcesBySlugs(workspaceRootPath, sourceSlugs)
-      // Pass session path so large API responses can be saved to session folder
-      const sessionPath = getSessionStoragePath(workspaceRootPath, sessionId)
+      const sessionPath = this.resolveManagedRuntimeDirectory(managed)
       const { mcpServers, apiServers, errors } = await buildServersFromSources(sources, sessionPath, managed.tokenRefreshManager, managed.agent.getSummarizeCallback())
       if (errors.length > 0) {
         sessionLog.warn(`Source build errors:`, errors)
@@ -4112,6 +4144,8 @@ export class SessionManager {
     const managed = this.sessions.get(sessionId)
     if (managed) {
       managed.workingDirectory = path
+      managed.runtimeDirectory = getSessionRuntimePathForWorkingDirectory(path, sessionId)
+      ensureSessionRuntimeDir(managed.workspace.rootPath, sessionId, managed.runtimeDirectory)
 
       // Check if we can also update sdkCwd (safe if no SDK interaction yet)
       // Conditions: no messages sent AND no agent created yet (no SDK session)
@@ -4127,7 +4161,7 @@ export class SessionManager {
 
       // Also update the agent's session config if agent exists
       if (managed.agent) {
-        managed.agent.updateWorkingDirectory(path)
+        managed.agent.updateWorkingDirectory(path, managed.runtimeDirectory)
         // If agent exists but conditions still allow sdkCwd update (edge case),
         // update the agent's sdkCwd as well
         if (shouldUpdateSdkCwd) {
@@ -4136,6 +4170,7 @@ export class SessionManager {
       }
 
       this.persistSession(managed)
+      void sessionPersistenceQueue.flush(managed.id)
       // Notify renderer of the working directory change
       this.sendEvent({ type: 'working_directory_changed', sessionId, workingDirectory: path }, managed.workspace.id)
     }
@@ -4535,8 +4570,7 @@ export class SessionManager {
     if (managed.enabledSourceSlugs?.length) {
       // Always build server configs fresh (no caching - single source of truth)
       const sources = getSourcesBySlugs(workspaceRootPath, managed.enabledSourceSlugs)
-      // Pass session path so large API responses can be saved to session folder
-      const sessionPath = getSessionStoragePath(workspaceRootPath, sessionId)
+      const sessionPath = this.resolveManagedRuntimeDirectory(managed)
       const { mcpServers, apiServers, errors } = await buildServersFromSources(sources, sessionPath, managed.tokenRefreshManager, agent.getSummarizeCallback())
       if (errors.length > 0) {
         sessionLog.warn(`Source build errors:`, errors)
@@ -4607,7 +4641,7 @@ export class SessionManager {
 
       // Ensure main process reads tool metadata from the correct session directory.
       // This must be set before each chat() call since multiple sessions share the process.
-      const chatSessionDir = getSessionStoragePath(workspaceRootPath, sessionId)
+      const chatSessionDir = this.resolveManagedRuntimeDirectory(managed)
       toolMetadataStore.setSessionDir(chatSessionDir)
 
       // Inject interruption context so the LLM knows the previous turn was cut short.

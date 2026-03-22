@@ -76,6 +76,7 @@ export interface ClaudeContextOptions {
   sessionId: string;
   workspacePath: string;
   workspaceId: string;
+  runtimeDirectory?: string;
   onPlanSubmitted: (planPath: string) => void;
   onAuthRequest: (request: unknown) => void;
 }
@@ -91,7 +92,7 @@ export interface ClaudeContextOptions {
  * - Icon management
  */
 export function createClaudeContext(options: ClaudeContextOptions): SessionToolContext {
-  const { sessionId, workspacePath, workspaceId, onPlanSubmitted, onAuthRequest } = options;
+  const { sessionId, workspacePath, workspaceId, runtimeDirectory, onPlanSubmitted, onAuthRequest } = options;
 
   // File system implementation
   const fs: FileSystemInterface = {
@@ -239,7 +240,7 @@ export function createClaudeContext(options: ClaudeContextOptions): SessionToolC
     workspacePath,
     get sourcesPath() { return join(workspacePath, 'sources'); },
     get skillsPath() { return join(workspacePath, 'skills'); },
-    plansFolderPath: getSessionPlansPath(workspacePath, sessionId),
+    plansFolderPath: getSessionPlansPath(workspacePath, sessionId, runtimeDirectory),
     callbacks,
     fs,
     validators,

@@ -28,10 +28,15 @@ export {
   // Directory utilities
   ensureSessionsDir,
   ensureSessionDir,
+  ensureSessionRuntimeDir,
   getSessionPath,
+  getSessionRuntimePath,
   getSessionFilePath,
   getSessionAttachmentsPath,
   getSessionPlansPath,
+  getSessionDataPath,
+  getSessionDownloadsPath,
+  getSessionLongResponsesPath,
   ensureAttachmentsDir,
   // ID generation
   generateSessionId,
@@ -99,6 +104,12 @@ export {
   createSessionHeader,
 } from './jsonl.ts';
 
+export {
+  SESSION_RUNTIME_ROOT_DIRNAME,
+  SESSION_RUNTIME_SESSIONS_DIRNAME,
+  getSessionRuntimePathForWorkingDirectory,
+} from './runtime-paths.ts';
+
 // Field utilities
 export { pickSessionFields } from './utils.ts';
 
@@ -119,5 +130,3 @@ export {
   validateSessionId,
   sanitizeSessionId,
 } from './validation.ts';
-
-

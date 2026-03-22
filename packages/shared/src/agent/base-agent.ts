@@ -47,7 +47,13 @@ import { PromptBuilder } from './core/prompt-builder.ts';
 import { PathProcessor } from './core/path-processor.ts';
 import { ConfigWatcherManager, type ConfigWatcherManagerCallbacks } from './core/config-watcher-manager.ts';
 import { UsageTracker, type UsageUpdate } from './core/usage-tracker.ts';
-import { getSessionPlansPath, getSessionDataPath } from '../sessions/storage.ts';
+import {
+  getSessionDataPath,
+  getSessionPath,
+  getSessionPlansPath,
+  getSessionRuntimePath,
+} from '../sessions/storage.ts';
+import { getSessionRuntimePathForWorkingDirectory } from '../sessions/runtime-paths.ts';
 import { getMiniAgentSystemPrompt } from '../prompts/system.ts';
 import { buildTitlePrompt, buildRegenerateTitlePrompt, validateTitle } from '../utils/title-generator.ts';
 import {
@@ -167,14 +173,18 @@ export abstract class BaseAgent implements AgentBackend {
     this._model = config.model || defaultModel;
     this._thinkingLevel = config.thinkingLevel || DEFAULT_THINKING_LEVEL;
 
+    if (this.config.session && !this.config.session.runtimeDirectory) {
+      this.config.session.runtimeDirectory = this.deriveRuntimeDirectory(this.config.session.workingDirectory);
+    }
+
     // Initialize core modules
     // PermissionManager: handles permission evaluation, mode management, and command whitelisting
     this.permissionManager = new PermissionManager({
       workspaceId: config.workspace.id,
       sessionId: this._sessionId,
       workingDirectory: this.workingDirectory,
-      plansFolderPath: getSessionPlansPath(config.workspace.rootPath, this._sessionId),
-      dataFolderPath: getSessionDataPath(config.workspace.rootPath, this._sessionId),
+      plansFolderPath: this.getPlansFolderPath(),
+      dataFolderPath: this.getDataFolderPath(),
     });
 
     // SourceManager: tracks active/inactive sources and formats state for context injection
@@ -453,13 +463,16 @@ ${lines.join('\n')}
    * Update the working directory.
    * Also updates PermissionManager and persists to session config.
    */
-  updateWorkingDirectory(path: string): void {
+  updateWorkingDirectory(path: string, runtimeDirectory?: string): void {
     this.workingDirectory = path;
     // Persist to session config for storage and consistency with ClaudeAgent
     if (this.config.session) {
       this.config.session.workingDirectory = path;
+      this.config.session.runtimeDirectory = runtimeDirectory ?? this.deriveRuntimeDirectory(path);
     }
     this.permissionManager.updateWorkingDirectory(path);
+    this.permissionManager.updatePlansFolderPath(this.getPlansFolderPath());
+    this.permissionManager.updateDataFolderPath(this.getDataFolderPath());
     this.debug(`Working directory updated: ${path}`);
   }
 
@@ -926,6 +939,35 @@ Please continue the conversation naturally from where we left off.
    */
   getSummarizeCallback(): (prompt: string) => Promise<string | null> {
     return this.runMiniCompletion.bind(this);
+  }
+
+  protected deriveRuntimeDirectory(workingDirectory?: string): string {
+    if (workingDirectory) {
+      return getSessionRuntimePathForWorkingDirectory(workingDirectory, this._sessionId);
+    }
+    return getSessionPath(this.config.workspace.rootPath, this._sessionId);
+  }
+
+  protected getRuntimeDirectory(sessionId: string = this._sessionId): string {
+    const explicitRuntimeDirectory = sessionId === this._sessionId
+      ? this.config.session?.runtimeDirectory ?? this.deriveRuntimeDirectory(this.config.session?.workingDirectory)
+      : undefined;
+
+    return getSessionRuntimePath(
+      this.config.workspace.rootPath,
+      sessionId,
+      explicitRuntimeDirectory,
+    );
+  }
+
+  protected getPlansFolderPath(sessionId: string = this._sessionId): string {
+    const runtimeDirectory = sessionId === this._sessionId ? this.getRuntimeDirectory(sessionId) : undefined;
+    return getSessionPlansPath(this.config.workspace.rootPath, sessionId, runtimeDirectory);
+  }
+
+  protected getDataFolderPath(sessionId: string = this._sessionId): string {
+    const runtimeDirectory = sessionId === this._sessionId ? this.getRuntimeDirectory(sessionId) : undefined;
+    return getSessionDataPath(this.config.workspace.rootPath, sessionId, runtimeDirectory);
   }
 }
 

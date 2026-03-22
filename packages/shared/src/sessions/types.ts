@@ -33,7 +33,7 @@ export const SESSION_PERSISTENT_FIELDS = [
   // Read tracking
   'lastReadMessageId', 'hasUnread',
   // Config
-  'enabledSourceSlugs', 'permissionMode', 'workingDirectory',
+  'enabledSourceSlugs', 'permissionMode', 'workingDirectory', 'runtimeDirectory',
   // Model/Connection
   'model', 'llmConnection', 'connectionLocked', 'thinkingLevel',
   // Sharing
@@ -124,6 +124,8 @@ export interface SessionConfig {
   enabledSourceSlugs?: string[];
   /** Working directory for this session (used by agent for bash commands and context) */
   workingDirectory?: string;
+  /** Stable runtime directory for session-generated artifacts. */
+  runtimeDirectory?: string;
   /** SDK cwd for session storage - set once at creation, never changes. Ensures SDK can find session transcripts regardless of workingDirectory changes. */
   sdkCwd?: string;
   /** Shared viewer URL (if shared via viewer) */
@@ -221,6 +223,8 @@ export interface SessionHeader {
   enabledSourceSlugs?: string[];
   /** Working directory for this session (used by agent for bash commands and context) */
   workingDirectory?: string;
+  /** Stable runtime directory for session-generated artifacts */
+  runtimeDirectory?: string;
   /** SDK cwd for session storage - set once at creation, never changes */
   sdkCwd?: string;
   /** Shared viewer URL (if shared via viewer) */
@@ -314,6 +318,8 @@ export interface SessionMetadata {
   sharedId?: string;
   /** Working directory for this session */
   workingDirectory?: string;
+  /** Stable runtime directory for session-generated artifacts */
+  runtimeDirectory?: string;
   /** SDK cwd for session storage - set once at creation, never changes */
   sdkCwd?: string;
   /** Role/type of the last message (for badge display without loading messages) */

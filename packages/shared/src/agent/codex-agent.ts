@@ -71,9 +71,6 @@ import { parseError, type AgentError } from './errors.ts';
 // Debug logging
 import { debug } from '../utils/debug.ts';
 
-// Session storage for plans folder path
-import { getSessionPlansPath } from '../sessions/storage.ts';
-
 // Path utilities for cross-platform normalization
 import { join, resolve } from 'node:path';
 import { readFileSync, existsSync } from 'node:fs';
@@ -736,7 +733,7 @@ export class CodexAgent extends BaseAgent {
     if (permissionMode === 'safe') {
       const sessionId = this.config.session?.id;
       const plansFolderPath = sessionId
-        ? getSessionPlansPath(this.config.workspace.rootPath ?? this.workingDirectory, sessionId)
+        ? this.getPlansFolderPath(sessionId)
         : undefined;
 
       const permissionsContext = {
@@ -842,7 +839,7 @@ export class CodexAgent extends BaseAgent {
     if (permissionMode === 'safe') {
       const sessionId = this.config.session?.id;
       const plansFolderPath = sessionId
-        ? getSessionPlansPath(this.config.workspace.rootPath ?? this.workingDirectory, sessionId)
+        ? this.getPlansFolderPath(sessionId)
         : undefined;
 
       // Check if file change targets plans folder
@@ -928,7 +925,7 @@ export class CodexAgent extends BaseAgent {
     // Compute plans folder path from session ID (if available)
     const sessionId = this.config.session?.id;
     const plansFolderPath = sessionId
-      ? getSessionPlansPath(this.config.workspace.rootPath ?? this.workingDirectory, sessionId)
+      ? this.getPlansFolderPath(sessionId)
       : undefined;
 
     // Use centralized permission checking (same logic as ClaudeAgent)
@@ -1667,7 +1664,7 @@ export class CodexAgent extends BaseAgent {
             // Mini agent: use last model from connection for resumed threads too
             model: miniConfig.enabled ? resolveCodexModelId(this.config.miniModel ?? DEFAULT_CODEX_MODEL, this.config.authType) : null,
             modelProvider: null,
-            cwd: null,
+            cwd: this.workingDirectory,
             approvalPolicy: null,
             sandbox: null,
             config: null,
@@ -1757,7 +1754,7 @@ export class CodexAgent extends BaseAgent {
       await client.turnStart({
         threadId: this.codexThreadId!,
         input,
-        cwd: null,
+        cwd: this.workingDirectory,
         approvalPolicy: null,
         sandboxPolicy: null,
         model: null,
@@ -1970,13 +1967,9 @@ export class CodexAgent extends BaseAgent {
     // Build context parts using centralized PromptBuilder
     // This includes: date/time, session state (with plansFolderPath),
     // workspace capabilities, and working directory context
-    const workspaceRoot = this.config.workspace.rootPath ?? this.workingDirectory;
     const contextParts = this.promptBuilder.buildContextParts(
       {
-        plansFolderPath: getSessionPlansPath(
-          workspaceRoot,
-          this._sessionId
-        ),
+        plansFolderPath: this.getPlansFolderPath(this._sessionId),
       },
       this.sourceManager.formatSourceState()
     );
@@ -2228,7 +2221,7 @@ export class CodexAgent extends BaseAgent {
           path: null,
           model: null,
           modelProvider: null,
-          cwd: null,
+          cwd: this.workingDirectory,
           approvalPolicy: null,
           sandbox: null,
           config: null,
@@ -2497,7 +2490,7 @@ export class CodexAgent extends BaseAgent {
       await client.turnStart({
         threadId,
         input: [{ type: 'text', text: request.prompt, text_elements: [] }],
-        cwd: null,
+        cwd: this.workingDirectory,
         approvalPolicy: null,
         sandboxPolicy: null,
         model: null,
@@ -2594,7 +2587,7 @@ export class CodexAgent extends BaseAgent {
         await client.turnStart({
           threadId,
           input: [{ type: 'text', text: prompt, text_elements: [] }],
-          cwd: null,
+          cwd: this.workingDirectory,
           approvalPolicy: null,
           sandboxPolicy: null,
           model: null,

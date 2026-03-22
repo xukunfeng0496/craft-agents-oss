@@ -162,6 +162,22 @@ export class TestAgent extends BaseAgent {
     return this.formatSkillState();
   }
 
+  getSessionConfigForTest(): Session | undefined {
+    return this.config.session;
+  }
+
+  getRuntimeDirectoryForTest(): string {
+    return this.getRuntimeDirectory();
+  }
+
+  getPlansFolderPathForTest(): string {
+    return this.getPlansFolderPath();
+  }
+
+  getDataFolderPathForTest(): string {
+    return this.getDataFolderPath();
+  }
+
   // Helper to reset tracking
   resetTracking(): void {
     this.chatCalls = [];

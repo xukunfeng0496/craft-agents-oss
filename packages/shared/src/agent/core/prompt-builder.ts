@@ -16,7 +16,7 @@ import { isLocalMcpEnabled } from '../../workspaces/storage.ts';
 import { formatPreferencesForPrompt } from '../../config/preferences.ts';
 import { formatSessionState } from '../mode-manager.ts';
 import { getDateTimeContext, getWorkingDirectoryContext } from '../../prompts/system.ts';
-import { getSessionPlansPath, getSessionDataPath, getSessionPath } from '../../sessions/storage.ts';
+import { getSessionDataPath, getSessionPath, getSessionPlansPath } from '../../sessions/storage.ts';
 import type {
   PromptBuilderConfig,
   ContextBlockOptions,
@@ -74,10 +74,11 @@ export class PromptBuilder {
 
     // Add session state (permission mode, plans folder path, data folder path)
     const sessionId = this.config.session?.id ?? `temp-${Date.now()}`;
+    const runtimeDirectory = this.config.session?.runtimeDirectory;
     const plansFolderPath = options.plansFolderPath ??
-      getSessionPlansPath(this.workspaceRootPath, sessionId);
+      getSessionPlansPath(this.workspaceRootPath, sessionId, runtimeDirectory);
     const dataFolderPath = options.dataFolderPath ??
-      getSessionDataPath(this.workspaceRootPath, sessionId);
+      getSessionDataPath(this.workspaceRootPath, sessionId, runtimeDirectory);
     parts.push(formatSessionState(sessionId, { plansFolderPath, dataFolderPath }));
 
     // Add source state if provided
@@ -121,7 +122,7 @@ export class PromptBuilder {
   getWorkingDirectoryContext(): string | null {
     const sessionId = this.config.session?.id;
     const effectiveWorkingDir = this.config.session?.workingDirectory ??
-      (sessionId ? getSessionPath(this.workspaceRootPath, sessionId) : undefined);
+      (this.config.session?.runtimeDirectory ?? (sessionId ? getSessionPath(this.workspaceRootPath, sessionId) : undefined));
     const isSessionRoot = !this.config.session?.workingDirectory && !!sessionId;
 
     return getWorkingDirectoryContext(

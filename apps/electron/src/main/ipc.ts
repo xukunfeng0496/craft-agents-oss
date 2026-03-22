@@ -4,6 +4,7 @@ import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs'
 import { normalize, join, basename, dirname, resolve, relative } from 'path'
 import { homedir, tmpdir } from 'os'
 import { execSync } from 'child_process'
+import { randomUUID } from 'crypto'
 import { SessionManager } from './sessions'
 import { BrowserPaneManager } from './browser-pane-manager'
 import { ipcLog, windowLog, searchLog } from './logger'
@@ -13,7 +14,6 @@ import { IPC_CHANNELS, type FileAttachment, type StoredAttachment, type SendMess
 import { readFileAttachment, perf } from '@work-agent/shared/utils'
 import { safeJsonParse } from '@work-agent/shared/utils/files'
 import { getPreferencesPath, getSessionDraft, setSessionDraft, deleteSessionDraft, getAllSessionDrafts, getWorkspaceByNameOrId, addWorkspace, setActiveWorkspace, loadStoredConfig, saveConfig, type Workspace, getWorkspaces, getLlmConnections, getLlmConnection, addLlmConnection, updateLlmConnection, deleteLlmConnection, getDefaultLlmConnection, setDefaultLlmConnection, touchLlmConnection, isCompatProvider, isAnthropicProvider, isOpenAIProvider, isCopilotProvider, getDefaultModelsForConnection, getDefaultModelForConnection, type LlmConnection, type LlmConnectionWithStatus, getGitBashPath, setGitBashPath, clearGitBashPath, getAppLanguage, setAppLanguage } from '@work-agent/shared/config'
-import { getSessionAttachmentsPath } from '@work-agent/shared/sessions'
 import { loadWorkspaceSources, getSourcesBySlugs, type LoadedSource } from '@work-agent/shared/sources'
 import { isValidThinkingLevel } from '@work-agent/shared/agent/thinking-levels'
 import { getCredentialManager } from '@work-agent/shared/credentials'
@@ -2762,26 +2762,26 @@ export function registerIpcHandlers(sessionManager: SessionManager, windowManage
   // Get files in session directory (recursive tree structure)
   ipcMain.handle(IPC_CHANNELS.GET_SESSION_FILES, async (_event, sessionId: string) => {
     const sessionPath = sessionManager.getSessionPath(sessionId)
-    if (!sessionPath) return []
+    const runtimePath = sessionManager.getSessionRuntimePath(sessionId)
+    if (!sessionPath || !runtimePath) return []
 
     try {
-      const sessionFiles = await scanSessionDirectory(sessionPath)
+      const runtimeFiles = await scanSessionDirectory(runtimePath)
 
-      // Also scan working directory (session-isolated subdirectory) if available
+      // Also scan working directory if available so user-created files show first.
       const rawWorkingDir = sessionManager.getWorkingDirectory(sessionId)
       if (rawWorkingDir) {
         const workingDir = expandWorkingDir(rawWorkingDir)
-        if (workingDir !== sessionPath) {
+        if (workingDir !== runtimePath) {
           const { existsSync } = await import('fs')
           if (existsSync(workingDir)) {
             const workDirFiles = await scanSessionDirectory(workingDir)
-            // Work output first, session metadata (attachments/downloads/plans) after
-            return [...workDirFiles, ...sessionFiles]
+            return [...workDirFiles, ...runtimeFiles]
           }
         }
       }
 
-      return sessionFiles
+      return runtimeFiles
     } catch (error) {
       ipcLog.error('Failed to get session files:', error)
       return []
@@ -2796,8 +2796,8 @@ export function registerIpcHandlers(sessionManager: SessionManager, windowManage
 
   // Start watching a session directory for file changes
   ipcMain.handle(IPC_CHANNELS.WATCH_SESSION_FILES, async (_event, sessionId: string) => {
-    const sessionPath = sessionManager.getSessionPath(sessionId)
-    if (!sessionPath) return
+    const runtimePath = sessionManager.getSessionRuntimePath(sessionId)
+    if (!runtimePath) return
 
     // Close existing watchers if watching a different session
     if (sessionFileWatcher) {
@@ -2817,7 +2817,7 @@ export function registerIpcHandlers(sessionManager: SessionManager, windowManage
 
     try {
       const { watch } = await import('fs')
-      sessionFileWatcher = watch(sessionPath, { recursive: true }, (eventType, filename) => {
+      sessionFileWatcher = watch(runtimePath, { recursive: true }, (eventType, filename) => {
         // Ignore internal files and hidden files
         if (filename && (filename.includes('session.jsonl') || filename.startsWith('.'))) {
           return
@@ -2842,7 +2842,7 @@ export function registerIpcHandlers(sessionManager: SessionManager, windowManage
     const rawWorkingDir = sessionManager.getWorkingDirectory(sessionId)
     if (rawWorkingDir) {
       const workingDir = expandWorkingDir(rawWorkingDir)
-      if (workingDir !== sessionPath) {
+      if (workingDir !== runtimePath) {
         const { existsSync } = await import('fs')
         if (existsSync(workingDir)) {
           try {

@@ -2,14 +2,9 @@
  * Session Storage
  *
  * Workspace-scoped session CRUD operations.
- * Sessions are stored at {workspaceRootPath}/sessions/{id}/session.jsonl
- * Each session folder contains:
- * - session.jsonl (main data in JSONL format: line 1 = header, lines 2+ = messages)
- * - attachments/ (file attachments)
- * - plans/ (plan files for Safe Mode)
- * - data/ (transform_data tool output: JSON files for datatable/spreadsheet blocks)
- * - long_responses/ (full tool results that were summarized due to size limits)
- * - downloads/ (binary files downloaded from API sources: PDFs, images, archives, etc.)
+ * Sessions are stored at {workspaceRootPath}/sessions/{id}/session.jsonl.
+ * Runtime artifacts may live either alongside the session (legacy / no working
+ * directory) or in {workingDirectory}/.craft-agent/sessions/{id}/.
  */
 
 import {
@@ -25,6 +20,7 @@ import {
 import { join, basename } from 'path';
 import { getWorkspaceSessionsPath } from '../workspaces/storage.ts';
 import { generateUniqueSessionId } from './slug-generator.ts';
+import { getSessionRuntimePathForWorkingDirectory } from './runtime-paths.ts';
 import { toPortablePath, expandPath } from '../utils/paths.ts';
 import { sanitizeSessionId } from './validation.ts';
 import { perf } from '../utils/perf.ts';
@@ -105,65 +101,121 @@ export function getSessionFilePath(workspaceRootPath: string, sessionId: string)
 }
 
 /**
- * Ensure session directory exists with all subdirectories
+ * Resolve the runtime directory for a session.
+ *
+ * Resolution order:
+ * 1. Explicit runtimeDirectory argument
+ * 2. Persisted session.runtimeDirectory
+ * 3. Derived from session.workingDirectory (legacy compatibility)
+ * 4. Legacy session storage directory
+ */
+export function getSessionRuntimePath(
+  workspaceRootPath: string,
+  sessionId: string,
+  runtimeDirectory?: string
+): string {
+  if (runtimeDirectory) {
+    return runtimeDirectory;
+  }
+
+  const stored = loadSession(workspaceRootPath, sessionId);
+  if (stored?.runtimeDirectory) {
+    return stored.runtimeDirectory;
+  }
+  if (stored?.workingDirectory) {
+    return getSessionRuntimePathForWorkingDirectory(stored.workingDirectory, sessionId);
+  }
+
+  return getSessionPath(workspaceRootPath, sessionId);
+}
+
+/**
+ * Ensure session storage directory exists.
  */
 export function ensureSessionDir(workspaceRootPath: string, sessionId: string): string {
   const sessionDir = getSessionPath(workspaceRootPath, sessionId);
   if (!existsSync(sessionDir)) {
     mkdirSync(sessionDir, { recursive: true });
   }
-  // Also create plans, attachments, long_responses, and downloads directories
-  const plansDir = join(sessionDir, 'plans');
-  if (!existsSync(plansDir)) {
-    mkdirSync(plansDir, { recursive: true });
-  }
-  const attachmentsDir = join(sessionDir, 'attachments');
-  if (!existsSync(attachmentsDir)) {
-    mkdirSync(attachmentsDir, { recursive: true });
-  }
-  const longResponsesDir = join(sessionDir, 'long_responses');
-  if (!existsSync(longResponsesDir)) {
-    mkdirSync(longResponsesDir, { recursive: true });
-  }
-  // Data directory for transform_data tool output (JSON files for datatable/spreadsheet)
-  const dataDir = join(sessionDir, 'data');
-  if (!existsSync(dataDir)) {
-    mkdirSync(dataDir, { recursive: true });
-  }
-  // Downloads directory for binary files from API responses (PDFs, images, etc.)
-  const downloadsDir = join(sessionDir, 'downloads');
-  if (!existsSync(downloadsDir)) {
-    mkdirSync(downloadsDir, { recursive: true });
-  }
   return sessionDir;
 }
 
 /**
- * Get the attachments directory for a session
+ * Ensure the session runtime directory exists with all managed subdirectories.
  */
-export function getSessionAttachmentsPath(workspaceRootPath: string, sessionId: string): string {
-  return join(getSessionPath(workspaceRootPath, sessionId), 'attachments');
+export function ensureSessionRuntimeDir(
+  workspaceRootPath: string,
+  sessionId: string,
+  runtimeDirectory?: string
+): string {
+  const runtimeDir = getSessionRuntimePath(workspaceRootPath, sessionId, runtimeDirectory);
+  if (!existsSync(runtimeDir)) {
+    mkdirSync(runtimeDir, { recursive: true });
+  }
+
+  for (const name of ['plans', 'attachments', 'long_responses', 'data', 'downloads']) {
+    const subdir = join(runtimeDir, name);
+    if (!existsSync(subdir)) {
+      mkdirSync(subdir, { recursive: true });
+    }
+  }
+
+  return runtimeDir;
 }
 
 /**
- * Get the plans directory for a session
+ * Get the attachments directory for a session.
  */
-export function getSessionPlansPath(workspaceRootPath: string, sessionId: string): string {
-  return join(getSessionPath(workspaceRootPath, sessionId), 'plans');
+export function getSessionAttachmentsPath(
+  workspaceRootPath: string,
+  sessionId: string,
+  runtimeDirectory?: string
+): string {
+  return join(getSessionRuntimePath(workspaceRootPath, sessionId, runtimeDirectory), 'attachments');
 }
 
 /**
- * Get the data directory for a session (transform_data tool output)
+ * Get the plans directory for a session.
  */
-export function getSessionDataPath(workspaceRootPath: string, sessionId: string): string {
-  return join(getSessionPath(workspaceRootPath, sessionId), 'data');
+export function getSessionPlansPath(
+  workspaceRootPath: string,
+  sessionId: string,
+  runtimeDirectory?: string
+): string {
+  return join(getSessionRuntimePath(workspaceRootPath, sessionId, runtimeDirectory), 'plans');
 }
 
 /**
- * Get the downloads directory for a session (binary files from API responses)
+ * Get the data directory for a session (transform_data tool output).
  */
-export function getSessionDownloadsPath(workspaceRootPath: string, sessionId: string): string {
-  return join(getSessionPath(workspaceRootPath, sessionId), 'downloads');
+export function getSessionDataPath(
+  workspaceRootPath: string,
+  sessionId: string,
+  runtimeDirectory?: string
+): string {
+  return join(getSessionRuntimePath(workspaceRootPath, sessionId, runtimeDirectory), 'data');
+}
+
+/**
+ * Get the long_responses directory for a session.
+ */
+export function getSessionLongResponsesPath(
+  workspaceRootPath: string,
+  sessionId: string,
+  runtimeDirectory?: string
+): string {
+  return join(getSessionRuntimePath(workspaceRootPath, sessionId, runtimeDirectory), 'long_responses');
+}
+
+/**
+ * Get the downloads directory for a session (binary files from API responses).
+ */
+export function getSessionDownloadsPath(
+  workspaceRootPath: string,
+  sessionId: string,
+  runtimeDirectory?: string
+): string {
+  return join(getSessionRuntimePath(workspaceRootPath, sessionId, runtimeDirectory), 'downloads');
 }
 
 // ============================================================
@@ -203,6 +255,7 @@ export async function createSession(
   options?: {
     name?: string;
     workingDirectory?: string;
+    isolateSessionDirectory?: boolean;
     permissionMode?: SessionConfig['permissionMode'];
     enabledSourceSlugs?: string[];
     model?: string;
@@ -218,13 +271,29 @@ export async function createSession(
   const now = Date.now();
   const sessionId = generateSessionId(workspaceRootPath);
 
-  // Create session directory with all subdirectories (plans, attachments)
+  // Create storage directory for session metadata.
   ensureSessionDir(workspaceRootPath, sessionId);
+
+  const requestedWorkingDirectory = options?.workingDirectory;
+  const workingDirectory =
+    options?.isolateSessionDirectory && requestedWorkingDirectory
+      ? join(requestedWorkingDirectory, sessionId)
+      : requestedWorkingDirectory;
+
+  if (workingDirectory && !existsSync(workingDirectory)) {
+    mkdirSync(workingDirectory, { recursive: true });
+  }
+
+  const runtimeDirectory = workingDirectory
+    ? getSessionRuntimePathForWorkingDirectory(workingDirectory, sessionId)
+    : getSessionPath(workspaceRootPath, sessionId);
+
+  ensureSessionRuntimeDir(workspaceRootPath, sessionId, runtimeDirectory);
 
   // Set sdkCwd to initial working directory or session path - this never changes
   // The SDK stores session transcripts at ~/.claude/projects/{cwd-slugified}/
   // If workingDirectory changes later, sdkCwd stays the same to preserve session resumption
-  const sdkCwd = options?.workingDirectory ?? getSessionPath(workspaceRootPath, sessionId);
+  const sdkCwd = workingDirectory ?? getSessionPath(workspaceRootPath, sessionId);
 
   const session: SessionConfig = {
     id: sessionId,
@@ -232,7 +301,8 @@ export async function createSession(
     name: options?.name,
     createdAt: now,
     lastUsedAt: now,
-    workingDirectory: options?.workingDirectory,
+    workingDirectory,
+    runtimeDirectory,
     sdkCwd,
     permissionMode: options?.permissionMode,
     enabledSourceSlugs: options?.enabledSourceSlugs,
@@ -280,14 +350,16 @@ export async function getOrCreateSessionById(
       lastUsedAt: existing.lastUsedAt,
       sdkCwd: existing.sdkCwd,
       workingDirectory: existing.workingDirectory,
+      runtimeDirectory: existing.runtimeDirectory,
     };
   }
 
   // Create new session with the specified ID
   ensureSessionsDir(workspaceRootPath);
 
-  // Create session directory with all subdirectories (plans, attachments)
+  // Create storage directory for session metadata.
   ensureSessionDir(workspaceRootPath, sessionId);
+  ensureSessionRuntimeDir(workspaceRootPath, sessionId);
 
   const now = Date.now();
   // Set sdkCwd to session path - this never changes (ensures SDK can find session transcripts)
@@ -296,6 +368,7 @@ export async function getOrCreateSessionById(
   const session: SessionConfig = {
     id: sessionId,
     workspaceRootPath,
+    runtimeDirectory: getSessionPath(workspaceRootPath, sessionId),
     sdkCwd,
     createdAt: now,
     lastUsedAt: now,
@@ -441,12 +514,16 @@ function headerToMetadata(header: SessionHeader, workspaceRootPath: string): Ses
     // Validate sessionStatus against workspace status config
     const validatedStatus = validateSessionStatus(workspaceRootPath, rawStatus);
 
-    // Count plan files for this session
-    const planCount = listPlanFiles(workspaceRootPath, header.id).length;
-
-    // Migration: For sessions created before sdkCwd was added, use workingDirectory as fallback.
+    // Migration: For sessions created before runtimeDirectory / sdkCwd were added,
+    // derive them from the stored workingDirectory.
     const workingDir = header.workingDirectory ? expandPath(header.workingDirectory) : undefined;
+    const runtimeDirectory = header.runtimeDirectory
+      ? expandPath(header.runtimeDirectory)
+      : workingDir
+        ? getSessionRuntimePathForWorkingDirectory(workingDir, header.id)
+        : getSessionPath(workspaceRootPath, header.id);
     const sdkCwd = header.sdkCwd ? expandPath(header.sdkCwd) : workingDir;
+    const planCount = listPlanFiles(workspaceRootPath, header.id, runtimeDirectory).length;
 
     return {
       id: header.id,
@@ -465,6 +542,7 @@ function headerToMetadata(header: SessionHeader, workspaceRootPath: string): Ses
       planCount: planCount > 0 ? planCount : undefined,
       lastMessageRole: header.lastMessageRole,
       workingDirectory: workingDir,
+      runtimeDirectory,
       sdkCwd,
       model: header.model,
       llmConnection: header.llmConnection,
@@ -504,10 +582,16 @@ export function deleteSession(workspaceRootPath: string, sessionId: string): boo
     sessionPersistenceQueue.cancel(sessionId);
     invalidateSessionLoadCache(workspaceRootPath, sessionId);
 
-    // Delete session directory (includes session.json, attachments, plans)
+    const session = loadSession(workspaceRootPath, sessionId);
+
+    // Delete storage directory (session.jsonl) and runtime directory if separate.
     const sessionDir = getSessionPath(workspaceRootPath, sessionId);
     if (existsSync(sessionDir)) {
       rmSync(sessionDir, { recursive: true });
+    }
+    const runtimeDir = session?.runtimeDirectory ?? getSessionRuntimePath(workspaceRootPath, sessionId);
+    if (runtimeDir !== sessionDir && existsSync(runtimeDir)) {
+      rmSync(runtimeDir, { recursive: true });
     }
 
     return true;
@@ -554,6 +638,9 @@ export async function getOrCreateLatestSession(workspaceRootPath: string): Promi
       name: latest.name,
       createdAt: latest.createdAt,
       lastUsedAt: latest.lastUsedAt,
+      workingDirectory: latest.workingDirectory,
+      runtimeDirectory: latest.runtimeDirectory,
+      sdkCwd: latest.sdkCwd,
     };
   }
   return createSession(workspaceRootPath);
@@ -609,6 +696,7 @@ export async function updateSessionMetadata(
     | 'hasUnread'
     | 'enabledSourceSlugs'
     | 'workingDirectory'
+    | 'runtimeDirectory'
     | 'sdkCwd'
     | 'permissionMode'
     | 'sharedUrl'
@@ -630,6 +718,7 @@ export async function updateSessionMetadata(
   if (updates.labels !== undefined) session.labels = updates.labels;
   if (updates.enabledSourceSlugs !== undefined) session.enabledSourceSlugs = updates.enabledSourceSlugs;
   if (updates.workingDirectory !== undefined) session.workingDirectory = updates.workingDirectory;
+  if (updates.runtimeDirectory !== undefined) session.runtimeDirectory = updates.runtimeDirectory;
   if (updates.sdkCwd !== undefined) session.sdkCwd = updates.sdkCwd;
   if (updates.permissionMode !== undefined) session.permissionMode = updates.permissionMode;
   if ('lastReadMessageId' in updates) session.lastReadMessageId = updates.lastReadMessageId;
@@ -1124,8 +1213,8 @@ function generatePlanFileName(plan: Plan, plansDir: string): string {
 /**
  * Ensure the plans directory exists
  */
-function ensurePlansDir(workspaceRootPath: string, sessionId: string): string {
-  const plansDir = getSessionPlansPath(workspaceRootPath, sessionId);
+function ensurePlansDir(workspaceRootPath: string, sessionId: string, runtimeDirectory?: string): string {
+  const plansDir = getSessionPlansPath(workspaceRootPath, sessionId, runtimeDirectory);
   if (!existsSync(plansDir)) {
     mkdirSync(plansDir, { recursive: true });
   }
@@ -1248,9 +1337,10 @@ export function savePlanToFile(
   workspaceRootPath: string,
   sessionId: string,
   plan: Plan,
-  fileName?: string
+  fileName?: string,
+  runtimeDirectory?: string
 ): string {
-  const plansDir = ensurePlansDir(workspaceRootPath, sessionId);
+  const plansDir = ensurePlansDir(workspaceRootPath, sessionId, runtimeDirectory);
   const name = fileName || generatePlanFileName(plan, plansDir);
   const filePath = join(plansDir, `${name}.md`);
   const content = formatPlanAsMarkdown(plan);
@@ -1265,9 +1355,10 @@ export function savePlanToFile(
 export function loadPlanFromFile(
   workspaceRootPath: string,
   sessionId: string,
-  fileName: string
+  fileName: string,
+  runtimeDirectory?: string
 ): Plan | null {
-  const plansDir = getSessionPlansPath(workspaceRootPath, sessionId);
+  const plansDir = getSessionPlansPath(workspaceRootPath, sessionId, runtimeDirectory);
   const filePath = join(plansDir, `${fileName}.md`);
   if (!existsSync(filePath)) {
     return null;
@@ -1303,9 +1394,10 @@ export function loadPlanFromPath(filePath: string): Plan | null {
  */
 export function listPlanFiles(
   workspaceRootPath: string,
-  sessionId: string
+  sessionId: string,
+  runtimeDirectory?: string
 ): Array<{ name: string; path: string; modifiedAt: number }> {
-  const plansDir = getSessionPlansPath(workspaceRootPath, sessionId);
+  const plansDir = getSessionPlansPath(workspaceRootPath, sessionId, runtimeDirectory);
   if (!existsSync(plansDir)) {
     return [];
   }
@@ -1336,9 +1428,10 @@ export function listPlanFiles(
 export function deletePlanFile(
   workspaceRootPath: string,
   sessionId: string,
-  fileName: string
+  fileName: string,
+  runtimeDirectory?: string
 ): boolean {
-  const plansDir = getSessionPlansPath(workspaceRootPath, sessionId);
+  const plansDir = getSessionPlansPath(workspaceRootPath, sessionId, runtimeDirectory);
   const filePath = join(plansDir, `${fileName}.md`);
   if (existsSync(filePath)) {
     unlinkSync(filePath);
@@ -1352,9 +1445,10 @@ export function deletePlanFile(
  */
 export function getMostRecentPlanFile(
   workspaceRootPath: string,
-  sessionId: string
+  sessionId: string,
+  runtimeDirectory?: string
 ): { name: string; path: string } | null {
-  const files = listPlanFiles(workspaceRootPath, sessionId);
+  const files = listPlanFiles(workspaceRootPath, sessionId, runtimeDirectory);
   return files.length > 0 ? files[0]! : null;
 }
 
@@ -1365,8 +1459,12 @@ export function getMostRecentPlanFile(
 /**
  * Ensure attachments directory exists
  */
-export function ensureAttachmentsDir(workspaceRootPath: string, sessionId: string): string {
-  const dir = getSessionAttachmentsPath(workspaceRootPath, sessionId);
+export function ensureAttachmentsDir(
+  workspaceRootPath: string,
+  sessionId: string,
+  runtimeDirectory?: string
+): string {
+  const dir = getSessionAttachmentsPath(workspaceRootPath, sessionId, runtimeDirectory);
   if (!existsSync(dir)) {
     mkdirSync(dir, { recursive: true });
   }

@@ -318,6 +318,13 @@ export class PermissionManager {
   }
 
   /**
+   * Update the data folder path.
+   */
+  updateDataFolderPath(path: string): void {
+    this.config.dataFolderPath = path;
+  }
+
+  /**
    * Get the current session ID.
    */
   getSessionId(): string {

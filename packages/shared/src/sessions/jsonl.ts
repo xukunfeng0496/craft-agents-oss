@@ -12,6 +12,7 @@ import type { SessionHeader, StoredSession, StoredMessage, SessionTokenUsage } f
 import { toPortablePath, expandPath, normalizePath } from '../utils/paths.ts';
 import { debug } from '../utils/debug.ts';
 import { safeJsonParse } from '../utils/files.ts';
+import { getSessionRuntimePathForWorkingDirectory } from './runtime-paths.ts';
 import { pickSessionFields } from './utils.ts';
 
 // ============================================================
@@ -19,22 +20,63 @@ import { pickSessionFields } from './utils.ts';
 // ============================================================
 
 const SESSION_PATH_TOKEN = '{{SESSION_PATH}}';
+const SESSION_RUNTIME_PATH_TOKEN = '{{SESSION_RUNTIME_PATH}}';
+
+function replacePortablePath(jsonLine: string, absolutePath: string | undefined, token: string): string {
+  if (!absolutePath) return jsonLine;
+  const normalized = normalizePath(absolutePath);
+  let result = jsonLine.replaceAll(normalized, token);
+  if (absolutePath !== normalized) {
+    const jsonEscaped = absolutePath.replaceAll('\\', '\\\\');
+    result = result.replaceAll(jsonEscaped, token);
+  }
+  return result;
+}
+
+function expandPortablePath(jsonLine: string, absolutePath: string | undefined, token: string): string {
+  if (!absolutePath || !jsonLine.includes(token)) return jsonLine;
+  return jsonLine.replaceAll(token, normalizePath(absolutePath));
+}
+
+function resolveRuntimeDirectory(header: Partial<SessionHeader>, sessionDir: string): string {
+  if (header.runtimeDirectory) {
+    return expandPath(header.runtimeDirectory);
+  }
+
+  const workingDirectory = header.workingDirectory ? expandPath(header.workingDirectory) : undefined;
+  if (workingDirectory && header.id) {
+    return getSessionRuntimePathForWorkingDirectory(workingDirectory, header.id);
+  }
+
+  return normalizePath(sessionDir);
+}
+
+function expandPortablePaths(jsonLine: string, sessionDir: string, runtimeDir: string): string {
+  let result = expandPortablePath(jsonLine, sessionDir, SESSION_PATH_TOKEN);
+  result = expandPortablePath(result, runtimeDir, SESSION_RUNTIME_PATH_TOKEN);
+  return result;
+}
+
+function parseHeaderWithPortablePaths(firstLine: string, sessionDir: string): SessionHeader | null {
+  const rawHeader = safeJsonParse(firstLine) as Partial<SessionHeader> | null;
+  if (!rawHeader) return null;
+
+  const runtimeDir = resolveRuntimeDirectory(rawHeader, sessionDir);
+  return safeJsonParse(expandPortablePaths(firstLine, sessionDir, runtimeDir)) as SessionHeader;
+}
 
 /**
  * Replace absolute session directory paths with a portable token.
  * Applied after JSON.stringify so paths embedded anywhere in message content
  * (datatable src, planPath, attachment storedPath, etc.) are made portable.
  */
-export function makeSessionPathPortable(jsonLine: string, sessionDir: string): string {
-  if (!sessionDir) return jsonLine;
-  const normalized = normalizePath(sessionDir);
-  let result = jsonLine.replaceAll(normalized, SESSION_PATH_TOKEN);
-  // On Windows, also replace JSON-escaped backslash paths
-  // (JSON.stringify escapes \ to \\, so C:\foo becomes C:\\foo in JSON strings)
-  if (sessionDir !== normalized) {
-    const jsonEscaped = sessionDir.replaceAll('\\', '\\\\');
-    result = result.replaceAll(jsonEscaped, SESSION_PATH_TOKEN);
-  }
+export function makeSessionPathPortable(
+  jsonLine: string,
+  sessionDir: string,
+  runtimeDir?: string
+): string {
+  let result = replacePortablePath(jsonLine, sessionDir, SESSION_PATH_TOKEN);
+  result = replacePortablePath(result, runtimeDir, SESSION_RUNTIME_PATH_TOKEN);
   return result;
 }
 
@@ -43,8 +85,7 @@ export function makeSessionPathPortable(jsonLine: string, sessionDir: string): s
  * Applied before JSON.parse so all path references resolve correctly at runtime.
  */
 export function expandSessionPath(jsonLine: string, sessionDir: string): string {
-  if (!jsonLine.includes(SESSION_PATH_TOKEN)) return jsonLine;
-  return jsonLine.replaceAll(SESSION_PATH_TOKEN, normalizePath(sessionDir));
+  return expandPortablePaths(jsonLine, sessionDir, sessionDir);
 }
 
 /**
@@ -62,7 +103,7 @@ export function readSessionHeader(sessionFile: string): SessionHeader | null {
     const firstNewline = content.indexOf('\n');
     const firstLine = firstNewline > 0 ? content.slice(0, firstNewline) : content;
 
-    return safeJsonParse(expandSessionPath(firstLine, dirname(sessionFile))) as SessionHeader;
+    return parseHeaderWithPortablePaths(firstLine, dirname(sessionFile));
   } catch (error) {
     debug('[jsonl] Failed to read session header:', sessionFile, error);
     return null;
@@ -82,16 +123,20 @@ export function readSessionJsonl(sessionFile: string): StoredSession | null {
     if (!firstLine) return null;
 
     const sessionDir = dirname(sessionFile);
-    const header = safeJsonParse(expandSessionPath(firstLine, sessionDir)) as SessionHeader;
+    const header = parseHeaderWithPortablePaths(firstLine, sessionDir);
+    if (!header) return null;
     // Parse messages resiliently: skip lines that fail to parse (e.g. truncated by crash)
     // rather than losing the entire session's messages.
     // Expand session path tokens before parsing so embedded paths resolve correctly.
-    const expandedMessageLines = lines.slice(1).map(line => expandSessionPath(line, sessionDir));
+    const runtimeDir = resolveRuntimeDirectory(header, sessionDir);
+    const expandedMessageLines = lines.slice(1).map(line => expandPortablePaths(line, sessionDir, runtimeDir));
     const messages = parseMessagesResilient(expandedMessageLines);
 
-    // Migration: For sessions created before sdkCwd was added, use workingDirectory as fallback.
+    // Migration: For sessions created before runtimeDirectory / sdkCwd were added,
+    // derive them from workingDirectory.
     // This is correct because the old code used workingDirectory for SDK's cwd parameter.
     const workingDir = header.workingDirectory ? expandPath(header.workingDirectory) : undefined;
+    const runtimeDirectory = header.runtimeDirectory ? expandPath(header.runtimeDirectory) : runtimeDir;
     const sdkCwd = header.sdkCwd ? expandPath(header.sdkCwd) : workingDir;
 
     return {
@@ -99,6 +144,7 @@ export function readSessionJsonl(sessionFile: string): StoredSession | null {
       // Path expansion for portable paths
       workspaceRootPath: expandPath(header.workspaceRootPath),
       workingDirectory: workingDir,
+      runtimeDirectory,
       sdkCwd,
       // Runtime fields
       messages,
@@ -121,10 +167,11 @@ export function readSessionJsonl(sessionFile: string): StoredSession | null {
 export function writeSessionJsonl(sessionFile: string, session: StoredSession): void {
   const header = createSessionHeader(session);
   const sessionDir = dirname(sessionFile);
+  const runtimeDir = session.runtimeDirectory ?? sessionDir;
 
   const lines = [
-    makeSessionPathPortable(JSON.stringify(header), sessionDir),
-    ...session.messages.map(m => makeSessionPathPortable(JSON.stringify(m), sessionDir)),
+    makeSessionPathPortable(JSON.stringify(header), sessionDir, runtimeDir),
+    ...session.messages.map(m => makeSessionPathPortable(JSON.stringify(m), sessionDir, runtimeDir)),
   ];
 
   const tmpFile = sessionFile + '.tmp';
@@ -144,6 +191,9 @@ export function createSessionHeader(session: StoredSession): SessionHeader {
     ...pickSessionFields(session),
     // Path conversion for portability
     workspaceRootPath: toPortablePath(session.workspaceRootPath),
+    workingDirectory: session.workingDirectory ? toPortablePath(session.workingDirectory) : undefined,
+    runtimeDirectory: session.runtimeDirectory ? toPortablePath(session.runtimeDirectory) : undefined,
+    sdkCwd: session.sdkCwd ? toPortablePath(session.sdkCwd) : undefined,
     // Override lastUsedAt with current timestamp (save time, not original)
     lastUsedAt: Date.now(),
     // Pre-computed fields
@@ -221,7 +271,7 @@ export async function readSessionHeaderAsync(sessionFile: string): Promise<Sessi
       const content = buffer.toString('utf-8', 0, bytesRead);
       const firstNewline = content.indexOf('\n');
       const firstLine = firstNewline > 0 ? content.slice(0, firstNewline) : content;
-      return safeJsonParse(expandSessionPath(firstLine, dirname(sessionFile))) as SessionHeader;
+      return parseHeaderWithPortablePaths(firstLine, dirname(sessionFile));
     } finally {
       await handle.close();
     }
@@ -240,9 +290,11 @@ export function readSessionMessages(sessionFile: string): StoredMessage[] {
   try {
     const content = readFileSync(sessionFile, 'utf-8');
     const lines = content.split('\n').filter(Boolean);
-    // Skip first line (header), expand session path tokens, parse rest as messages resiliently
+    // Skip first line (header), expand session/runtime path tokens, parse rest resiliently
     const sessionDir = dirname(sessionFile);
-    const expandedLines = lines.slice(1).map(line => expandSessionPath(line, sessionDir));
+    const header = parseHeaderWithPortablePaths(lines[0] || '', sessionDir);
+    const runtimeDir = resolveRuntimeDirectory(header ?? {}, sessionDir);
+    const expandedLines = lines.slice(1).map(line => expandPortablePaths(line, sessionDir, runtimeDir));
     return parseMessagesResilient(expandedLines);
   } catch (error) {
     debug('[jsonl] Failed to read session messages:', sessionFile, error);

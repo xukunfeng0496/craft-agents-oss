@@ -1,6 +1,6 @@
 import type { BrowserEmptyPromptSample } from '@work-agent/ui'
 
-export const EMPTY_STATE_PROMPT_SAMPLES: readonly BrowserEmptyPromptSample[] = [
+const PROMPTS_ZH_CN: readonly BrowserEmptyPromptSample[] = [
   {
     short: '36 氪：整理今天 AI / 科技热点',
     full: '使用浏览器打开 https://36kr.com ，整理今天最值得关注的 10 条 AI / 科技热点，输出表格，包含标题、来源、发布时间和一句话看点。',
@@ -38,7 +38,61 @@ export const EMPTY_STATE_PROMPT_SAMPLES: readonly BrowserEmptyPromptSample[] = [
     full: '使用浏览器访问 https://www.mi.com 和 https://consumer.huawei.com/cn/phones/ ，挑选两款在售旗舰手机，整理参数对比表，包含芯片、屏幕、影像、续航和价格。',
   },
   {
-    short: '京东：办公显示器选购对比',
+    short: '京东：办公显��器选购对比',
     full: '使用浏览器访问 https://www.jd.com ，搜索 27 英寸办公显示器，筛选 6 个适合办公和轻度设计的型号，并按价格、分辨率、色域和接口做对比。',
   },
 ] as const
+
+const PROMPTS_EN: readonly BrowserEmptyPromptSample[] = [
+  {
+    short: 'Hacker News: Top AI/tech stories today',
+    full: 'Open https://news.ycombinator.com in the browser and compile the top 10 AI/tech stories today into a table with title, source, time posted, and a one-line takeaway.',
+  },
+  {
+    short: 'TechCrunch: Latest startup funding rounds',
+    full: 'Visit https://techcrunch.com in the browser and list the 5 most recent startup funding announcements, including company name, round size, investors, and what the company does.',
+  },
+  {
+    short: 'GitHub Trending: Top repos this week',
+    full: 'Visit https://github.com/trending in the browser and summarize the top 8 trending repositories this week, including name, language, stars gained, and a brief description.',
+  },
+  {
+    short: 'Product Hunt: Today\'s top launches',
+    full: 'Visit https://www.producthunt.com in the browser and list today\'s top 5 product launches with name, tagline, upvote count, and what problem each solves.',
+  },
+  {
+    short: 'Reuters: Latest world news summary',
+    full: 'Visit https://www.reuters.com in the browser and compile the 5 most important world news stories right now, with headline, region, and a one-paragraph summary each.',
+  },
+  {
+    short: 'Weather: Major cities forecast comparison',
+    full: 'Visit https://weather.com in the browser and compare the 3-day weather forecast for New York, London, Tokyo, and Sydney, including temperature range, conditions, and travel tips.',
+  },
+  {
+    short: 'Amazon: Office monitor comparison',
+    full: 'Visit https://www.amazon.com in the browser, search for 27-inch office monitors, and compare 6 models suitable for office work by price, resolution, color gamut, and connectivity.',
+  },
+  {
+    short: 'Stack Overflow: Hot questions in AI/ML',
+    full: 'Visit https://stackoverflow.com in the browser and find the 5 hottest questions tagged with AI or machine learning this week, summarizing each question and the top answer.',
+  },
+  {
+    short: 'MDN: Latest web platform updates',
+    full: 'Visit https://developer.mozilla.org in the browser and list the 5 most recent web platform feature updates or new APIs, with browser support status and use cases.',
+  },
+  {
+    short: 'Apple vs Samsung: Flagship phone specs',
+    full: 'Visit https://www.apple.com and https://www.samsung.com in the browser, pick the latest flagship phone from each, and create a comparison table covering chipset, display, camera, battery, and price.',
+  },
+] as const
+
+/**
+ * Returns locale-appropriate prompt samples for the browser empty state.
+ */
+export function getEmptyStatePromptSamples(language: string): readonly BrowserEmptyPromptSample[] {
+  if (language.startsWith('zh')) return PROMPTS_ZH_CN
+  return PROMPTS_EN
+}
+
+/** @deprecated Use getEmptyStatePromptSamples(language) instead */
+export const EMPTY_STATE_PROMPT_SAMPLES = PROMPTS_ZH_CN

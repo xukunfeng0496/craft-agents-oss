@@ -8,6 +8,7 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { useAtom, useAtomValue, useSetAtom } from 'jotai'
 import * as Icons from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { Spinner } from '@work-agent/ui'
 import {
   DropdownMenu,
@@ -49,6 +50,7 @@ export function BrowserTabStrip({
   const updateInstance = useSetAtom(updateBrowserInstanceAtom)
   const removeInstance = useSetAtom(removeBrowserInstanceAtom)
   const [activeInstanceId, setActiveInstanceId] = useAtom(activeBrowserInstanceIdAtom)
+  const { t } = useTranslation()
   const effectiveInstances = instancesOverride ?? instances
   const instancesRef = useRef(effectiveInstances)
   const removeReconcileTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -211,8 +213,8 @@ export function BrowserTabStrip({
     const targetSessionId = instance.boundSessionId ?? instance.ownerSessionId
     const canOpenSession = !!targetSessionId
     const openSessionLabel = instance.agentControlActive
-      ? 'Open Session Using this Window'
-      : 'Open Session Which Used this Window'
+      ? t('browser.openSessionUsing')
+      : t('browser.openSessionWhichUsed')
 
     return (
       <>
@@ -221,7 +223,7 @@ export function BrowserTabStrip({
           onSelect={() => focusBrowserWindow(instance)}
         >
           <Icons.Monitor className="h-3.5 w-3.5" />
-          Show Browser Window
+          {t('browser.showBrowserWindow')}
         </StyledDropdownMenuItem>
 
         <StyledDropdownMenuItem
@@ -240,7 +242,7 @@ export function BrowserTabStrip({
           onSelect={() => terminateBrowserWindow(instance)}
         >
           <Icons.XCircle className="h-3.5 w-3.5" />
-          Terminate Browser
+          {t('browser.terminateBrowser')}
         </StyledDropdownMenuItem>
       </>
     )
@@ -270,10 +272,10 @@ export function BrowserTabStrip({
         type="button"
         onClick={handleOpenBrowser}
         className="h-[26px] px-2 rounded-lg text-[11px] text-foreground/70 bg-background shadow-minimal hover:bg-foreground/[0.05] transition-colors cursor-pointer titlebar-no-drag flex items-center gap-1.5"
-        title="Open Browser"
+        title={t('browser.openBrowser')}
       >
         <Icons.Globe className="h-3.5 w-3.5" />
-        <span>Browser</span>
+        <span>{t('browser.browser')}</span>
       </button>
     )
   }
@@ -311,7 +313,7 @@ export function BrowserTabStrip({
           <StyledDropdownMenuContent align="end" minWidth="min-w-64">
             {overflow.map((instance) => {
               const hostname = getHostname(instance.url)
-              const displayLabel = instance.title.trim() || hostname || 'Local File'
+              const displayLabel = instance.title.trim() || hostname || t('browser.localFile')
               return (
                 <DropdownMenuSub key={instance.id}>
                   <StyledDropdownMenuSubTrigger>

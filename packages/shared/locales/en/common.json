@@ -639,5 +639,25 @@
         "sun": "Sun"
       }
     }
+  },
+  "browser": {
+    "openBrowser": "Open Browser",
+    "browser": "Browser",
+    "localFile": "Local File",
+    "showBrowserWindow": "Show Browser Window",
+    "openSessionUsing": "Open Session Using this Window",
+    "openSessionWhichUsed": "Open Session Which Used this Window",
+    "terminateBrowser": "Terminate Browser",
+    "newTab": "New Tab",
+    "closeBrowserWindow": "Close browser window",
+    "closeWindow": "Close window",
+    "back": "Back",
+    "forward": "Forward",
+    "stopLoading": "Stop loading",
+    "reload": "Reload",
+    "urlPlaceholder": "Enter URL or search…",
+    "safetyHint": "Craft Agents only control browser windows when you ask them to.",
+    "emptyStateTitle": "This browser is ready to serve your Agents ;)",
+    "emptyStateDescription": "You can let any session use this browser (or open another window) to complete tasks like information retrieval, form filling, QA checks, and data extraction."
   }
 }

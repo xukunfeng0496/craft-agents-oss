@@ -9,8 +9,10 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import ReactDOM from 'react-dom/client'
 import { X } from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { BrowserControls } from '@work-agent/ui'
 import { HeaderIconButton } from '@/components/ui/HeaderIconButton'
+import { initRendererI18n } from './i18n'
 import './index.css'
 
 /* ------------------------------------------------------------------ */
@@ -49,9 +51,10 @@ declare global {
 /* ------------------------------------------------------------------ */
 
 function BrowserToolbarApp() {
+  const { t } = useTranslation()
   const [state, setState] = useState<ToolbarState>({
     url: 'about:blank',
-    title: 'New Tab',
+    title: t('browser.newTab'),
     isLoading: false,
     canGoBack: false,
     canGoForward: false,
@@ -111,12 +114,19 @@ function BrowserToolbarApp() {
       onGoForward={handleGoForward}
       onReload={handleReload}
       onStop={handleStop}
+      labels={{
+        back: t('browser.back'),
+        forward: t('browser.forward'),
+        stopLoading: t('browser.stopLoading'),
+        reload: t('browser.reload'),
+        urlPlaceholder: t('browser.urlPlaceholder'),
+      }}
       trailingContent={(
         <div className="ml-2 flex items-center gap-1.5">
           <HeaderIconButton
             icon={<X className="h-3.5 w-3.5" />}
-            aria-label="Close browser window"
-            tooltip="Close window"
+            aria-label={t('browser.closeBrowserWindow')}
+            tooltip={t('browser.closeWindow')}
             className={themeColor ? '' : 'bg-background shadow-minimal hover:bg-foreground/5'}
             style={themeColor ? { color: 'var(--tb-fg)' } : undefined}
             onClick={handleCloseWindow}
@@ -134,8 +144,16 @@ function BrowserToolbarApp() {
 /*  Mount                                                              */
 /* ------------------------------------------------------------------ */
 
-ReactDOM.createRoot(document.getElementById('root')!).render(
-  <React.StrictMode>
-    <BrowserToolbarApp />
-  </React.StrictMode>,
-)
+async function bootstrap() {
+  await initRendererI18n({ namespaces: ['common'] }).catch((error) => {
+    console.error('Failed to initialize browser toolbar i18n:', error)
+  })
+
+  ReactDOM.createRoot(document.getElementById('root')!).render(
+    <React.StrictMode>
+      <BrowserToolbarApp />
+    </React.StrictMode>,
+  )
+}
+
+void bootstrap()

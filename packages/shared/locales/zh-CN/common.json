@@ -639,5 +639,25 @@
         "sun": "周日"
       }
     }
+  },
+  "browser": {
+    "openBrowser": "打开浏览器",
+    "browser": "浏览器",
+    "localFile": "本地文件",
+    "showBrowserWindow": "显示浏览器窗口",
+    "openSessionUsing": "打开正在使用此窗口的会话",
+    "openSessionWhichUsed": "打开曾使用此窗口的会话",
+    "terminateBrowser": "关闭浏览器",
+    "newTab": "新标签页",
+    "closeBrowserWindow": "关闭浏览器窗口",
+    "closeWindow": "关闭窗口",
+    "back": "后退",
+    "forward": "前进",
+    "stopLoading": "停止加载",
+    "reload": "刷新",
+    "urlPlaceholder": "输入网址或搜索…",
+    "safetyHint": "只有在你要求时，智能体才会控制浏览器窗口。",
+    "emptyStateTitle": "这个浏览器已经准备好为你的 Agents 服务了 ;)",
+    "emptyStateDescription": "你可以让任意会话使用这个浏览器（或再打开一个新窗口）来完成信息检索、表单填写、QA 检查、数据提取等任务。"
   }
 }

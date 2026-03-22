@@ -7,6 +7,7 @@
 
 import { forwardRef, useEffect, useState, type ButtonHTMLAttributes } from 'react'
 import * as Icons from 'lucide-react'
+import { useTranslation } from 'react-i18next'
 import { Spinner } from '@work-agent/ui'
 import type { BrowserInstanceInfo } from '../../../shared/types'
 import { getHostname, getThemeLuminance } from './utils'
@@ -20,8 +21,9 @@ export const BrowserTabBadge = forwardRef<HTMLButtonElement, BrowserTabBadgeProp
   { instance, isActive: _isActive, className, style, ...buttonProps },
   ref
 ) {
+  const { t } = useTranslation()
   const hostname = getHostname(instance.url)
-  const displayLabel = instance.title.trim() || hostname || 'Local File'
+  const displayLabel = instance.title.trim() || hostname || t('browser.localFile')
   const themedBackground = instance.themeColor || undefined
 
   const themeLuminance = instance.themeColor ? getThemeLuminance(instance.themeColor) : null

@@ -83,6 +83,14 @@ export interface BrowserControlsProps {
   themeColor?: string | null
   /** Additional CSS classes on the root element */
   className?: string
+  /** Localized labels for accessibility and UI text */
+  labels?: {
+    back?: string
+    forward?: string
+    stopLoading?: string
+    reload?: string
+    urlPlaceholder?: string
+  }
 }
 
 /**
@@ -162,6 +170,7 @@ export function BrowserControls({
   leftClearance,
   themeColor,
   className,
+  labels,
 }: BrowserControlsProps) {
   const [localUrl, setLocalUrl] = useState(controlledUrl ?? '')
   const [isFocused, setIsFocused] = useState(false)
@@ -224,7 +233,7 @@ export function BrowserControls({
   /* Shared: reload / stop button */
   const reloadButton = (
     <NavButton
-      aria-label={loading ? 'Stop loading' : 'Reload'}
+      aria-label={loading ? (labels?.stopLoading ?? 'Stop loading') : (labels?.reload ?? 'Reload')}
       onClick={loading ? onStop : onReload}
     >
       {loading ? (
@@ -247,7 +256,7 @@ export function BrowserControls({
           onFocus={handleFocus}
           onBlur={handleBlur}
           onKeyDown={handleKeyDown}
-          placeholder="Enter URL or search…"
+          placeholder={labels?.urlPlaceholder ?? "Enter URL or search…"}
           className={cn(
             'w-full rounded-[8px] bg-transparent px-3 pl-8 text-[13px] text-foreground/70 outline-none transition-all',
             compact ? 'h-[28px]' : 'h-[30px]',
@@ -331,10 +340,10 @@ export function BrowserControls({
       )}
       {leadingContent}
 
-      <NavButton aria-label="Back" disabled={!canGoBack} onClick={onGoBack} style={safeThemeColor ? { color: 'var(--tb-fg)' } : undefined}>
+      <NavButton aria-label={labels?.back ?? "Back"} disabled={!canGoBack} onClick={onGoBack} style={safeThemeColor ? { color: 'var(--tb-fg)' } : undefined}>
         <ChevronLeft className="h-[18px] w-[18px] text-foreground/70" style={safeThemeColor ? { color: 'inherit' } : undefined} strokeWidth={1.5} />
       </NavButton>
-      <NavButton aria-label="Forward" disabled={!canGoForward} onClick={onGoForward} style={safeThemeColor ? { color: 'var(--tb-fg)' } : undefined}>
+      <NavButton aria-label={labels?.forward ?? "Forward"} disabled={!canGoForward} onClick={onGoForward} style={safeThemeColor ? { color: 'var(--tb-fg)' } : undefined}>
         <ChevronRight className="h-[18px] w-[18px] text-foreground/70" style={safeThemeColor ? { color: 'inherit' } : undefined} strokeWidth={1.5} />
       </NavButton>
 

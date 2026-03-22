@@ -6,6 +6,7 @@
  */
 
 import { BrowserControls } from '@work-agent/ui'
+import { useTranslation } from 'react-i18next'
 import type { BrowserInstanceInfo } from '../../../shared/types'
 
 interface BrowserToolbarProps {
@@ -27,6 +28,7 @@ export function BrowserToolbar({
   onStop,
   compact = false,
 }: BrowserToolbarProps) {
+  const { t } = useTranslation()
   return (
     <BrowserControls
       url={instanceInfo?.url ?? ''}
@@ -40,6 +42,13 @@ export function BrowserToolbar({
       onStop={onStop}
       compact={compact}
       showProgressBar={!compact}
+      labels={{
+        back: t('browser.back'),
+        forward: t('browser.forward'),
+        stopLoading: t('browser.stopLoading'),
+        reload: t('browser.reload'),
+        urlPlaceholder: t('browser.urlPlaceholder'),
+      }}
       className={
         compact
           ? 'h-auto px-1.5 py-0.5 rounded-[8px] border border-foreground/10 bg-background/70 min-w-0'

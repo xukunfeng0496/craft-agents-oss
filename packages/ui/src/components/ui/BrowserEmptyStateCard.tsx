@@ -11,6 +11,7 @@ export interface BrowserEmptyStateCardProps {
   prompts?: readonly BrowserEmptyPromptSample[]
   showExamplePrompts?: boolean
   showSafetyHint?: boolean
+  safetyHintText?: string
   onPromptSelect?: (prompt: BrowserEmptyPromptSample) => void
 }
 
@@ -20,6 +21,7 @@ export function BrowserEmptyStateCard({
   prompts = [],
   showExamplePrompts = true,
   showSafetyHint = true,
+  safetyHintText,
   onPromptSelect,
 }: BrowserEmptyStateCardProps) {
   return (
@@ -57,7 +59,7 @@ export function BrowserEmptyStateCard({
         {showSafetyHint && (
           <div className="px-4 py-2.5 border-t border-border/30 flex items-center gap-2 bg-muted/20 text-[13px] text-foreground/55">
             <p>
-              Craft Agents only control browser windows when you ask them to.
+              {safetyHintText ?? 'Craft Agents only control browser windows when you ask them to.'}
             </p>
           </div>
         )}

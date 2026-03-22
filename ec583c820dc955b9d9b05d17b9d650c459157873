@@ -1,0 +1,76 @@
+apps/electron/src/renderer/pages/SkillInfoPage.tsx
+  f95356287efc754b 25,72-73,75
+  362307ee944532a2 33-36,39,48-50,59-60,62-66,69-71,74,76,82,85-86,93-107,141,163,167,175,178,182-184,190,200,203-204,206,208-217,222,231,271,281,284
+packages/shared/locales/en/common.json
+  f95356287efc754b 204-209
+packages/shared/locales/zh-CN/common.json
+  f95356287efc754b 204-209
+packages/shared/src/marketplace/index.ts
+  f95356287efc754b 2-7
+apps/electron/src/renderer/components/app-shell/SkillsListPanel.tsx
+  f95356287efc754b 24,76-83,87,143-149
+  362307ee944532a2 49,206,213,216,340,343,347,351,363-372,376-381,385-390,394
+apps/electron/src/preload/index.ts
+  362307ee944532a2 345-346
+packages/shared/src/marketplace/types.ts
+  362307ee944532a2 1-2,24-33
+packages/shared/src/skills/storage.ts
+  362307ee944532a2 66-67,69
+apps/electron/src/shared/types.ts
+  362307ee944532a2 843,1194
+packages/shared/src/marketplace/client.ts
+  f95356287efc754b 3-5,7-18,27-36,40-46,50-57
+packages/shared/src/skills/index.ts
+  362307ee944532a2 11
+apps/electron/src/renderer/components/app-shell/AppShell.tsx
+  362307ee944532a2 974,976
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.18",
+  "base_commit_sha": "ec583c820dc955b9d9b05d17b9d650c459157873",
+  "prompts": {
+    "362307ee944532a2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019d150f-c41e-7812-bdb5-a1d78cb5275c",
+        "model": "gpt-5.4"
+      },
+      "human_author": "xukunfeng <xukunfeng@cvte.com>",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 175,
+      "overriden_lines": 0,
+      "messages_url": "https://gitai.gz.cvte.cn/cas/e71b2c4e79e3512af86800fa8c90f9f0af98d36ae9c8a30baf360e1c70ce4c22"
+    },
+    "e6e5d7c9a9eea14e": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019d150c-120b-7260-8d91-d7e6a497cfe9",
+        "model": "gpt-5.4"
+      },
+      "human_author": "xukunfeng <xukunfeng@cvte.com>",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 4,
+      "overriden_lines": 0,
+      "messages_url": "https://gitai.gz.cvte.cn/cas/811ae157ad00b1b3a581800eb11cfb09b1a6aaa817a6b5dfe2e9a4a031ac1ac8"
+    },
+    "f95356287efc754b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019d1621-b00a-76b0-b2ea-159b65ed2501",
+        "model": "gpt-5.4"
+      },
+      "human_author": "xukunfeng <xukunfeng@cvte.com>",
+      "messages": [],
+      "total_additions": 83,
+      "total_deletions": 15,
+      "accepted_lines": 82,
+      "overriden_lines": 0,
+      "messages_url": "https://gitai.gz.cvte.cn/cas/e726c925de59f8f62a710a723addaee51615be9da1f7157734e6a2c81f62c1c8"
+    }
+  }
+}

@@ -1,0 +1,56 @@
+packages/shared/src/prompts/system.ts
+  56e1c8c1c0c899cc 2,334-337,345
+apps/electron/src/renderer/i18n.ts
+  56e1c8c1c0c899cc 65
+.claude/commands/sync-to-fast-update.md
+  c454482a60173d0d 1-221
+apps/electron/src/main/ipc.ts
+  56e1c8c1c0c899cc 493
+.claude/commands/release.md
+  c454482a60173d0d 79-80
+packages/shared/src/config/storage.ts
+  56e1c8c1c0c899cc 229-231,233
+apps/electron/src/main/sessions.ts
+  56e1c8c1c0c899cc 36,4071,5219
+apps/electron/src/main/index.ts
+  56e1c8c1c0c899cc 268
+packages/shared/src/utils/title-generator.ts
+  56e1c8c1c0c899cc 49
+apps/electron/src/shared/types.ts
+  56e1c8c1c0c899cc 1027
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.16",
+  "base_commit_sha": "73c49ac71768d60d3f86cf7694c1c9794baa97f2",
+  "prompts": {
+    "56e1c8c1c0c899cc": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fb9a4a20-b22f-47e0-be27-f2b7a2d47d49",
+        "model": "glm-5"
+      },
+      "human_author": "xukunfeng <xukunfeng@cvte.com>",
+      "messages": [],
+      "total_additions": 20,
+      "total_deletions": 12,
+      "accepted_lines": 18,
+      "overriden_lines": 0,
+      "messages_url": "https://gitai.gz.cvte.cn/cas/a54026ca488b5491b8264d257c6710e9a1003bcc829208881962d3238030e2fa"
+    },
+    "c454482a60173d0d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f53ff191-b154-4220-97ae-94b6ca34499a",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "xukunfeng <xukunfeng@cvte.com>",
+      "messages": [],
+      "total_additions": 5,
+      "total_deletions": 4,
+      "accepted_lines": 223,
+      "overriden_lines": 0,
+      "messages_url": "https://gitai.gz.cvte.cn/cas/91279b468e0624053061e0441d2ca7aebf98905b0b70439353246df09276190f"
+    }
+  }
+}

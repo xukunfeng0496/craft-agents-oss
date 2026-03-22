@@ -1,0 +1,38 @@
+.github/workflows/build.yml
+  56e1c8c1c0c899cc 10
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.16",
+  "base_commit_sha": "f978e9f03f59e4d6d37128dcbe9e133055a8d92a",
+  "prompts": {
+    "56e1c8c1c0c899cc": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fb9a4a20-b22f-47e0-be27-f2b7a2d47d49",
+        "model": "glm-5"
+      },
+      "human_author": "xukunfeng <xukunfeng@cvte.com>",
+      "messages": [],
+      "total_additions": 1,
+      "total_deletions": 1,
+      "accepted_lines": 1,
+      "overriden_lines": 0,
+      "messages_url": "https://gitai.gz.cvte.cn/cas/e069c64baefb8bc837d50fcde08f961327f45aa46df34d03ff43b479e560bef6"
+    },
+    "c454482a60173d0d": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "f53ff191-b154-4220-97ae-94b6ca34499a",
+        "model": "claude-sonnet-4-6"
+      },
+      "human_author": "xukunfeng <xukunfeng@cvte.com>",
+      "messages": [],
+      "total_additions": 2,
+      "total_deletions": 2,
+      "accepted_lines": 222,
+      "overriden_lines": 0,
+      "messages_url": "https://gitai.gz.cvte.cn/cas/8ff14696d7681d4fbd171469e5b53fa89614050a76b2aed5febe45240c4f2777"
+    }
+  }
+}

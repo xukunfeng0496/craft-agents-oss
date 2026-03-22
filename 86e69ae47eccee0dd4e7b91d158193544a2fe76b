@@ -1,0 +1,36 @@
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.18",
+  "base_commit_sha": "86e69ae47eccee0dd4e7b91d158193544a2fe76b",
+  "prompts": {
+    "362307ee944532a2": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019d150f-c41e-7812-bdb5-a1d78cb5275c",
+        "model": "gpt-5.4"
+      },
+      "human_author": "xukunfeng <xukunfeng@cvte.com>",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 41,
+      "overriden_lines": 0,
+      "messages_url": "https://gitai.gz.cvte.cn/cas/186c4bc8383958c91467924c648b86c80b260c8196bcd23d4d4368865b1e723e"
+    },
+    "e6e5d7c9a9eea14e": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019d150c-120b-7260-8d91-d7e6a497cfe9",
+        "model": "gpt-5.4"
+      },
+      "human_author": "xukunfeng <xukunfeng@cvte.com>",
+      "messages": [],
+      "total_additions": 0,
+      "total_deletions": 0,
+      "accepted_lines": 66,
+      "overriden_lines": 0,
+      "messages_url": "https://gitai.gz.cvte.cn/cas/811ae157ad00b1b3a581800eb11cfb09b1a6aaa817a6b5dfe2e9a4a031ac1ac8"
+    }
+  }
+}

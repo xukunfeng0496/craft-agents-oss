@@ -33,6 +33,7 @@ import {
   getWorkspaces,
   getWorkspaceByNameOrId,
   loadConfigDefaults,
+  getAppLanguage,
 
   migrateLegacyCredentials,
   migrateLegacyLlmConnectionsConfig,
@@ -4067,7 +4068,7 @@ export class SessionManager {
     this.sendEvent({ type: 'title_regenerating', sessionId, isRegenerating: true }, managed.workspace.id)
 
     try {
-      const title = await agent.regenerateTitle(userMessages, assistantResponse, loadStoredConfig()?.language)
+      const title = await agent.regenerateTitle(userMessages, assistantResponse, getAppLanguage())
       sessionLog.info(`refreshTitle: regenerateTitle returned: ${title ? `"${title}"` : 'null'}`)
       if (title) {
         await this.setSessionTitle(managed, title)
@@ -5215,7 +5216,7 @@ To view this task's output:
     }
 
     try {
-      const title = await agent.generateTitle(userMessage, loadStoredConfig()?.language)
+      const title = await agent.generateTitle(userMessage, getAppLanguage())
       if (title) {
         await this.setSessionTitle(managed, title, true)
         sessionLog.info(`Generated title for session ${managed.id}: "${title}"`)

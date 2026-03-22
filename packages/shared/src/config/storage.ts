@@ -226,9 +226,11 @@ export function saveConfig(config: StoredConfig): void {
 // - getAnthropicBaseUrl/setAnthropicBaseUrl -> use connection.baseUrl
 // - getCustomModel/setCustomModel -> use connection.defaultModel
 
-export function getAppLanguage(): string | null {
+export const DEFAULT_APP_LANGUAGE = 'zh-CN'
+
+export function getAppLanguage(): string {
   const config = loadStoredConfig();
-  return config?.language ?? null;
+  return config?.language || DEFAULT_APP_LANGUAGE;
 }
 
 export function setAppLanguage(language: string): void {

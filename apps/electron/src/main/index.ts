@@ -265,7 +265,7 @@ app.whenReady().then(async () => {
   initializeDocs()
 
   // Ensure default permissions file exists (seed once using current app language)
-  ensureDefaultPermissions(getAppLanguage() ?? app.getLocale())
+  ensureDefaultPermissions(getAppLanguage())
 
   // Seed tool icons to ~/.workagent/tool-icons/ (copies bundled SVGs on first run)
   ensureToolIcons()

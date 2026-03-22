@@ -2,7 +2,7 @@ import i18next, { type i18n } from 'i18next'
 import { initReactI18next } from 'react-i18next'
 
 export type RendererI18nInitOptions = {
-  getAppLanguage?: () => Promise<string | null>
+  getAppLanguage?: () => Promise<string>
   localeGlob?: Record<string, () => Promise<{ default: Record<string, string> }>>
   namespaces?: string[]
 }
@@ -62,7 +62,7 @@ async function loadResources(
 
 export async function initRendererI18n(options: RendererI18nInitOptions = {}): Promise<i18n> {
   const localeGlob = options.localeGlob ?? getLocaleGlob()
-  const getAppLanguage = options.getAppLanguage ?? (async () => window.electronAPI?.getAppLanguage?.() ?? null)
+  const getAppLanguage = options.getAppLanguage ?? (async () => window.electronAPI?.getAppLanguage?.() ?? 'zh-CN')
   const namespaces = options.namespaces ?? ['common']
 
   const stored = await getAppLanguage()

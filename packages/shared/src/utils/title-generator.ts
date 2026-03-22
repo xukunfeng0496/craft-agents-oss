@@ -15,7 +15,7 @@
  */
 export function buildTitlePrompt(message: string, language?: string): string {
   const snippet = message.slice(0, 500);
-  const langInstruction = language && language !== 'en'
+  const langInstruction = language
     ? `Reply in the same language as the user's message (language code: ${language}).`
     : '';
   return [
@@ -46,7 +46,7 @@ export function buildRegenerateTitlePrompt(
     .map((msg) => msg.slice(0, 300))
     .join('\n\n');
   const assistantSnippet = lastAssistantResponse.slice(0, 500);
-  const langInstruction = language && language !== 'en'
+  const langInstruction = language
     ? `Reply in the same language as the conversation (language code: ${language}).`
     : '';
 

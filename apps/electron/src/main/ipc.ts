@@ -490,7 +490,7 @@ export function registerIpcHandlers(sessionManager: SessionManager, windowManage
   // Create a new workspace at a folder path (Obsidian-style: folder IS the workspace)
   ipcMain.handle(IPC_CHANNELS.CREATE_WORKSPACE, async (_event, folderPath: string, name: string) => {
     const rootPath = folderPath
-    const workspace = addWorkspace({ name, rootPath }, getAppLanguage() ?? undefined)
+    const workspace = addWorkspace({ name, rootPath }, getAppLanguage())
     // Make it active
     setActiveWorkspace(workspace.id)
     ipcLog.info(`Created workspace "${name}" at ${rootPath}`)

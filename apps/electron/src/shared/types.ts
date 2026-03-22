@@ -1024,7 +1024,7 @@ export interface ElectronAPI {
   openSessionInNewWindow(workspaceId: string, sessionId: string): Promise<void>
   switchWorkspace(workspaceId: string): Promise<void>
   closeWindow(): Promise<void>
-  getAppLanguage(): Promise<string | null>
+  getAppLanguage(): Promise<string>
   setAppLanguage(language: string): Promise<void>
   confirmCloseWindow(): Promise<void>
   /** Listen for close requests (X button, Cmd+W). Returns cleanup function. */

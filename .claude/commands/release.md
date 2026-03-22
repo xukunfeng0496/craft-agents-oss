@@ -76,8 +76,8 @@ CI will automatically:
   - Create GitHub Release with tag vX.Y.Z
   - Upload artifacts: Work-Agent-X.Y.Z-{platform}.{ext}
 
-After CI completes, optionally upload to fast-update-server:
-  FAST_UPDATE_TOKEN=xxx AUTO_UPDATE_SERVER_URL=https://... bun run fast-update:upload
+After CI completes, sync GitHub Release to fast-update-server:
+  FAST_UPDATE_TOKEN=xxx /sync-to-fast-update X.Y.Z
 ```
 
 ## Important notes

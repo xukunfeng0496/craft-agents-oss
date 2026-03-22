@@ -1,0 +1,30 @@
+apps/electron/src/main/__tests__/file-path-validation.test.ts
+  e6e5d7c9a9eea14e 1-76
+apps/electron/src/main/browser-pane-manager.ts
+  e6e5d7c9a9eea14e 9,18,1519-1523
+apps/electron/src/main/ipc.ts
+  e6e5d7c9a9eea14e 2,4,15,34,394-395,397-398,753-755,770-772,804-806,835,1224-1226,1245-1247
+apps/electron/src/main/file-path-validation.ts
+  e6e5d7c9a9eea14e 1-185
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.18",
+  "base_commit_sha": "d6237bf19452a1248bd60d7db6e75145bf61a286",
+  "prompts": {
+    "e6e5d7c9a9eea14e": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019d150c-120b-7260-8d91-d7e6a497cfe9",
+        "model": "gpt-5.4"
+      },
+      "human_author": "xukunfeng <xukunfeng@cvte.com>",
+      "messages": [],
+      "total_additions": 31,
+      "total_deletions": 115,
+      "accepted_lines": 292,
+      "overriden_lines": 0,
+      "messages_url": "https://gitai.gz.cvte.cn/cas/8850caabc5bf5d6e0f136c4351a30af7c900cc1f79ba6fdf6f7bdbb7d3ceddaf"
+    }
+  }
+}

@@ -75,7 +75,7 @@ export function getSettingsLabels(t: (key: string) => string) {
 // ============================================
 
 export default function AppSettingsPage() {
-  const { t } = useTranslation(['settings'])
+  const { t, i18n } = useTranslation(['settings'])
   const labels = getSettingsLabels(t)
 
   // Notifications state
@@ -85,7 +85,7 @@ export default function AppSettingsPage() {
   const [keepAwakeEnabled, setKeepAwakeEnabled] = useState(false)
 
   // Language state
-  const [appLanguage, setAppLanguageState] = useState('en')
+  const [appLanguage, setAppLanguageState] = useState(i18n.language || 'zh-CN')
 
   // Auto-update state
   const updateChecker = useUpdateChecker()
@@ -111,7 +111,7 @@ export default function AppSettingsPage() {
       ])
       setNotificationsEnabled(notificationsOn)
       setKeepAwakeEnabled(keepAwakeOn)
-      setAppLanguageState(storedLanguage ?? 'en')
+      setAppLanguageState(storedLanguage || i18n.language || 'zh-CN')
     } catch (error) {
       console.error('Failed to load settings:', error)
     }

@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 env:
-  AUTO_UPDATE_SERVER_URL: https://rxpc.gz.cvte.cn/fast-update-server
+  AUTO_UPDATE_SERVER_URL: http://rxpc.gz.cvte.cn/fast-update-server
   AUTO_UPDATE_PRODUCT_ID: work-agents
   AUTO_UPDATE_CHANNEL: stable
   AUTO_UPDATE_SILENT: "1"

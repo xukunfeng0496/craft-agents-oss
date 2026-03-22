@@ -1,0 +1,63 @@
+apps/electron/src/main/index.ts
+  8915bebd3916f54e 11-14,16-17,26,29,103-110
+apps/electron/src/renderer/hooks/useUpdateChecker.ts
+  56e1c8c1c0c899cc 29,121-131,133,179-184,187
+apps/electron/src/shared/types.ts
+  56e1c8c1c0c899cc 1351-1352,1365
+scripts/electron-dev.ts
+  56e1c8c1c0c899cc 7,14-16,153-180,222-224,231-235,239,345,358,382,474,541-545
+.env.example
+  8915bebd3916f54e 32-33
+  56e1c8c1c0c899cc 36-38,40
+apps/electron/scripts/build-win.ps1
+  56e1c8c1c0c899cc 252-266
+scripts/electron-build-main.ts
+  56e1c8c1c0c899cc 56-60
+docs/plans/2026-03-20-ota-testing-plan.md
+  56e1c8c1c0c899cc 1-81
+apps/electron/src/main/auto-update.ts
+  56e1c8c1c0c899cc 132-162,172,209-263,460-467,737,743-745
+scripts/test-ota-flow.ts
+  56e1c8c1c0c899cc 1-335
+.gitignore
+  56e1c8c1c0c899cc 66-68
+package.json
+  56e1c8c1c0c899cc 40-41
+scripts/upload-fast-update-release.ts
+  56e1c8c1c0c899cc 1-169
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.16",
+  "base_commit_sha": "08bd9bfdccc0a9014d2ff0d2b1d1241d5202a41b",
+  "prompts": {
+    "56e1c8c1c0c899cc": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fb9a4a20-b22f-47e0-be27-f2b7a2d47d49",
+        "model": "glm-5"
+      },
+      "human_author": "xukunfeng <xukunfeng@cvte.com>",
+      "messages": [],
+      "total_additions": 286,
+      "total_deletions": 501,
+      "accepted_lines": 790,
+      "overriden_lines": 2,
+      "messages_url": "https://gitai.gz.cvte.cn/cas/203b857004fa5d3e2eccc246f9a3f604f8533b3f832cbeb7ca279b67838d550e"
+    },
+    "8915bebd3916f54e": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019d03b6-4b3d-7fe2-96fa-d83b4b06d10f",
+        "model": "gpt-5.4"
+      },
+      "human_author": "xukunfeng <xukunfeng@cvte.com>",
+      "messages": [],
+      "total_additions": 19,
+      "total_deletions": 4,
+      "accepted_lines": 19,
+      "overriden_lines": 0,
+      "messages_url": "https://gitai.gz.cvte.cn/cas/439ebc8dd8b84c137be75c78a1ccae907288b5290824766f79a484d518c24b11"
+    }
+  }
+}

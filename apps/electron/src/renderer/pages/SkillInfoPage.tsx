@@ -22,6 +22,7 @@ import {
   Info_Table,
   Info_Markdown,
 } from '@/components/info'
+import { MARKETPLACE_HOST, isMarketplaceConnectivityError, type MarketplaceSkillPreview } from '@work-agent/shared/marketplace'
 import type { LoadedSkill } from '../../shared/types'
 
 interface SkillInfoPageProps {
@@ -29,19 +30,24 @@ interface SkillInfoPageProps {
   workspaceId: string
 }
 
+type SkillInfoData =
+  | { kind: 'local'; skill: LoadedSkill }
+  | { kind: 'marketplace'; skill: MarketplaceSkillPreview }
+
 export default function SkillInfoPage({ skillSlug, workspaceId }: SkillInfoPageProps) {
   const { t } = useTranslation(['common'])
-  const [skill, setSkill] = useState<LoadedSkill | null>(null)
+  const [skillData, setSkillData] = useState<SkillInfoData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   // Load skill data
   useEffect(() => {
     let isMounted = true
-    setLoading(true)
-    setError(null)
 
     const loadSkill = async () => {
+      setLoading(true)
+      setError(null)
+
       try {
         const skills = await window.electronAPI.getSkills(workspaceId)
 
@@ -50,33 +56,55 @@ export default function SkillInfoPage({ skillSlug, workspaceId }: SkillInfoPageP
         // Find the skill by slug
         const found = skills.find((s) => s.slug === skillSlug)
         if (found) {
-          setSkill(found)
-        } else {
-          setError('Skill not found')
+          setSkillData({ kind: 'local', skill: found })
+          return
         }
+
+        const preview = await window.electronAPI.getMarketplaceSkillPreview(skillSlug)
+        if (!isMounted) return
+
+        setSkillData({ kind: 'marketplace', skill: preview })
       } catch (err) {
         if (!isMounted) return
-        setError(err instanceof Error ? err.message : 'Failed to load skill')
+        setSkillData(null)
+        if (err instanceof Error && err.message === 'Skill not found in marketplace') {
+          setError(t('common:info.skillNotFound'))
+        } else if (isMarketplaceConnectivityError(err)) {
+          setError(t('common:marketplace.unreachable', { host: MARKETPLACE_HOST }))
+        } else {
+          setError(err instanceof Error ? err.message : t('common:marketplace.previewFailed'))
+        }
       } finally {
         if (isMounted) setLoading(false)
       }
     }
 
-    loadSkill()
+    void loadSkill()
 
     // Subscribe to skill changes
-    const unsubscribe = window.electronAPI.onSkillsChanged?.((skills) => {
-      const updated = skills.find((s) => s.slug === skillSlug)
-      if (updated) {
-        setSkill(updated)
-      }
+    const unsubscribe = window.electronAPI.onSkillsChanged?.(() => {
+      void loadSkill()
     })
 
     return () => {
       isMounted = false
       unsubscribe?.()
     }
-  }, [workspaceId, skillSlug])
+  }, [workspaceId, skillSlug, t])
+
+  const skill = skillData?.kind === 'local' ? skillData.skill : null
+  const previewSkill = React.useMemo<LoadedSkill | null>(() => {
+    if (!skillData) return null
+    if (skillData.kind === 'local') return skillData.skill
+
+    return {
+      slug: skillData.skill.slug,
+      metadata: skillData.skill.metadata,
+      content: skillData.skill.content,
+      path: '',
+      source: 'global',
+    }
+  }, [skillData])
 
   // Handle open in finder
   const handleOpenInFinder = useCallback(async () => {
@@ -110,7 +138,7 @@ export default function SkillInfoPage({ skillSlug, workspaceId }: SkillInfoPageP
   }, [skillSlug])
 
   // Get skill name for header
-  const skillName = skill?.metadata.name || skillSlug
+  const skillName = previewSkill?.metadata.name || skillSlug
 
   // Format path to show just the skill-relative portion (skills/{slug}/)
   const formatPath = (path: string) => {
@@ -132,11 +160,11 @@ export default function SkillInfoPage({ skillSlug, workspaceId }: SkillInfoPageP
     <Info_Page
       loading={loading}
       error={error ?? undefined}
-      empty={!skill && !loading && !error ? 'Skill not found' : undefined}
+      empty={!previewSkill && !loading && !error ? t('common:info.skillNotFound') : undefined}
     >
       <Info_Page.Header
         title={skillName}
-        titleMenu={
+        titleMenu={skill ? (
           <SkillMenu
             skillSlug={skillSlug}
             skillName={skillName}
@@ -144,22 +172,22 @@ export default function SkillInfoPage({ skillSlug, workspaceId }: SkillInfoPageP
             onShowInFinder={handleOpenInFinder}
             onDelete={handleDelete}
           />
-        }
+        ) : undefined}
       />
 
-      {skill && (
+      {previewSkill && (
         <Info_Page.Content>
           {/* Hero: Avatar, title, and description */}
           <Info_Page.Hero
-            avatar={<SkillAvatar skill={skill} fluid workspaceId={workspaceId} />}
-            title={skill.metadata.name}
-            tagline={skill.metadata.description}
+            avatar={<SkillAvatar skill={previewSkill} fluid workspaceId={workspaceId} />}
+            title={previewSkill.metadata.name}
+            tagline={previewSkill.metadata.description}
           />
 
           {/* Metadata */}
           <Info_Section
             title={t('common:skillInfo.metadataTitle')}
-            actions={
+            actions={skill ? (
               // EditPopover for AI-assisted metadata editing (name, description in frontmatter)
               <EditPopover
                 trigger={<EditButton />}
@@ -169,27 +197,29 @@ export default function SkillInfoPage({ skillSlug, workspaceId }: SkillInfoPageP
                   filePath: `${skill.path}/SKILL.md`,
                 }}
               />
-            }
+            ) : undefined}
           >
             <Info_Table>
-              <Info_Table.Row label={t('common:skillInfo.slugLabel')} value={skill.slug} />
-              <Info_Table.Row label={t('common:skillInfo.nameLabel')}>{skill.metadata.name}</Info_Table.Row>
+              <Info_Table.Row label={t('common:skillInfo.slugLabel')} value={previewSkill.slug} />
+              <Info_Table.Row label={t('common:skillInfo.nameLabel')}>{previewSkill.metadata.name}</Info_Table.Row>
               <Info_Table.Row label={t('common:skillInfo.descriptionLabel')}>
-                {skill.metadata.description}
+                {previewSkill.metadata.description}
               </Info_Table.Row>
-              <Info_Table.Row label={t('common:skillInfo.locationLabel')}>
-                <button
-                  onClick={handleLocationClick}
-                  className="hover:underline cursor-pointer text-left"
-                >
-                  {formatPath(skill.path)}
-                </button>
-              </Info_Table.Row>
+              {skill && (
+                <Info_Table.Row label={t('common:skillInfo.locationLabel')}>
+                  <button
+                    onClick={handleLocationClick}
+                    className="hover:underline cursor-pointer text-left"
+                  >
+                    {formatPath(skill.path)}
+                  </button>
+                </Info_Table.Row>
+              )}
             </Info_Table>
           </Info_Section>
 
           {/* Variables */}
-          {skill.metadata.vars && skill.metadata.vars.length > 0 && (
+          {skill && skill.metadata.vars && skill.metadata.vars.length > 0 && (
             <SkillVariablesSection
               workspaceId={workspaceId}
               skillSlug={skillSlug}
@@ -198,7 +228,7 @@ export default function SkillInfoPage({ skillSlug, workspaceId }: SkillInfoPageP
           )}
 
           {/* Permission Modes */}
-          {skill.metadata.alwaysAllow && skill.metadata.alwaysAllow.length > 0 && (
+          {previewSkill.metadata.alwaysAllow && previewSkill.metadata.alwaysAllow.length > 0 && (
             <Info_Section title={t('common:skillInfo.permissionModesTitle')}>
               <div className="space-y-2 px-4 py-3">
                 <p className="text-xs text-muted-foreground mb-3">
@@ -238,7 +268,7 @@ export default function SkillInfoPage({ skillSlug, workspaceId }: SkillInfoPageP
           {/* Instructions */}
           <Info_Section
             title={t('common:skillInfo.instructionsTitle')}
-            actions={
+            actions={skill ? (
               // EditPopover for AI-assisted editing with "Edit File" as secondary action
               <EditPopover
                 trigger={<EditButton />}
@@ -248,10 +278,10 @@ export default function SkillInfoPage({ skillSlug, workspaceId }: SkillInfoPageP
                   filePath: `${skill.path}/SKILL.md`,
                 }}
               />
-            }
+            ) : undefined}
           >
             <Info_Markdown maxHeight={540} fullscreen>
-              {skill.content || `*${t('common:skillInfo.noInstructions')}*`}
+              {previewSkill.content || `*${t('common:skillInfo.noInstructions')}*`}
             </Info_Markdown>
           </Info_Section>
 

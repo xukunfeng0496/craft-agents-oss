@@ -971,9 +971,9 @@ function AppShellContent({
   }, [activeWorkspaceId, navigateToSource])
 
   // Handle selecting a skill from the list
-  const handleSkillSelect = React.useCallback((skill: LoadedSkill) => {
+  const handleSkillSelect = React.useCallback((skillSlug: string) => {
     if (!activeWorkspaceId) return
-    navigate(routes.view.skills(skill.slug))
+    navigate(routes.view.skills(skillSlug))
   }, [activeWorkspaceId, navigate])
 
   // Focus zone management

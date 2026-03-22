@@ -1,3 +1,5 @@
+import type { SkillMetadata } from '../skills/types.ts';
+
 export interface MarketplaceSkillMeta {
   name: string;
   displayName: string;
@@ -18,4 +20,14 @@ export interface MarketplaceRegistry {
 export interface MarketplaceSkillFile {
   path: string;
   content: string;
+}
+
+export interface MarketplaceSkillPreview {
+  slug: string;
+  metadata: SkillMetadata;
+  content: string;
+  author: string;
+  tags: string[];
+  version: string;
+  updatedAt: string;
 }

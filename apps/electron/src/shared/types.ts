@@ -840,6 +840,7 @@ export const IPC_CHANNELS = {
 
   // Skills Marketplace
   MARKETPLACE_GET_REGISTRY: 'marketplace:getRegistry',
+  MARKETPLACE_GET_SKILL_PREVIEW: 'marketplace:getSkillPreview',
   MARKETPLACE_INSTALL_SKILL: 'marketplace:installSkill',
 
   // Scheduler hooks CRUD (workspace-scoped)
@@ -1190,6 +1191,7 @@ export interface ElectronAPI {
 
   // Skills Marketplace
   getMarketplaceRegistry(): Promise<import('@work-agent/shared/marketplace').MarketplaceRegistry>
+  getMarketplaceSkillPreview(skillName: string): Promise<import('@work-agent/shared/marketplace').MarketplaceSkillPreview>
   installMarketplaceSkill(workspaceId: string, skillName: string): Promise<void>
 
   // Scheduler hooks CRUD

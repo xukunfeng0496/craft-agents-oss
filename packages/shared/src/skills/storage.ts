@@ -63,9 +63,10 @@ function normalizeRequiredSources(value: unknown): string[] | undefined {
 // ============================================================
 
 /**
- * Parse SKILL.md content and extract frontmatter + body
+ * Parse SKILL.md content and extract frontmatter + body.
+ * Exported so marketplace previews can reuse the same validation rules.
  */
-function parseSkillFile(content: string): { metadata: SkillMetadata; body: string } | null {
+export function parseSkillFile(content: string): { metadata: SkillMetadata; body: string } | null {
   try {
     const parsed = matter(content);
 

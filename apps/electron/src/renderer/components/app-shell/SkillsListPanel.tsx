@@ -21,6 +21,7 @@ import { SkillMenu } from './SkillMenu'
 import { cn } from '@/lib/utils'
 import type { LoadedSkill } from '../../../shared/types'
 import { toast } from 'sonner'
+import { MARKETPLACE_HOST, isMarketplaceConnectivityError } from '@work-agent/shared/marketplace'
 
 type FilterType = 'all' | 'installed' | 'not-installed'
 
@@ -45,7 +46,7 @@ interface MergedSkill {
 export interface SkillsListPanelProps {
   skills: LoadedSkill[]
   onDeleteSkill: (skillSlug: string) => void
-  onSkillClick: (skill: LoadedSkill) => void
+  onSkillClick: (skillSlug: string) => void
   selectedSkillSlug?: string | null
   workspaceId?: string
   workspaceRootPath?: string
@@ -72,12 +73,18 @@ export function SkillsListPanel({
     try {
       const registry = await window.electronAPI.getMarketplaceRegistry()
       setRemoteSkills(registry.skills || [])
-    } catch {
-      // silent
+    } catch (error) {
+      if (isMarketplaceConnectivityError(error)) {
+        toast.error(t('common:marketplace.unreachable', { host: MARKETPLACE_HOST }))
+      } else {
+        toast.error(t('common:marketplace.loadFailed'), {
+          description: error instanceof Error ? error.message : t('common:unknownError'),
+        })
+      }
     } finally {
       setRemoteFetched(true)
     }
-  }, [remoteFetched])
+  }, [remoteFetched, t])
 
   useEffect(() => {
     if (workspaceId) fetchRemote()
@@ -133,7 +140,13 @@ export function SkillsListPanel({
       await window.electronAPI.installMarketplaceSkill(workspaceId, name)
       toast.success(`${name} ${t('common:skillsList.installed')}`)
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Install failed')
+      if (isMarketplaceConnectivityError(e)) {
+        toast.error(t('common:marketplace.unreachable', { host: MARKETPLACE_HOST }))
+      } else {
+        toast.error(t('common:marketplace.installFailed'), {
+          description: e instanceof Error ? e.message : t('common:unknownError'),
+        })
+      }
     } finally {
       setInstalling(null)
     }
@@ -190,15 +203,17 @@ export function SkillsListPanel({
                 isSelected={selectedSkillSlug === item.slug}
                 isFirst={index === 0}
                 workspaceId={workspaceId}
-                onClick={() => onSkillClick(item.local!)}
+                onClick={() => onSkillClick(item.slug)}
                 onDelete={() => onDeleteSkill(item.slug)}
               />
             ) : (
               <RemoteSkillItem
                 key={item.slug}
                 item={item}
+                isSelected={selectedSkillSlug === item.slug}
                 isFirst={index === 0}
                 installing={installing === item.slug}
+                onClick={() => onSkillClick(item.slug)}
                 onInstall={() => handleInstall(item.slug)}
               />
             )
@@ -322,16 +337,18 @@ function InstalledSkillItem({ skill, isSelected, isFirst, workspaceId, onClick, 
 
 interface RemoteSkillItemProps {
   item: MergedSkill
+  isSelected: boolean
   isFirst: boolean
   installing: boolean
+  onClick: () => void
   onInstall: () => void
 }
 
-function RemoteSkillItem({ item, isFirst, installing, onInstall }: RemoteSkillItemProps) {
+function RemoteSkillItem({ item, isSelected, isFirst, installing, onClick, onInstall }: RemoteSkillItemProps) {
   const { t } = useTranslation(['common'])
 
   return (
-    <div className="skill-item">
+    <div className="skill-item" data-selected={isSelected || undefined}>
       {!isFirst && (
         <div className="skill-separator pl-12 pr-4">
           <Separator />
@@ -343,19 +360,38 @@ function RemoteSkillItem({ item, isFirst, installing, onInstall }: RemoteSkillIt
             <Zap className="h-3 w-3 text-muted-foreground" />
           </div>
         </div>
-        <div className="flex w-full items-start gap-2 pl-2 pr-4 py-3 text-left text-sm rounded-[8px] hover:bg-foreground/2">
+        <button
+          type="button"
+          onClick={onClick}
+          className={cn(
+            'flex w-full items-start gap-2 pl-2 pr-4 py-3 text-left text-sm rounded-[8px] transition-all outline-none',
+            isSelected
+              ? 'bg-foreground/5 hover:bg-foreground/7'
+              : 'hover:bg-foreground/2'
+          )}
+        >
           <div className="w-5 h-5 shrink-0" />
           <div className="flex flex-col gap-1 min-w-0 flex-1">
             <div className="flex items-start gap-2 w-full pr-16 min-w-0">
-              <div className="font-medium font-sans line-clamp-2 min-w-0 -mb-[2px] text-foreground/60">
+              <div
+                className={cn(
+                  'font-medium font-sans line-clamp-2 min-w-0 -mb-[2px]',
+                  isSelected ? 'text-foreground/80' : 'text-foreground/60'
+                )}
+              >
                 {item.name}
               </div>
             </div>
-            <div className="flex items-center gap-1.5 text-xs text-foreground/40 w-full -mb-[2px] pr-16 min-w-0">
+            <div
+              className={cn(
+                'flex items-center gap-1.5 text-xs w-full -mb-[2px] pr-16 min-w-0',
+                isSelected ? 'text-foreground/55' : 'text-foreground/40'
+              )}
+            >
               <span className="truncate">{item.description}</span>
             </div>
           </div>
-        </div>
+        </button>
         <div className="absolute right-3 top-1/2 -translate-y-1/2 z-10">
           <button
             type="button"

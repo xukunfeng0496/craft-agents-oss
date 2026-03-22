@@ -201,6 +201,12 @@
     "sourceNotFound": "未找到来源",
     "skillNotFound": "未找到技能"
   },
+  "marketplace": {
+    "unreachable": "无法连接技能市场，请检查到 {{host}} 的网络。",
+    "loadFailed": "加载技能市场失败。",
+    "installFailed": "安装技能失败。",
+    "previewFailed": "加载技能预览失败。"
+  },
   "sourceInfo": {
     "disabledTitle": "来源已禁用",
     "disabledDescription": "设置 > 高级 中已禁用本地 MCP 服务。启用后即可使用该来源。",

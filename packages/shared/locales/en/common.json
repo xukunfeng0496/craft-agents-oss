@@ -201,6 +201,12 @@
     "sourceNotFound": "Source not found",
     "skillNotFound": "Skill not found"
   },
+  "marketplace": {
+    "unreachable": "Unable to reach the skill marketplace. Check your network access to {{host}}.",
+    "loadFailed": "Failed to load the skill marketplace.",
+    "installFailed": "Failed to install the skill.",
+    "previewFailed": "Failed to load the skill preview."
+  },
   "sourceInfo": {
     "disabledTitle": "Source Disabled",
     "disabledDescription": "Local MCP servers are disabled in Settings > Advanced. Enable them to use this source.",

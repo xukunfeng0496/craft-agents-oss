@@ -342,6 +342,8 @@ const api: ElectronAPI = {
   // Skills Marketplace
   getMarketplaceRegistry: () =>
     ipcRenderer.invoke(IPC_CHANNELS.MARKETPLACE_GET_REGISTRY),
+  getMarketplaceSkillPreview: (skillName: string) =>
+    ipcRenderer.invoke(IPC_CHANNELS.MARKETPLACE_GET_SKILL_PREVIEW, skillName),
   installMarketplaceSkill: (workspaceId: string, skillName: string) =>
     ipcRenderer.invoke(IPC_CHANNELS.MARKETPLACE_INSTALL_SKILL, workspaceId, skillName),
 

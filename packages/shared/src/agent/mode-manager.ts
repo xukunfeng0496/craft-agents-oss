@@ -1859,7 +1859,7 @@ export function getSessionState(sessionId: string): { permissionMode: Permission
  */
 export function formatSessionState(
   sessionId: string,
-  options?: { plansFolderPath?: string; dataFolderPath?: string }
+  options?: { plansFolderPath?: string; dataFolderPath?: string; outputFolderPath?: string }
 ): string {
   const mode = getPermissionMode(sessionId);
 
@@ -1875,6 +1875,11 @@ export function formatSessionState(
   // Include data folder path so agent knows where transform_data output goes
   if (options?.dataFolderPath) {
     result += `\ndataFolderPath: ${options.dataFolderPath}`;
+  }
+
+  // Include user-visible output folder path for generated artifacts.
+  if (options?.outputFolderPath) {
+    result += `\noutputFolderPath: ${options.outputFolderPath}`;
   }
 
   result += '\n</session_state>';

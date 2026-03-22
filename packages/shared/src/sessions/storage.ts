@@ -101,6 +101,31 @@ export function getSessionFilePath(workspaceRootPath: string, sessionId: string)
 }
 
 /**
+ * Resolve the user-visible output directory for a session.
+ *
+ * Resolution order:
+ * 1. Explicit workingDirectory argument
+ * 2. Persisted session.workingDirectory
+ * 3. Session storage directory
+ */
+export function getSessionOutputPath(
+  workspaceRootPath: string,
+  sessionId: string,
+  workingDirectory?: string
+): string {
+  if (workingDirectory) {
+    return workingDirectory;
+  }
+
+  const stored = loadSession(workspaceRootPath, sessionId);
+  if (stored?.workingDirectory) {
+    return stored.workingDirectory;
+  }
+
+  return getSessionPath(workspaceRootPath, sessionId);
+}
+
+/**
  * Resolve the runtime directory for a session.
  *
  * Resolution order:
@@ -186,7 +211,7 @@ export function getSessionPlansPath(
 }
 
 /**
- * Get the data directory for a session (transform_data tool output).
+ * Get the internal data directory for a session runtime.
  */
 export function getSessionDataPath(
   workspaceRootPath: string,

@@ -25,11 +25,11 @@
 import { createSdkMcpServer, tool } from '@anthropic-ai/claude-agent-sdk';
 import { z } from 'zod';
 import { randomUUID } from 'node:crypto';
-import { getSessionDataPath, getSessionPlansPath, getSessionRuntimePath } from '../sessions/storage.ts';
+import { getSessionOutputPath, getSessionPlansPath, getSessionRuntimePath } from '../sessions/storage.ts';
 import { debug } from '../utils/debug.ts';
 import { DOC_REFS } from '../docs/index.ts';
 import { createClaudeContext } from './claude-context.ts';
-import { basename, join, normalize, resolve } from 'node:path';
+import { basename, isAbsolute, join, relative, resolve } from 'node:path';
 import { spawn } from 'node:child_process';
 import { existsSync, mkdirSync, writeFileSync, unlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -320,8 +320,8 @@ const renderTemplateSchema = {
 const transformDataSchema = {
   language: z.enum(['python3', 'node', 'bun']).describe('Script runtime to use'),
   script: z.string().describe('Transform script source code. Receives input file paths as command-line args (sys.argv[1:] or process.argv.slice(2)), last arg is the output file path.'),
-  inputFiles: z.array(z.string()).describe('Input file paths relative to the session runtime folder (e.g., "long_responses/stripe_txns.txt")'),
-  outputFile: z.string().describe('Output file name relative to session data/ dir (e.g., "transactions.json")'),
+  inputFiles: z.array(z.string()).describe('Input file paths relative to the session runtime folder or session output folder (e.g., "long_responses/stripe_txns.txt" or "transactions.json")'),
+  outputFile: z.string().describe('Output file path relative to the session output folder (e.g., "transactions.json")'),
 };
 
 const askUserQuestionSchema = {
@@ -445,7 +445,7 @@ Use this when a source provides HTML templates for rich rendering of its data (e
 
 **Available templates** are documented in each source's \`guide.md\` under the "Templates" section.
 
-Templates use Mustache syntax — the tool handles rendering and writes the output HTML to the session data folder.`,
+Templates use Mustache syntax — the tool handles rendering and writes the output HTML to the session output folder.`,
 
   transform_data: `Transform data files using a script and write structured output for datatable/spreadsheet blocks, or extract HTML content for html-preview blocks.
 
@@ -453,7 +453,7 @@ Use this tool when you need to transform large datasets (20+ rows) into structur
 
 **Workflow:**
 1. Call \`transform_data\` with a script that reads input files and writes output
-2. Output a datatable/spreadsheet block with \`"src": "data/output.json"\`, an html-preview block with \`"src": "data/output.html"\`, or a pdf-preview block with \`"src": "data/output.pdf"\`
+2. Use the absolute path returned by \`transform_data\` as the \`"src"\` value in your datatable, spreadsheet, html-preview, or pdf-preview block
 
 **Script conventions:**
 - Input file paths are passed as command-line arguments (last arg = output file path)
@@ -515,6 +515,31 @@ const BLOCKED_ENV_VARS = [
 
 const TRANSFORM_DATA_TIMEOUT_MS = 30_000;
 
+function isPathWithinRoot(targetPath: string, rootPath: string): boolean {
+  const rel = relative(rootPath, targetPath);
+  return rel === '' || (!rel.startsWith('..') && !isAbsolute(rel));
+}
+
+function resolveSessionInputPath(
+  inputFile: string,
+  sessionRuntimeDir: string,
+  sessionOutputDir: string
+): string | null {
+  const candidates = isAbsolute(inputFile)
+    ? [inputFile]
+    : [resolve(sessionRuntimeDir, inputFile), resolve(sessionOutputDir, inputFile)];
+
+  for (const candidate of candidates) {
+    const inRuntime = isPathWithinRoot(candidate, sessionRuntimeDir);
+    const inOutput = isPathWithinRoot(candidate, sessionOutputDir);
+    if ((inRuntime || inOutput) && existsSync(candidate)) {
+      return candidate;
+    }
+  }
+
+  return null;
+}
+
 async function handleTransformData(
   sessionId: string,
   workspaceRootPath: string,
@@ -527,39 +552,33 @@ async function handleTransformData(
   }
 ): Promise<{ content: Array<{ type: 'text'; text: string }>; isError?: boolean }> {
   const sessionDir = getSessionRuntimePath(workspaceRootPath, sessionId, runtimeDirectory);
-  const dataDir = getSessionDataPath(workspaceRootPath, sessionId, runtimeDirectory);
+  const outputDir = getSessionOutputPath(workspaceRootPath, sessionId);
 
-  // Validate outputFile doesn't escape data/ directory
-  const resolvedOutput = resolve(dataDir, args.outputFile);
-  if (!resolvedOutput.startsWith(normalize(dataDir))) {
+  // Validate outputFile doesn't escape the visible output directory
+  const resolvedOutput = resolve(outputDir, args.outputFile);
+  if (!isPathWithinRoot(resolvedOutput, outputDir)) {
     return {
-      content: [{ type: 'text', text: `Error: outputFile must be within the session data directory. Got: ${args.outputFile}` }],
+      content: [{ type: 'text', text: `Error: outputFile must be within the session output folder. Got: ${args.outputFile}` }],
       isError: true,
     };
   }
 
-  // Resolve and validate input files (relative to the session runtime folder)
+  // Resolve and validate input files from either the runtime folder or the visible output folder.
   const resolvedInputs: string[] = [];
   for (const inputFile of args.inputFiles) {
-    const resolvedInput = resolve(sessionDir, inputFile);
-    if (!resolvedInput.startsWith(normalize(sessionDir))) {
+    const resolvedInput = resolveSessionInputPath(inputFile, sessionDir, outputDir);
+    if (!resolvedInput) {
       return {
-        content: [{ type: 'text', text: `Error: inputFile must be within the session directory. Got: ${inputFile}` }],
-        isError: true,
-      };
-    }
-    if (!existsSync(resolvedInput)) {
-      return {
-        content: [{ type: 'text', text: `Error: input file not found: ${inputFile}` }],
+        content: [{ type: 'text', text: `Error: input file not found in the session runtime or output folder: ${inputFile}` }],
         isError: true,
       };
     }
     resolvedInputs.push(resolvedInput);
   }
 
-  // Ensure data directory exists
-  if (!existsSync(dataDir)) {
-    mkdirSync(dataDir, { recursive: true });
+  // Ensure visible output directory exists
+  if (!existsSync(outputDir)) {
+    mkdirSync(outputDir, { recursive: true });
   }
 
   // Write script to temp file
@@ -587,7 +606,7 @@ async function handleTransformData(
     // SIGTERM, which can be caught/ignored — leaving the promise hanging forever.
     const result = await new Promise<{ stdout: string; stderr: string; code: number | null }>((resolvePromise, reject) => {
       const child = spawn(cmd, spawnArgs, {
-        cwd: dataDir,
+        cwd: outputDir,
         env,
         stdio: ['ignore', 'pipe', 'pipe'],
       });
@@ -708,14 +727,14 @@ async function handleRenderTemplate(
     };
   }
 
-  // Write output to session data folder
-  const dataDir = getSessionDataPath(workspaceRootPath, sessionId, runtimeDirectory);
-  if (!existsSync(dataDir)) {
-    mkdirSync(dataDir, { recursive: true });
+  // Write output to the visible session output folder
+  const outputDir = getSessionOutputPath(workspaceRootPath, sessionId);
+  if (!existsSync(outputDir)) {
+    mkdirSync(outputDir, { recursive: true });
   }
 
   const outputFileName = `${args.source}-${args.template}-${Date.now()}.html`;
-  const outputPath = join(dataDir, outputFileName);
+  const outputPath = join(outputDir, outputFileName);
   writeFileSync(outputPath, rendered, 'utf-8');
 
   // Build response

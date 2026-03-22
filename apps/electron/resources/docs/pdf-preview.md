@@ -93,7 +93,7 @@ When the Read tool reads a PDF, the file already exists on disk. Reference it di
 
 When a tool downloads a PDF (e.g., from an API response that returns binary data):
 
-1. The file is typically saved to the session downloads folder
+1. The file is typically saved to the session output folder
 2. Reference the saved path in the `pdf-preview` block
 
 ````

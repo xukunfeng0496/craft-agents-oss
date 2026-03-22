@@ -104,8 +104,10 @@ export interface ContextBlockOptions {
   permissionMode?: string;
   /** Plans folder path */
   plansFolderPath?: string;
-  /** Data folder path (transform_data tool output) */
+  /** Scratch data folder path for Explore-mode writes */
   dataFolderPath?: string;
+  /** User-visible output folder path for generated artifacts */
+  outputFolderPath?: string;
   /** Active source slugs */
   activeSources?: string[];
   /** Inactive source slugs */

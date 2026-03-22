@@ -72,7 +72,7 @@ Content loads lazily on tab switch and is cached once loaded.
 
 *Either `src` (single) or `items` (multiple) is required. If both are present, `items` takes precedence.
 
-**Important:** The `src` path must be an **absolute path** — use the exact path returned by `transform_data` or construct one using the session data folder path.
+**Important:** The `src` path must be an **absolute path** — use the exact path returned by `transform_data`, `render_template`, or `Write`.
 
 ## Preparing HTML Content
 
@@ -88,18 +88,18 @@ The `transform_data` tool is the primary way to extract and write HTML files. It
 |-----------|------|-------------|
 | `language` | `"python3"` \| `"node"` \| `"bun"` | Script runtime |
 | `script` | string | Transform script source code |
-| `inputFiles` | string[] | Input file paths relative to session dir |
-| `outputFile` | string | Output file name ending in `.html` (written to session `data/` dir) |
+| `inputFiles` | string[] | Input file paths relative to the session runtime/output folders, or absolute paths returned by prior tools |
+| `outputFile` | string | Output file name ending in `.html` (written to the session output folder) |
 
 **Path conventions:**
-- **Input files** are relative to the session directory. Common locations:
+- **Input files** can come from the session runtime folder, the session output folder, or a prior absolute path. Common locations:
   - `long_responses/tool_result_abc.txt` — saved tool results (Gmail API responses, etc.)
-  - `data/previous_output.html` — output from a prior transform
-- **Output file** is relative to the session `data/` directory. Just provide the filename (e.g., `"email.html"`)
+  - `previous_output.html` — output from a prior transform
+- **Output file** is relative to the session output folder. Just provide the filename (e.g., `"email.html"`)
 
 ### Using Write Tool
 
-For smaller HTML content (generated reports, simple HTML), you can use the `Write` tool directly to write an `.html` file to the session data folder, then reference it.
+For smaller HTML content (generated reports, simple HTML), you can use the `Write` tool directly to write an `.html` file to the session scratch data folder, then reference it.
 
 ## Common Patterns & Recipes
 
@@ -377,7 +377,7 @@ Does the user explicitly want to SEE the email/HTML?
 
 ### "Loading..." shown indefinitely
 - The `"src"` path must be an **absolute path** — use the exact path returned by `transform_data`
-- Do not construct relative paths or guess the data folder location
+- Do not construct relative paths or guess the folder location
 - Verify `transform_data` succeeded (check the tool result message)
 
 ### Blank/white iframe

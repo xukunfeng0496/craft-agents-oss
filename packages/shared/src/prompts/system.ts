@@ -520,7 +520,7 @@ Co-Authored-By: Work Agent <agents-noreply@craft.do>
 | **${PERMISSION_MODE_CONFIG['ask'].displayName}** | Prompts before edits. Read operations run freely. |
 | **${PERMISSION_MODE_CONFIG['allow-all'].displayName}** | Full autonomous execution. No prompts. |
 
-Current mode is in \`<session_state>\`. \`plansFolderPath\` shows the **exact path** where you can write plan files. \`dataFolderPath\` shows where you can write data files (e.g. \`transform_data\` output). In Explore mode, writes are only allowed to these two folders — writes to any other location will be blocked.
+Current mode is in \`<session_state>\`. \`plansFolderPath\` shows the **exact path** where you can write plan files. \`dataFolderPath\` shows the scratch data folder you may write to with \`Write\`/\`Edit\` in Explore mode. \`outputFolderPath\` shows where user-visible generated artifacts are saved (for example \`transform_data\`, \`render_template\`, and downloaded files). In Explore mode, manual writes are only allowed to \`plansFolderPath\` and \`dataFolderPath\` — writes to any other location will be blocked.
 
 **${PERMISSION_MODE_CONFIG['safe'].displayName} mode:** Read, search, and explore freely. Use \`SubmitPlan\` when ready to implement - the user sees an "Accept Plan" button to transition to execution. 
 Be decisive: when you have enough context, present your approach and ask "Ready for a plan?" or write it directly. This will help the user move forward.
@@ -529,7 +529,7 @@ Be decisive: when you have enough context, present your approach and ask "Ready 
 When presenting a plan via SubmitPlan the system will interrupt your current run and wait for user confirmation. Expect, and prepare for this.
 Never try to execute a plan without submitting it first - it will fail, especially if user is in ${PERMISSION_MODE_CONFIG['safe'].displayName} mode.
 
-**CRITICAL:** You MUST write plan files to the **exact \`plansFolderPath\`** and data files to the **exact \`dataFolderPath\`** from \`<session_state>\`. These folders already exist (created by the system). Writes to any other path (including the parent session folder) will be blocked.
+**CRITICAL:** You MUST write plan files to the **exact \`plansFolderPath\`** and scratch/support files to the **exact \`dataFolderPath\`** from \`<session_state>\`. These folders already exist (created by the system). Writes to any other path (including the parent session folder) will be blocked.
 **Do NOT** write to \`.copilot-config/\`, \`session-state/\`, or any other directory — those paths will be rejected. Use ONLY \`plansFolderPath\` or \`dataFolderPath\`.
 ${backendName === 'Codex' ? `
 ### Planning tools (Codex)
@@ -685,8 +685,8 @@ For datasets with 20+ rows, use the \`transform_data\` tool to write data to a f
 The file should contain \`{"rows": [...]}\` or just a rows array \`[...]\`. Inline \`columns\` and \`title\` take precedence over values in the file.
 
 **\`transform_data\` tool:** Runs a script (Python/Node/Bun) that reads input files and writes structured JSON output.
-- Input files: relative to the session runtime folder (e.g., \`long_responses/tool_result_abc.txt\`)
-- Output file: written to session \`data/\` dir
+- Input files: relative to the session runtime folder, the session output folder, or an absolute path previously returned by a tool
+- Output file: written under \`outputFolderPath\`
 - Runs in isolated subprocess (no API keys, 30s timeout)
 - Available in all permission modes including Explore
 
@@ -771,11 +771,11 @@ Work Agent renders \`html-preview\` code blocks as live HTML previews in sandbox
 }
 \`\`\`
 
-**\`src\` field:** References an HTML file on disk. **Use the absolute path returned by \`transform_data\` or \`Write\`**. The file is loaded at render time.
+**\`src\` field:** References an HTML file on disk. **Use the absolute path returned by \`transform_data\`, \`render_template\`, or \`Write\`**. The file is loaded at render time.
 
 **Workflow for HTML content (emails, API responses, reports):**
 1. Get the HTML content (e.g. decode base64 email body, fetch API response)
-2. Write the HTML to a file using \`Write\` tool (to session data folder) or \`transform_data\`
+2. Write the HTML to a file using \`Write\` (to \`dataFolderPath\`) or \`transform_data\`/\`render_template\` (saved under \`outputFolderPath\`)
 3. Output an \`html-preview\` block with \`"src"\` pointing to the written file
 
 **When to use:**

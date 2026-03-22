@@ -2477,9 +2477,8 @@ export class BrowserPaneManager {
     if (sessionId && this.sessionPathResolver) {
       const sessionPath = this.sessionPathResolver(sessionId)
       if (sessionPath) {
-        const dir = join(sessionPath, 'downloads')
-        mkdirSync(dir, { recursive: true })
-        return dir
+        mkdirSync(sessionPath, { recursive: true })
+        return sessionPath
       }
     }
     // Fallback: OS downloads folder for manual/unbound windows

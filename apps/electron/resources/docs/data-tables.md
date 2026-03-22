@@ -96,15 +96,15 @@ Use the `transform_data` tool + `"src"` field when:
 |-----------|------|-------------|
 | `language` | `"python3"` \| `"node"` \| `"bun"` | Script runtime |
 | `script` | string | Transform script source code |
-| `inputFiles` | string[] | Input file paths relative to session dir |
-| `outputFile` | string | Output file name (written to session `data/` dir) |
+| `inputFiles` | string[] | Input file paths relative to the session runtime/output folders, or absolute paths returned by prior tools |
+| `outputFile` | string | Output file path written to the session output folder |
 
 **Path conventions:**
-- **Input files** are relative to the session directory. Common locations:
+- **Input files** can come from the session runtime folder, the session output folder, or a prior absolute path. Common locations:
   - `long_responses/tool_result_abc.txt` — saved tool results
-  - `data/previous_output.json` — output from a prior transform
+  - `previous_output.json` — output from a prior transform in the session output folder
   - `attachments/data.csv` — user-attached files
-- **Output file** is relative to the session `data/` directory. Just provide the filename (e.g., `"transactions.json"`)
+- **Output file** is relative to the session output folder. Just provide the filename (e.g., `"transactions.json"`)
 
 **Script argument conventions:**
 - Input file paths are passed as positional command-line arguments
@@ -333,7 +333,7 @@ fs.writeFileSync(process.argv.at(-1), JSON.stringify({ rows }));
 
 - **Isolated subprocess:** Scripts run in a child process with no access to API keys, credentials, or sensitive environment variables
 - **30-second timeout:** Scripts that exceed 30 seconds are killed
-- **Path sandboxing:** Input files must be within the session directory. Output files must be within the session `data/` directory. Path traversal attempts (e.g., `../`) are blocked.
+- **Path sandboxing:** Input files must resolve inside the session runtime/output folders. Output files must stay within the session output folder. Path traversal attempts (e.g., `../`) are blocked.
 - **No network access:** Scripts inherit the process environment (minus secrets) but should not make network calls — use MCP tools for data fetching, then transform locally
 - **Blocked env vars:** `ANTHROPIC_API_KEY`, `CLAUDE_CODE_OAUTH_TOKEN`, `AWS_*`, `GITHUB_TOKEN`, `OPENAI_API_KEY`, `GOOGLE_API_KEY`, `STRIPE_SECRET_KEY`, `NPM_TOKEN`
 
@@ -387,7 +387,7 @@ Does the user need to export/download?
 - Verify the output is valid JSON
 
 ### "Input file not found"
-- Input paths are relative to the session directory
+- Input paths resolve from the session runtime folder, the session output folder, or a prior absolute path
 - Check the exact path from the tool result that produced the file
 - Use `long_responses/` prefix for saved tool results, `attachments/` for user-uploaded files
 

@@ -112,6 +112,7 @@ import { buildRecoveryMessages } from './session-recovery-context'
 import { processRemoteAttachments } from './remote-attachments'
 import { handleRemoteSendMessage } from './remote-control-send-message'
 import { createSessionBrowserPaneFns } from './browser-pane-session-fns'
+import { getPackagedFilesystemPath } from './packaged-paths'
 
 /**
  * Get the path to the bundled Bun executable.
@@ -156,12 +157,14 @@ export const AGENT_FLAGS = {
  * When auth errors occur, updates source configs to reflect actual state.
  *
  * @param sources - Sources to build servers for
- * @param sessionPath - Optional runtime path for saving large API responses
+ * @param sessionPath - Optional runtime path for internal session storage
+ * @param outputPath - Optional user-visible output path for generated downloads
  * @param tokenRefreshManager - Optional TokenRefreshManager for OAuth token refresh
  */
 async function buildServersFromSources(
   sources: LoadedSource[],
   sessionPath?: string,
+  outputPath?: string,
   tokenRefreshManager?: TokenRefreshManager,
   summarize?: SummarizeCallback
 ) {
@@ -193,8 +196,8 @@ async function buildServersFromSources(
     return undefined
   }
 
-  // Pass runtime path so large API responses and downloads land with other session artifacts
-  const result = await serverBuilder.buildAll(sourcesWithCreds, getTokenForSource, sessionPath, summarize)
+  // Large text responses stay in runtime storage; user-visible downloads go to the output folder.
+  const result = await serverBuilder.buildAll(sourcesWithCreds, getTokenForSource, sessionPath, summarize, outputPath)
   span.mark('servers.built')
   span.setMetadata('mcpCount', Object.keys(result.mcpServers).length)
   span.setMetadata('apiCount', Object.keys(result.apiServers).length)
@@ -237,13 +240,15 @@ interface OAuthTokenRefreshResult {
  *
  * @param agent - The agent to update server configs on
  * @param sources - All loaded sources for the session
- * @param sessionPath - Path to session folder for API response storage
+ * @param sessionPath - Runtime path for internal API response storage
+ * @param outputPath - User-visible output path for generated downloads
  * @param tokenRefreshManager - TokenRefreshManager instance for this session
  */
 async function refreshOAuthTokensIfNeeded(
   agent: AgentInstance,
   sources: LoadedSource[],
   sessionPath: string,
+  outputPath: string,
   tokenRefreshManager: TokenRefreshManager,
   options?: { sessionId?: string; workspaceRootPath?: string }
 ): Promise<OAuthTokenRefreshResult> {
@@ -274,6 +279,7 @@ async function refreshOAuthTokensIfNeeded(
     const { mcpServers, apiServers } = await buildServersFromSources(
       enabledSources,
       sessionPath,
+      outputPath,
       tokenRefreshManager,
       agent.getSummarizeCallback()
     )
@@ -350,18 +356,18 @@ async function setupCodexSessionConfig(
 
   // Generate config.toml with enabled sources
   // Bridge server path differs between packaged app and development:
-  // - Packaged: resources/bridge-mcp-server/index.js (copied during build)
+  // - Packaged: dist/resources/bridge-mcp-server/index.js (copied to real filesystem)
   // - Dev: packages/bridge-mcp-server/dist/index.js (built by electron:build:main)
   const bridgeServerPath = app.isPackaged
-    ? join(app.getAppPath(), 'resources', 'bridge-mcp-server', 'index.js')
+    ? getPackagedFilesystemPath('dist', 'resources', 'bridge-mcp-server', 'index.js')
     : join(process.cwd(), 'packages', 'bridge-mcp-server', 'dist', 'index.js')
   const bridgeConfigPath = join(sessionPath, '.codex-home', 'bridge-config.json')
 
   // Session MCP server path - provides session-scoped tools (SubmitPlan, config_validate, etc.)
-  // - Packaged: resources/session-mcp-server/index.js (copied during build)
+  // - Packaged: dist/resources/session-mcp-server/index.js (copied to real filesystem)
   // - Dev: packages/session-mcp-server/dist/index.js (built by electron:build:main)
   const sessionServerPath = app.isPackaged
-    ? join(app.getAppPath(), 'resources', 'session-mcp-server', 'index.js')
+    ? getPackagedFilesystemPath('dist', 'resources', 'session-mcp-server', 'index.js')
     : join(process.cwd(), 'packages', 'session-mcp-server', 'dist', 'index.js')
 
   // Check if bridge server exists - if not, log warning and skip bridge config
@@ -510,7 +516,7 @@ async function setupCopilotBridgeConfig(
  */
 function resolveBridgeServerPath(): { path: string; exists: boolean } {
   const bridgeServerPath = app.isPackaged
-    ? join(app.getAppPath(), 'resources', 'bridge-mcp-server', 'index.js')
+    ? getPackagedFilesystemPath('dist', 'resources', 'bridge-mcp-server', 'index.js')
     : join(process.cwd(), 'packages', 'bridge-mcp-server', 'dist', 'index.js')
   return { path: bridgeServerPath, exists: existsSync(bridgeServerPath) }
 }
@@ -1017,7 +1023,7 @@ export class SessionManager {
 
   setBrowserPaneManager(bpm: BrowserPaneManager): void {
     this.browserPaneManager = bpm
-    bpm.setSessionPathResolver((sessionId) => this.getSessionRuntimePath(sessionId))
+    bpm.setSessionPathResolver((sessionId) => this.getSessionOutputPath(sessionId))
   }
 
   private getDeltaPerfWindow(sessionId: string): DeltaPerfWindow {
@@ -1425,7 +1431,8 @@ export class SessionManager {
       enabledSlugs.includes(s.config.slug) && isSourceUsable(s)
     )
     const runtimePath = this.resolveManagedRuntimeDirectory(managed)
-    const { mcpServers, apiServers } = await buildServersFromSources(enabledSources, runtimePath, managed.tokenRefreshManager, managed.agent?.getSummarizeCallback())
+    const outputPath = this.resolveManagedOutputDirectory(managed)
+    const { mcpServers, apiServers } = await buildServersFromSources(enabledSources, runtimePath, outputPath, managed.tokenRefreshManager, managed.agent?.getSummarizeCallback())
     const intendedSlugs = enabledSources.map(s => s.config.slug)
 
     // For Codex backend, regenerate config.toml and reconnect
@@ -1541,9 +1548,9 @@ export class SessionManager {
   async initialize(): Promise<void> {
     try {
       // Set path to Claude Code executable (cli.js from SDK)
-      // In packaged app: use app.getAppPath() (points to app folder, ASAR is disabled)
-      // In development: use process.cwd()
-      const basePath = app.isPackaged ? app.getAppPath() : process.cwd()
+      // In packaged app: use the real filesystem path outside app.asar.
+      // In development: use process.cwd().
+      const basePath = app.isPackaged ? getPackagedFilesystemPath() : process.cwd()
 
       // In monorepos, dependencies may be hoisted to the root node_modules
       // Try local first, then check monorepo root (two levels up from apps/electron)
@@ -1582,14 +1589,15 @@ export class SessionManager {
       }
 
       // Set path to fetch interceptor for SDK subprocess
-      // This interceptor captures API errors and adds metadata to MCP tool schemas
-      // In monorepos, packages may be at the root level, not inside apps/electron
-      const interceptorRelativePath = join('packages', 'shared', 'src', 'network-interceptor.ts')
-      let interceptorPath = join(basePath, interceptorRelativePath)
+      // This interceptor captures API errors and adds metadata to MCP tool schemas.
+      // In packaged apps it must live on the real filesystem because Bun preloads it.
+      let interceptorPath = app.isPackaged
+        ? getPackagedFilesystemPath('dist', 'network-interceptor.cjs')
+        : join(basePath, 'packages', 'shared', 'src', 'network-interceptor.ts')
       if (!existsSync(interceptorPath) && !app.isPackaged) {
         // Try monorepo root (../../packages from apps/electron)
         const monorepoRoot = join(basePath, '..', '..')
-        interceptorPath = join(monorepoRoot, interceptorRelativePath)
+        interceptorPath = join(monorepoRoot, 'packages', 'shared', 'src', 'network-interceptor.ts')
       }
       if (!existsSync(interceptorPath)) {
         const error = `Network interceptor not found at ${interceptorPath}. The app package may be corrupted.`
@@ -1601,10 +1609,9 @@ export class SessionManager {
       setInterceptorPath(interceptorPath)
 
       // Resolve Copilot network interceptor (loaded via NODE_OPTIONS="--require ..." into Copilot CLI subprocess)
-      // Must be bundled CJS since it runs under Electron's Node.js, not Bun
-      // Built by `bun run build:copilot-interceptor` → apps/electron/dist/copilot-interceptor.cjs
-      // In dev: basePath is monorepo root, so add apps/electron/ prefix
-      // In packaged: basePath is the app dir, dist/ is directly inside
+      // Must be bundled CJS since it runs under Node/Electron, not Bun.
+      // In packaged apps it must live on the real filesystem because the Copilot CLI
+      // receives it through NODE_OPTIONS="--require ...".
       let copilotInterceptorPath = join(basePath, 'dist', 'copilot-interceptor.cjs')
       if (!existsSync(copilotInterceptorPath) && !app.isPackaged) {
         copilotInterceptorPath = join(basePath, 'apps', 'electron', 'dist', 'copilot-interceptor.cjs')
@@ -2023,13 +2030,14 @@ export class SessionManager {
     if (result.success && result.sourceSlug && managed.agent instanceof CodexBackend) {
       const workspaceRootPath = managed.workspace.rootPath
       const runtimePath = this.resolveManagedRuntimeDirectory(managed)
+      const outputPath = this.resolveManagedOutputDirectory(managed)
       const enabledSlugs = managed.enabledSourceSlugs || []
       const allSources = loadAllSources(workspaceRootPath)
       const enabledSources = allSources.filter(s =>
         enabledSlugs.includes(s.config.slug) && isSourceUsable(s)
       )
       const { mcpServers } = await buildServersFromSources(
-        enabledSources, runtimePath, managed.tokenRefreshManager
+        enabledSources, runtimePath, outputPath, managed.tokenRefreshManager
       )
       await regenCodexConfigAndReconnect(
         managed.agent, runtimePath, enabledSources, mcpServers,
@@ -2303,6 +2311,15 @@ export class SessionManager {
   }
 
   /**
+   * Get the filesystem path to a session's user-visible output folder.
+   */
+  getSessionOutputPath(sessionId: string): string | null {
+    const managed = this.sessions.get(sessionId)
+    if (!managed) return null
+    return this.resolveManagedOutputDirectory(managed)
+  }
+
+  /**
    * Get the working directory for a session (where the agent executes commands)
    */
   getWorkingDirectory(sessionId: string): string | null {
@@ -2319,6 +2336,10 @@ export class SessionManager {
       return getSessionRuntimePathForWorkingDirectory(managed.workingDirectory, managed.id)
     }
     return getSessionStoragePath(managed.workspace.rootPath, managed.id)
+  }
+
+  private resolveManagedOutputDirectory(managed: Pick<ManagedSession, 'id' | 'workspace' | 'workingDirectory'>): string {
+    return managed.workingDirectory ?? getSessionStoragePath(managed.workspace.rootPath, managed.id)
   }
 
   async createSession(workspaceId: string, options?: import('../shared/types').CreateSessionOptions): Promise<Session> {
@@ -2739,12 +2760,13 @@ export class SessionManager {
         // Set up per-session Codex configuration (MCP servers, etc.)
         // This creates .codex-home/config.toml in the runtime folder
         const sessionPath = runtimePath
+        const outputPath = this.resolveManagedOutputDirectory(managed)
         const enabledSlugs = managed.enabledSourceSlugs || []
         const allSources = loadAllSources(managed.workspace.rootPath)
         const enabledSources = allSources.filter(s =>
           enabledSlugs.includes(s.config.slug) && isSourceUsable(s)
         )
-        const { mcpServers } = await buildServersFromSources(enabledSources, sessionPath, managed.tokenRefreshManager)
+        const { mcpServers } = await buildServersFromSources(enabledSources, sessionPath, outputPath, managed.tokenRefreshManager)
         const codexHome = await setupCodexSessionConfig(sessionPath, enabledSources, mcpServers, managed.id, managed.workspace.rootPath)
 
         managed.agent = new CodexBackend({
@@ -2851,17 +2873,18 @@ export class SessionManager {
 
         // Load sources for MCP config
         const sessionPath = runtimePath
+        const outputPath = this.resolveManagedOutputDirectory(managed)
         const enabledSlugs = managed.enabledSourceSlugs || []
         const allSources = loadAllSources(managed.workspace.rootPath)
         const enabledSources = allSources.filter(s =>
           enabledSlugs.includes(s.config.slug) && isSourceUsable(s)
         )
-        const { mcpServers, apiServers } = await buildServersFromSources(enabledSources, sessionPath, managed.tokenRefreshManager)
+        const { mcpServers, apiServers } = await buildServersFromSources(enabledSources, sessionPath, outputPath, managed.tokenRefreshManager)
 
         // Session MCP server path - provides session-scoped tools (SubmitPlan, config_validate, etc.)
         // Same resolution logic as Codex branch (line ~324)
         const copilotSessionServerPath = app.isPackaged
-          ? join(app.getAppPath(), 'resources', 'session-mcp-server', 'index.js')
+          ? getPackagedFilesystemPath('dist', 'resources', 'session-mcp-server', 'index.js')
           : join(process.cwd(), 'packages', 'session-mcp-server', 'dist', 'index.js')
         const copilotSessionServerExists = existsSync(copilotSessionServerPath)
         if (!copilotSessionServerExists) {
@@ -3244,7 +3267,8 @@ export class SessionManager {
         // Build server configs for all enabled sources
         const allEnabledSources = getSourcesBySlugs(workspaceRootPath, managed.enabledSourceSlugs || [])
         const sessionPath = this.resolveManagedRuntimeDirectory(managed)
-        const { mcpServers, apiServers, errors } = await buildServersFromSources(allEnabledSources, sessionPath, managed.tokenRefreshManager, managed.agent?.getSummarizeCallback())
+        const outputPath = this.resolveManagedOutputDirectory(managed)
+        const { mcpServers, apiServers, errors } = await buildServersFromSources(allEnabledSources, sessionPath, outputPath, managed.tokenRefreshManager, managed.agent?.getSummarizeCallback())
 
         if (errors.length > 0) {
           sessionLog.warn(`Source build errors during auto-enable:`, errors)
@@ -3858,7 +3882,8 @@ export class SessionManager {
     if (managed.agent) {
       const sources = getSourcesBySlugs(workspaceRootPath, sourceSlugs)
       const sessionPath = this.resolveManagedRuntimeDirectory(managed)
-      const { mcpServers, apiServers, errors } = await buildServersFromSources(sources, sessionPath, managed.tokenRefreshManager, managed.agent.getSummarizeCallback())
+      const outputPath = this.resolveManagedOutputDirectory(managed)
+      const { mcpServers, apiServers, errors } = await buildServersFromSources(sources, sessionPath, outputPath, managed.tokenRefreshManager, managed.agent.getSummarizeCallback())
       if (errors.length > 0) {
         sessionLog.warn(`Source build errors:`, errors)
       }
@@ -4571,7 +4596,8 @@ export class SessionManager {
       // Always build server configs fresh (no caching - single source of truth)
       const sources = getSourcesBySlugs(workspaceRootPath, managed.enabledSourceSlugs)
       const sessionPath = this.resolveManagedRuntimeDirectory(managed)
-      const { mcpServers, apiServers, errors } = await buildServersFromSources(sources, sessionPath, managed.tokenRefreshManager, agent.getSummarizeCallback())
+      const outputPath = this.resolveManagedOutputDirectory(managed)
+      const { mcpServers, apiServers, errors } = await buildServersFromSources(sources, sessionPath, outputPath, managed.tokenRefreshManager, agent.getSummarizeCallback())
       if (errors.length > 0) {
         sessionLog.warn(`Source build errors:`, errors)
       }
@@ -4602,6 +4628,7 @@ export class SessionManager {
           agent,
           sources,
           sessionPath,
+          outputPath,
           managed.tokenRefreshManager,
           { sessionId, workspaceRootPath }
         )

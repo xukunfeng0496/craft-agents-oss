@@ -30,6 +30,7 @@ export {
   ensureSessionDir,
   ensureSessionRuntimeDir,
   getSessionPath,
+  getSessionOutputPath,
   getSessionRuntimePath,
   getSessionFilePath,
   getSessionAttachmentsPath,

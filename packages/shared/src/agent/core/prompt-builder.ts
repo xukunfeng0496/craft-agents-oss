@@ -16,7 +16,7 @@ import { isLocalMcpEnabled } from '../../workspaces/storage.ts';
 import { formatPreferencesForPrompt } from '../../config/preferences.ts';
 import { formatSessionState } from '../mode-manager.ts';
 import { getDateTimeContext, getWorkingDirectoryContext } from '../../prompts/system.ts';
-import { getSessionDataPath, getSessionPath, getSessionPlansPath } from '../../sessions/storage.ts';
+import { getSessionDataPath, getSessionOutputPath, getSessionPath, getSessionPlansPath } from '../../sessions/storage.ts';
 import type {
   PromptBuilderConfig,
   ContextBlockOptions,
@@ -79,7 +79,9 @@ export class PromptBuilder {
       getSessionPlansPath(this.workspaceRootPath, sessionId, runtimeDirectory);
     const dataFolderPath = options.dataFolderPath ??
       getSessionDataPath(this.workspaceRootPath, sessionId, runtimeDirectory);
-    parts.push(formatSessionState(sessionId, { plansFolderPath, dataFolderPath }));
+    const outputFolderPath = options.outputFolderPath ??
+      getSessionOutputPath(this.workspaceRootPath, sessionId, this.config.session?.workingDirectory);
+    parts.push(formatSessionState(sessionId, { plansFolderPath, dataFolderPath, outputFolderPath }));
 
     // Add source state if provided
     if (sourceStateBlock) {

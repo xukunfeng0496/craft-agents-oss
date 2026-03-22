@@ -324,32 +324,30 @@ interface BinaryDownloadError {
 }
 
 /**
- * Save binary response to session's downloads folder.
+ * Save binary response to the user-visible output folder.
  * Uses atomic file creation (O_EXCL) to prevent TOCTOU race conditions.
  * Returns structured metadata for the agent, or error if save fails.
  */
 function saveBinaryResponse(
-  sessionPath: string,
+  outputPath: string,
   filename: string,
   buffer: Buffer,
   mimeType: string | null
 ): BinaryDownloadResult | BinaryDownloadError {
-  const downloadsDir = join(sessionPath, 'downloads');
-
-  // Create downloads directory with error handling
+  // Create output directory with error handling
   try {
-    mkdirSync(downloadsDir, { recursive: true });
+    mkdirSync(outputPath, { recursive: true });
   } catch (err) {
     return {
       type: 'file_download_error',
-      error: `Failed to create downloads directory: ${(err as Error).message}`,
+      error: `Failed to create output directory: ${(err as Error).message}`,
     };
   }
 
   // Atomic file creation with collision handling
   // Uses 'wx' flag (O_CREAT | O_EXCL) which fails if file exists - no TOCTOU race
   let finalFilename = filename;
-  let filePath = join(downloadsDir, finalFilename);
+  let filePath = join(outputPath, finalFilename);
   let counter = 0;
   const maxAttempts = 100;
 
@@ -379,7 +377,7 @@ function saveBinaryResponse(
         } else {
           finalFilename = `${filename}-${counter}`;
         }
-        filePath = join(downloadsDir, finalFilename);
+        filePath = join(outputPath, finalFilename);
       } else {
         // Other error (permissions, disk full, etc.)
         return {
@@ -533,7 +531,7 @@ function buildToolDescription(config: ApiConfig): string {
   }
 
   // Inform agent about binary file handling
-  desc += `\n\n**Binary Files:** Binary responses (PDFs, images, archives, etc.) are automatically saved to the session downloads folder. You'll receive: { type: "file_download", path, filename, mimeType, size, sizeHuman }. Reference the path when telling users about downloaded files.`;
+  desc += `\n\n**Binary Files:** Binary responses (PDFs, images, archives, etc.) are automatically saved to the session output folder. You'll receive: { type: "file_download", path, filename, mimeType, size, sizeHuman }. Reference the path when telling users about downloaded files.`;
 
   return desc;
 }
@@ -545,14 +543,16 @@ function buildToolDescription(config: ApiConfig): string {
  * @param config - API configuration with documentation
  * @param credential - API credential source (string for API key/token, BasicAuthCredential for basic auth,
  *                     empty string for public APIs, or async function for OAuth token refresh)
- * @param sessionPath - Optional path to session folder for saving large responses
+ * @param sessionPath - Optional runtime path for saving large text responses
+ * @param outputPath - Optional visible output path for binary downloads
  * @returns SDK tool that can be included in an MCP server
  */
 export function createApiTool(
   config: ApiConfig,
   credential: ApiCredentialSource,
   sessionPath?: string,
-  summarize?: SummarizeCallback
+  summarize?: SummarizeCallback,
+  outputPath?: string
 ) {
   const toolName = `api_${config.name}`;
   debug(`[api-tools] Creating flexible tool: ${toolName}`);
@@ -617,11 +617,11 @@ export function createApiTool(
 
         // Step 1: If Content-Type clearly indicates binary, save directly to disk
         // This skips text processing entirely for PDFs, images, etc.
-        if (contentType && !isTextContentType(contentType) && sessionPath) {
+        if (contentType && !isTextContentType(contentType) && outputPath) {
           debug(`[api-tools] ${config.name}: Binary content-type detected: ${contentType}`);
           const buffer = Buffer.from(await response.arrayBuffer());
           const filename = extractFilename(response, path, contentType, buffer);
-          const result = saveBinaryResponse(sessionPath, filename, buffer, contentType);
+          const result = saveBinaryResponse(outputPath, filename, buffer, contentType);
           if (result.type === 'file_download_error') {
             return {
               content: [{ type: 'text' as const, text: result.error }],
@@ -643,10 +643,10 @@ export function createApiTool(
 
         // Step 3: Content inspection fallback for ambiguous cases
         // If Content-Type was missing/text but content looks binary, save as file
-        if (sessionPath && looksLikeBinary(buffer)) {
+        if (outputPath && looksLikeBinary(buffer)) {
           debug(`[api-tools] ${config.name}: Binary content detected via inspection`);
           const filename = extractFilename(response, path, contentType, buffer);
-          const result = saveBinaryResponse(sessionPath, filename, buffer, contentType);
+          const result = saveBinaryResponse(outputPath, filename, buffer, contentType);
           if (result.type === 'file_download_error') {
             return {
               content: [{ type: 'text' as const, text: result.error }],
@@ -679,7 +679,7 @@ export function createApiTool(
 
         // Step 5: Check for Gmail-style base64-wrapped binary attachments
         // Gmail attachments return JSON like: { size: 31934, data: "JVBERi0xLjQ..." }
-        if (sessionPath && contentType?.includes('application/json')) {
+        if (outputPath && contentType?.includes('application/json')) {
           try {
             const json = JSON.parse(text);
             if (isGmailAttachment(json)) {
@@ -689,7 +689,7 @@ export function createApiTool(
                 debug(`[api-tools] ${config.name}: Gmail attachment detected, decoding base64`);
                 // Pass decoded buffer for magic byte detection since Gmail doesn't provide mime type
                 const filename = extractFilename(response, path, null, decoded);
-                const result = saveBinaryResponse(sessionPath, filename, decoded, null);
+                const result = saveBinaryResponse(outputPath, filename, decoded, null);
                 if (result.type === 'file_download_error') {
                   return {
                     content: [{ type: 'text' as const, text: result.error }],
@@ -754,18 +754,20 @@ export function createApiTool(
  * @param config - API configuration
  * @param credential - API credential source (string for API key/token, BasicAuthCredential for basic auth,
  *                     empty string for public APIs, or async function for OAuth token refresh)
- * @param sessionPath - Optional path to session folder for saving large responses
+ * @param sessionPath - Optional runtime path for saving large text responses
+ * @param outputPath - Optional visible output path for binary downloads
  * @returns SDK MCP server that can be passed to query()
  */
 export function createApiServer(
   config: ApiConfig,
   credential: ApiCredentialSource,
   sessionPath?: string,
-  summarize?: SummarizeCallback
+  summarize?: SummarizeCallback,
+  outputPath?: string
 ): ReturnType<typeof createSdkMcpServer> {
   debug(`[api-tools] Creating server for ${config.name}${sessionPath ? ` (session: ${sessionPath})` : ''}`);
 
-  const apiTool = createApiTool(config, credential, sessionPath, summarize);
+  const apiTool = createApiTool(config, credential, sessionPath, summarize, outputPath);
 
   return createSdkMcpServer({
     name: `api_${config.name}`,

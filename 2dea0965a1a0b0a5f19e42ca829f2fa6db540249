@@ -1,0 +1,29 @@
+package.json
+  56e1c8c1c0c899cc 3
+packages/shared/package.json
+  56e1c8c1c0c899cc 3
+apps/electron/package.json
+  56e1c8c1c0c899cc 3
+packages/core/package.json
+  56e1c8c1c0c899cc 3
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.16",
+  "base_commit_sha": "2dea0965a1a0b0a5f19e42ca829f2fa6db540249",
+  "prompts": {
+    "56e1c8c1c0c899cc": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "fb9a4a20-b22f-47e0-be27-f2b7a2d47d49",
+        "model": "glm-5"
+      },
+      "human_author": "xukunfeng <xukunfeng@cvte.com>",
+      "messages": [],
+      "total_additions": 4,
+      "total_deletions": 4,
+      "accepted_lines": 8,
+      "overriden_lines": 0
+    }
+  }
+}

@@ -1,0 +1,24 @@
+apps/electron/resources/bundled-skills/find-skills/SKILL.md
+  59a70ffd7ca7f0f1 4-5
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.16",
+  "base_commit_sha": "97c89d9fe6d096196ecc9551a21c7d54d6e67777",
+  "prompts": {
+    "59a70ffd7ca7f0f1": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "7b43a145-2237-47ef-b9ab-6e666e1a846a",
+        "model": "composer-1.5"
+      },
+      "human_author": "付金祥 <fujinxiang@cvte.com>",
+      "messages": [],
+      "total_additions": 46,
+      "total_deletions": 20,
+      "accepted_lines": 38,
+      "overriden_lines": 0,
+      "messages_url": "https://gitai.gz.cvte.cn/cas/9a6f637aadee3cbd15a042b281e15e5008015895137b21d4611d4c17f008ee2e"
+    }
+  }
+}

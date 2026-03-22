@@ -1,0 +1,46 @@
+apps/electron/src/shared/types.ts
+  609d15f884f2d2bd 840-843,1190-1193
+apps/electron/src/preload/index.ts
+  609d15f884f2d2bd 342-347
+packages/shared/package.json
+  609d15f884f2d2bd 60,62
+packages/shared/src/marketplace/index.ts
+  609d15f884f2d2bd 1-2
+apps/electron/src/main/ipc.ts
+  609d15f884f2d2bd 3423-3457
+packages/shared/src/marketplace/client.ts
+  609d15f884f2d2bd 1-24
+docs/plans/2026-03-19-integration-with-craft-agents.md
+  609d15f884f2d2bd 1-369
+packages/shared/locales/zh-CN/common.json
+  609d15f884f2d2bd 366-375
+packages/shared/locales/en/common.json
+  609d15f884f2d2bd 366-375
+packages/shared/src/marketplace/types.ts
+  609d15f884f2d2bd 1-21
+apps/electron/src/renderer/components/app-shell/SkillsListPanel.tsx
+  609d15f884f2d2bd 2-3,8,23-34,36-43,64-105,108-123,125-139,142-147,150-161,163,165-171,173,175-176,180-190,193-194,196-202,204-205,212,214,223,320-378
+package.json
+  609d15f884f2d2bd 13
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.16",
+  "base_commit_sha": "ced05e2993ab81b0faf72528e225c0d9c7c2b84a",
+  "prompts": {
+    "609d15f884f2d2bd": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "bf2d2fe6-db14-4d82-8a82-12c575727a2a",
+        "model": "claude-4.6-opus-high-thinking"
+      },
+      "human_author": "付金祥 <fujinxiang@cvte.com>",
+      "messages": [],
+      "total_additions": 301,
+      "total_deletions": 139,
+      "accepted_lines": 966,
+      "overriden_lines": 0,
+      "messages_url": "https://gitai.gz.cvte.cn/cas/137acbeb4926d92e7c8501af2145d291505365beb02322563d7118fbcc67fb72"
+    }
+  }
+}

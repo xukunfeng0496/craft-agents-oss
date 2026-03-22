@@ -1,0 +1,22 @@
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.1.16",
+  "base_commit_sha": "73a2d023c4c4531e29cb78a8eff238fa5207338d",
+  "prompts": {
+    "609d15f884f2d2bd": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "bf2d2fe6-db14-4d82-8a82-12c575727a2a",
+        "model": "claude-4.6-opus-high-thinking"
+      },
+      "human_author": "付金祥 <fujinxiang@cvte.com>",
+      "messages": [],
+      "total_additions": 53,
+      "total_deletions": 1,
+      "accepted_lines": 99,
+      "overriden_lines": 0,
+      "messages_url": "https://gitai.gz.cvte.cn/cas/5871639fec3509eefe8329d0fa6c0f7bc51ee413c8b5039d25bf835a2d6e5d12"
+    }
+  }
+}

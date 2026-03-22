@@ -1,7 +1,7 @@
 import { app, ipcMain, nativeTheme, nativeImage, dialog, shell, BrowserWindow } from 'electron'
-import { readFile, readdir, stat, realpath, mkdir, writeFile, unlink, rm } from 'fs/promises'
+import { readFile, readdir, stat, mkdir, writeFile, unlink, rm } from 'fs/promises'
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs'
-import { normalize, isAbsolute, join, basename, dirname, resolve, relative } from 'path'
+import { normalize, join, basename, dirname, resolve, relative } from 'path'
 import { homedir, tmpdir } from 'os'
 import { execSync } from 'child_process'
 import { SessionManager } from './sessions'
@@ -12,7 +12,7 @@ import { registerOnboardingHandlers } from './onboarding'
 import { IPC_CHANNELS, type FileAttachment, type StoredAttachment, type SendMessageOptions, type LlmConnectionSetup, type BrowserPaneCreateOptions, type BrowserScreenshotOptions, type BrowserEmptyStateLaunchPayload } from '../shared/types'
 import { readFileAttachment, perf } from '@work-agent/shared/utils'
 import { safeJsonParse } from '@work-agent/shared/utils/files'
-import { getPreferencesPath, getSessionDraft, setSessionDraft, deleteSessionDraft, getAllSessionDrafts, getWorkspaceByNameOrId, addWorkspace, setActiveWorkspace, loadStoredConfig, saveConfig, type Workspace, getLlmConnections, getLlmConnection, addLlmConnection, updateLlmConnection, deleteLlmConnection, getDefaultLlmConnection, setDefaultLlmConnection, touchLlmConnection, isCompatProvider, isAnthropicProvider, isOpenAIProvider, isCopilotProvider, getDefaultModelsForConnection, getDefaultModelForConnection, type LlmConnection, type LlmConnectionWithStatus, getGitBashPath, setGitBashPath, clearGitBashPath, getAppLanguage, setAppLanguage } from '@work-agent/shared/config'
+import { getPreferencesPath, getSessionDraft, setSessionDraft, deleteSessionDraft, getAllSessionDrafts, getWorkspaceByNameOrId, addWorkspace, setActiveWorkspace, loadStoredConfig, saveConfig, type Workspace, getWorkspaces, getLlmConnections, getLlmConnection, addLlmConnection, updateLlmConnection, deleteLlmConnection, getDefaultLlmConnection, setDefaultLlmConnection, touchLlmConnection, isCompatProvider, isAnthropicProvider, isOpenAIProvider, isCopilotProvider, getDefaultModelsForConnection, getDefaultModelForConnection, type LlmConnection, type LlmConnectionWithStatus, getGitBashPath, setGitBashPath, clearGitBashPath, getAppLanguage, setAppLanguage } from '@work-agent/shared/config'
 import { getSessionAttachmentsPath } from '@work-agent/shared/sessions'
 import { loadWorkspaceSources, getSourcesBySlugs, type LoadedSource } from '@work-agent/shared/sources'
 import { isValidThinkingLevel } from '@work-agent/shared/agent/thinking-levels'
@@ -31,6 +31,7 @@ import {
   buildOpenFolderDialogOptions,
 } from './i18n-labels'
 import { storeAttachmentOnDisk } from './attachment-storage'
+import { validateAttachmentPath, validateTrustedFileAccessPath } from './file-path-validation'
 
 /**
  * Get workspace by ID or name, throwing if not found.
@@ -390,62 +391,11 @@ export function stopCodexModelRefresh(): void {
 }
 
 /**
- * Validates that a file path is within allowed directories to prevent path traversal attacks.
- * Allowed directories: user's home directory and /tmp.
- * Additionally blocks known sensitive file patterns within the home directory.
+ * Generic file access stays scoped to trusted roots only.
+ * This is intentionally stricter than attachment/upload access.
  */
-async function validateFilePath(filePath: string): Promise<string> {
-  // Normalize the path to resolve . and .. components
-  let normalizedPath = normalize(filePath)
-
-  // Expand ~ to home directory
-  if (normalizedPath.startsWith('~')) {
-    normalizedPath = normalizedPath.replace(/^~/, homedir())
-  }
-
-  // Must be an absolute path
-  if (!isAbsolute(normalizedPath)) {
-    throw new Error('Only absolute file paths are allowed')
-  }
-
-  // Resolve symlinks to get the real path
-  let realPath: string
-  try {
-    realPath = await realpath(normalizedPath)
-  } catch {
-    // File doesn't exist or can't be resolved - use normalized path
-    realPath = normalizedPath
-  }
-
-  // Allow any absolute path on the local filesystem.
-  // Security is enforced by the sensitive file patterns below, not by directory allowlist.
-  // Previous homedir-only restriction blocked files on external drives (macOS /Volumes/),
-  // non-system partitions (Windows D:\, E:\), and other valid user locations.
-
-  // Block sensitive files even within allowed directories
-  // Normalize to forward slashes for consistent pattern matching on Windows
-  const pathForPatterns = realPath.replace(/\\/g, '/')
-  const sensitivePatterns = [
-    /\.ssh\//,
-    /\.gnupg\//,
-    /\.aws\/credentials/,
-    /\.env$/,
-    /\.env\./,
-    /credentials\.json$/,
-    /secrets?\./i,
-    /\.pem$/,
-    /\.key$/,
-    /\.netrc$/,
-    /\.kube\/config/,
-    /\.config\/git\/credentials/,
-    /credentials\.enc$/,
-  ]
-
-  if (sensitivePatterns.some(pattern => pattern.test(pathForPatterns))) {
-    throw new Error('Access denied: cannot read sensitive files')
-  }
-
-  return realPath
+function getTrustedFileAccessRoots(): string[] {
+  return getWorkspaces().map(workspace => workspace.rootPath)
 }
 
 export function registerIpcHandlers(sessionManager: SessionManager, windowManager: WindowManager, browserPaneManager: BrowserPaneManager | null): void {
@@ -800,8 +750,9 @@ export function registerIpcHandlers(sessionManager: SessionManager, windowManage
   // Read a file (with path validation to prevent traversal attacks)
   ipcMain.handle(IPC_CHANNELS.READ_FILE, async (_event, path: string) => {
     try {
-      // Validate and normalize the path
-      const safePath = await validateFilePath(path)
+      const safePath = await validateTrustedFileAccessPath(path, {
+        allowedRoots: getTrustedFileAccessRoots(),
+      })
       const content = await readFile(safePath, 'utf-8')
       return content
     } catch (error) {
@@ -816,7 +767,9 @@ export function registerIpcHandlers(sessionManager: SessionManager, windowManage
   // Note: PDFs use file:// URLs directly (Chromium's PDF viewer doesn't support data: URLs).
   ipcMain.handle(IPC_CHANNELS.READ_FILE_DATA_URL, async (_event, path: string) => {
     try {
-      const safePath = await validateFilePath(path)
+      const safePath = await validateTrustedFileAccessPath(path, {
+        allowedRoots: getTrustedFileAccessRoots(),
+      })
       const buffer = await readFile(safePath)
       const ext = safePath.split('.').pop()?.toLowerCase() ?? ''
 
@@ -848,7 +801,9 @@ export function registerIpcHandlers(sessionManager: SessionManager, windowManage
   // Returns Uint8Array which IPC automatically converts to ArrayBuffer for the renderer.
   ipcMain.handle(IPC_CHANNELS.READ_FILE_BINARY, async (_event, path: string) => {
     try {
-      const safePath = await validateFilePath(path)
+      const safePath = await validateTrustedFileAccessPath(path, {
+        allowedRoots: getTrustedFileAccessRoots(),
+      })
       const buffer = await readFile(safePath)
       // Return as Uint8Array (serializes to ArrayBuffer over IPC)
       return new Uint8Array(buffer)
@@ -877,8 +832,7 @@ export function registerIpcHandlers(sessionManager: SessionManager, windowManage
   // Read file and return as FileAttachment with Quick Look thumbnail
   ipcMain.handle(IPC_CHANNELS.READ_FILE_ATTACHMENT, async (_event, path: string) => {
     try {
-      // Validate path first to prevent path traversal
-      const safePath = await validateFilePath(path)
+      const safePath = await validateAttachmentPath(path)
       // Use shared utility that handles file type detection, encoding, etc.
       const attachment = await readFileAttachment(safePath)
       if (!attachment) return null
@@ -1267,8 +1221,9 @@ export function registerIpcHandlers(sessionManager: SessionManager, windowManage
     try {
       // Resolve relative paths to absolute before validation
       const absolutePath = resolve(path)
-      // Validate path is within allowed directories
-      const safePath = await validateFilePath(absolutePath)
+      const safePath = await validateTrustedFileAccessPath(absolutePath, {
+        allowedRoots: getTrustedFileAccessRoots(),
+      })
       // openPath opens file with default application (e.g., VS Code for .ts files)
       const result = await shell.openPath(safePath)
       if (result) {
@@ -1287,8 +1242,9 @@ export function registerIpcHandlers(sessionManager: SessionManager, windowManage
     try {
       // Resolve relative paths to absolute before validation
       const absolutePath = resolve(path)
-      // Validate path is within allowed directories
-      const safePath = await validateFilePath(absolutePath)
+      const safePath = await validateTrustedFileAccessPath(absolutePath, {
+        allowedRoots: getTrustedFileAccessRoots(),
+      })
       shell.showItemInFolder(safePath)
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error'

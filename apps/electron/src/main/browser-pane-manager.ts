@@ -6,10 +6,8 @@
  * shared session/cookie partition and CDP automation support.
  */
 
-import { join, parse as parsePath, normalize, isAbsolute, sep } from 'path'
+import { join, parse as parsePath } from 'path'
 import { existsSync, mkdirSync } from 'fs'
-import { realpath } from 'fs/promises'
-import { homedir, tmpdir } from 'os'
 import { BrowserView, BrowserWindow, Menu, app, ipcMain, nativeTheme, session, shell, type Session as ElectronSession } from 'electron'
 import { mainLog } from './logger'
 import type { WindowManager } from './window-manager'
@@ -17,6 +15,7 @@ import { BrowserCDP, type AccessibilitySnapshot, type ElementGeometry } from './
 import type { BrowserEmptyStateLaunchPayload, BrowserEmptyStateLaunchResult, BrowserInstanceInfo } from '../shared/types'
 import { DEFAULT_THEME, loadAppTheme } from '@work-agent/shared/config'
 import { getBrowserLiveFxCornerRadii } from '../shared/browser-live-fx'
+import { validateAttachmentPath } from './file-path-validation'
 
 export type { BrowserInstanceInfo }
 
@@ -1517,51 +1516,12 @@ export class BrowserPaneManager {
   }
 
   private async validateUploadFilePath(filePath: string): Promise<string> {
-    let normalizedPath = normalize(filePath)
-
-    if (normalizedPath.startsWith('~')) {
-      normalizedPath = normalizedPath.replace(/^~/, homedir())
-    }
-
-    if (!isAbsolute(normalizedPath)) {
-      throw new Error(`Upload path must be absolute: ${filePath}`)
-    }
-
-    let realFilePath: string
-    try {
-      realFilePath = await realpath(normalizedPath)
-    } catch {
-      realFilePath = normalizedPath
-    }
-
-    const allowedDirs = [homedir(), tmpdir()]
-    const isAllowed = allowedDirs.some((dir) => {
-      const normalizedDir = normalize(dir)
-      const normalizedReal = normalize(realFilePath)
-      return normalizedReal.startsWith(normalizedDir + sep) || normalizedReal === normalizedDir
+    return validateAttachmentPath(filePath, {
+      messages: {
+        absolutePath: (inputPath) => `Upload path must be absolute: ${inputPath}`,
+        sensitiveFile: (inputPath) => `Access denied for upload path (sensitive file): ${inputPath}`,
+      },
     })
-
-    if (!isAllowed) {
-      throw new Error(`Access denied for upload path (outside allowed directories): ${filePath}`)
-    }
-
-    const sensitivePatterns = [
-      /\.ssh\//,
-      /\.gnupg\//,
-      /\.aws\/credentials/,
-      /\.env$/,
-      /\.env\./,
-      /credentials\.json$/,
-      /secrets?\./i,
-      /\.pem$/,
-      /\.key$/,
-    ]
-
-    if (sensitivePatterns.some((pattern) => pattern.test(realFilePath))) {
-      throw new Error(`Access denied for upload path (sensitive file): ${filePath}`)
-    }
-
-    return realFilePath
   }
 
   async uploadFile(id: string, ref: string, filePaths: string[]): Promise<ElementGeometry> {

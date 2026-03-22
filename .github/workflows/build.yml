@@ -6,6 +6,12 @@ on:
       - cvte/main
   workflow_dispatch:
 
+env:
+  AUTO_UPDATE_SERVER_URL: http://rxpc.gz.cvte.cn/fast-update-server
+  AUTO_UPDATE_PRODUCT_ID: work-agents
+  AUTO_UPDATE_CHANNEL: stable
+  AUTO_UPDATE_SILENT: "1"
+
 jobs:
   build-mac:
     runs-on: macos-latest

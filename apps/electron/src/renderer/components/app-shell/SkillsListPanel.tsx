@@ -1,7 +1,13 @@
 import * as React from 'react'
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Download, Loader2, Search, Zap } from 'lucide-react'
+import { Download, Loader2, MoreHorizontal, Search, Zap } from 'lucide-react'
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  StyledDropdownMenuContent,
+} from '@/components/ui/styled-dropdown'
+import { DropdownMenuProvider } from '@/components/ui/menu-context'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { SkillAvatar } from '@/components/ui/skill-avatar'
@@ -397,27 +403,40 @@ function InstalledSkillItem({
           </div>
         </button>
         <div className="absolute right-2 top-2 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
-          <SkillMenu
-            skillSlug={skill.slug}
-            skillName={skill.metadata.name}
-            onOpenInNewWindow={() => window.electronAPI.openUrl(`workagents://skills/skill/${skill.slug}?window=focused`)}
-            onShowInFinder={async () => {
-              if (!canRevealLocally) return
-              try {
-                await window.electronAPI.showInFolder(skill.path)
-              } catch (err) {
-                const message = err instanceof Error ? err.message : String(err)
-                toast.error(t('toast.failedToReveal', { fileManager: getFileManagerName() }), {
-                  description: message,
-                })
-              }
-            }}
-            canShowInFinder={canRevealLocally}
-            onDelete={skill.source === 'workspace' ? onDelete : undefined}
-            canDelete={skill.source === 'workspace'}
-            deleteLabel={skill.source === 'workspace' ? t('skillsList.deleteSkill') : t('skillsList.managedByProject')}
-            onSendToWorkspace={hasOtherWorkspaces && skill.source === 'workspace' ? onSendToWorkspace : undefined}
-          />
+          {/* SkillMenu uses useMenuComponents() — it MUST sit inside a menu
+              provider (same container pattern as entity-row's menu slot) */}
+          <DropdownMenu modal={true}>
+            <DropdownMenuTrigger asChild>
+              <div className="p-1 rounded-[6px] hover:bg-foreground/10 data-[state=open]:bg-foreground/10 cursor-pointer">
+                <MoreHorizontal className="h-3.5 w-3.5 text-muted-foreground" />
+              </div>
+            </DropdownMenuTrigger>
+            <StyledDropdownMenuContent align="end">
+              <DropdownMenuProvider>
+                <SkillMenu
+                  skillSlug={skill.slug}
+                  skillName={skill.metadata.name}
+                  onOpenInNewWindow={() => window.electronAPI.openUrl(`workagents://skills/skill/${skill.slug}?window=focused`)}
+                  onShowInFinder={async () => {
+                    if (!canRevealLocally) return
+                    try {
+                      await window.electronAPI.showInFolder(skill.path)
+                    } catch (err) {
+                      const message = err instanceof Error ? err.message : String(err)
+                      toast.error(t('toast.failedToReveal', { fileManager: getFileManagerName() }), {
+                        description: message,
+                      })
+                    }
+                  }}
+                  canShowInFinder={canRevealLocally}
+                  onDelete={skill.source === 'workspace' ? onDelete : undefined}
+                  canDelete={skill.source === 'workspace'}
+                  deleteLabel={skill.source === 'workspace' ? t('skillsList.deleteSkill') : t('skillsList.managedByProject')}
+                  onSendToWorkspace={hasOtherWorkspaces && skill.source === 'workspace' ? onSendToWorkspace : undefined}
+                />
+              </DropdownMenuProvider>
+            </StyledDropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
     </div>

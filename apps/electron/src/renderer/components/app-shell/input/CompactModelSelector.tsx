@@ -37,6 +37,8 @@ import {
 } from '@craft-agent/shared/agent/thinking-levels'
 import { ConnectionIcon } from '@/components/icons/ConnectionIcon'
 import { derivePickerMode } from './picker-mode'
+import { useAtomValue } from 'jotai'
+import { modelLatencyStatsAtom, formatLatencyHint } from '@/atoms/model-latency'
 import {
   formatTokenCount,
   groupConnectionsByProvider,
@@ -72,6 +74,7 @@ export function CompactModelSelector({
   contextStatus,
 }: CompactModelSelectorProps) {
   const { t } = useTranslation()
+  const latencyStats = useAtomValue(modelLatencyStatsAtom)
   const [open, setOpen] = React.useState(false)
   const [expandedConnection, setExpandedConnection] = React.useState<string | null>(null)
 
@@ -368,6 +371,13 @@ export function CompactModelSelector({
                           {description}
                         </div>
                       )}
+                      {(() => {
+                        // CVTE: rolling measured latency from real usage
+                        const hint = formatLatencyHint(latencyStats[modelId])
+                        return hint ? (
+                          <div className="text-[11px] text-foreground/40 truncate">{hint}</div>
+                        ) : null
+                      })()}
                     </div>
                     <div className="flex items-center gap-1 ml-3 shrink-0">
                       {showVision && effectiveConnectionDetails && (

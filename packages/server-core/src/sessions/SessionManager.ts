@@ -7470,6 +7470,20 @@ export class SessionManager implements ISessionManager {
         }
         break
 
+      case 'latency_update':
+        // CVTE: per-turn measured latency — relay to renderer for the model
+        // picker's "近期实测" hints (no session state to update here)
+        this.sendEvent({
+          type: 'latency_update',
+          sessionId: managed.id,
+          model: event.model,
+          ttftMs: event.ttftMs,
+          totalMs: event.totalMs,
+          outputTokens: event.outputTokens,
+          tokensPerSec: event.tokensPerSec,
+        }, workspaceId)
+        break
+
       case 'steer_undelivered':
         // Steer message was not delivered (no PreToolUse fired before turn ended).
         // Re-queue it so it's sent as a normal message on the next turn.

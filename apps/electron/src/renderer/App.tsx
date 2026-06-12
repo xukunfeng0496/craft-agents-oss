@@ -54,6 +54,7 @@ import {
 } from '@/atoms/sessions'
 import { sourcesAtom } from '@/atoms/sources'
 import { skillsAtom } from '@/atoms/skills'
+import { recordModelLatencyAtom } from '@/atoms/model-latency'
 import { extractBadges } from '@/lib/mentions'
 import { getDefaultStore } from 'jotai'
 import {
@@ -242,6 +243,7 @@ export default function App() {
   // - sessionMetaMapAtom for lightweight listing
   // - sessionAtomFamily(id) for individual session data
   const initializeSessions = useSetAtom(initializeSessionsAtom)
+  const recordModelLatency = useSetAtom(recordModelLatencyAtom)
   const addSession = useSetAtom(addSessionAtom)
   const removeSession = useSetAtom(removeSessionAtom)
   const updateSessionDirect = useSetAtom(updateSessionAtom)
@@ -903,6 +905,12 @@ export default function App() {
 
       const sessionId = event.sessionId
       const workspaceId = windowWorkspaceId ?? ''
+
+      // CVTE: stat-only latency telemetry — record for the model picker hints
+      if (event.type === 'latency_update') {
+        recordModelLatency({ model: event.model, ttftMs: event.ttftMs, tokensPerSec: event.tokensPerSec })
+        return
+      }
 
       // Session lifecycle events are handled explicitly (not by the agent event processor).
       if (event.type === 'session_created') {

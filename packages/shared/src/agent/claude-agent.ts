@@ -1453,6 +1453,9 @@ This is a branched conversation. All prior messages in this conversation are par
       // `source_activated` + `forceAbort` — otherwise the session journal
       // ends up with orphan `tool_use` IDs that block subsequent sends.
       const sourceActivationDrain = new SourceActivationDrainController('batch-boundary');
+      // CVTE latency telemetry: per-turn TTFT / throughput for the model picker hints
+      const latencyT0 = Date.now();
+      let latencyFirstAt = 0;
       try {
         for await (const message of this.currentQuery) {
           // Track if we got any text content from assistant
@@ -1468,6 +1471,24 @@ This is a branched conversation. All prior messages in this conversation are par
             if (event.type === 'content_block_delta' || event.type === 'message_start') {
               receivedAssistantContent = true;
             }
+          }
+
+          // CVTE: stamp first visible content; emit measured latency on turn result
+          if (!latencyFirstAt && receivedAssistantContent) latencyFirstAt = Date.now();
+          if ('type' in message && message.type === 'result') {
+            const totalMs = Date.now() - latencyT0;
+            const ttftMs = latencyFirstAt ? latencyFirstAt - latencyT0 : totalMs;
+            const resultUsage = (message as { usage?: { output_tokens?: number } }).usage;
+            const outputTokens = resultUsage?.output_tokens;
+            const genMs = Math.max(totalMs - ttftMs, 1);
+            yield {
+              type: 'latency_update' as const,
+              model: this._model,
+              ttftMs,
+              totalMs,
+              outputTokens,
+              tokensPerSec: outputTokens ? Math.round((outputTokens / (genMs / 1000)) * 10) / 10 : undefined,
+            };
           }
 
           // Capture session ID for conversation continuity (only when it changes)

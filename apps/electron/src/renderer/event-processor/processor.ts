@@ -209,6 +209,11 @@ export function processEvent(
     case 'usage_update':
       return handleUsageUpdate(state, event)
 
+    case 'latency_update':
+      // CVTE: stat-only event — recorded by App.tsx into modelLatencyStatsAtom
+      // before the processor runs; no session state to change here.
+      return { state, effects: [] }
+
     default: {
       // Unknown event type - return state unchanged but as new reference
       // to ensure atom sync detects the "change"

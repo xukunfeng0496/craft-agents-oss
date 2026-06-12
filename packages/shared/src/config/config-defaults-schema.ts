@@ -35,4 +35,26 @@ export interface ConfigDefaults {
       enabled: boolean;
     };
   };
+  /** Enterprise zero-config provisioning (CVTE). Absent in non-enterprise builds. */
+  enterprise?: EnterpriseDefaults;
+}
+
+export interface EnterpriseLlmConnectionDefaults {
+  /** Connection slug, e.g. 'cvte-gateway' */
+  slug: string;
+  /** Display name shown in connection settings */
+  name: string;
+  /** Gateway endpoint serving the Anthropic Messages protocol */
+  baseUrl: string;
+  /** Default model id, e.g. 'CVTE-AUTO' */
+  defaultModel: string;
+  /** Static model list (gateway also serves /v1/models for discovery) */
+  models?: string[];
+}
+
+export interface EnterpriseDefaults {
+  /** Connection to auto-create on first launch when no connections exist */
+  defaultLlmConnection?: EnterpriseLlmConnectionDefaults;
+  /** Narrow onboarding to the enterprise connection (hide Claude/ChatGPT/Copilot/local choices) */
+  hideOtherProviders?: boolean;
 }

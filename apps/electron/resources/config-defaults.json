@@ -20,5 +20,15 @@
     "localMcpServers": {
       "enabled": true
     }
+  },
+  "enterprise": {
+    "defaultLlmConnection": {
+      "slug": "cvte-gateway",
+      "name": "CVTE Gateway",
+      "baseUrl": "https://token.cvte.com",
+      "defaultModel": "CVTE-AUTO",
+      "models": ["CVTE-AUTO", "deepseek-v4-flash", "deepseek-v4-pro", "glm-5.1", "qwen3.7-max", "qwen3.7-plus"]
+    },
+    "hideOtherProviders": true
   }
 }

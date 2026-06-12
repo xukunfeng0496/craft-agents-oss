@@ -14,3 +14,4 @@ export {
   createConfigWatcher,
   type ConfigWatcherCallbacks,
 } from './watcher.ts';
+export * from './enterprise-defaults.ts';

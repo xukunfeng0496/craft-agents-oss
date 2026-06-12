@@ -2087,11 +2087,16 @@ function migrateLegacyProviderTypes(config: StoredConfig): boolean {
       continue;
     }
 
-    // --- anthropic_compat → pi_compat + customEndpoint ---
+    // --- anthropic_compat → anthropic (CVTE D8: gateway stays on the Claude Agent SDK) ---
+    // Upstream maps this to pi_compat + anthropic-messages; CVTE keeps the Claude SDK
+    // route since the gateway serves the full Anthropic Messages protocol.
     if (providerStr === 'anthropic_compat') {
-      (connection as { providerType: LlmProviderType }).providerType = 'pi_compat';
-      connection.customEndpoint = { api: 'anthropic-messages' };
-      // authType 'api_key_with_endpoint' stays; baseUrl and models are preserved
+      (connection as { providerType: LlmProviderType }).providerType = 'anthropic';
+      connection.authType = 'api_key';
+      // baseUrl, models, and the slug-keyed stored API key are preserved.
+      // Drop legacy CVTE fields removed from the new LlmConnection shape.
+      delete (connection as unknown as Record<string, unknown>)['capabilities'];
+      delete (connection as unknown as Record<string, unknown>)['codexPath'];
       changed = true;
       continue;
     }

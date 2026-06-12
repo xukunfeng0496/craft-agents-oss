@@ -626,13 +626,33 @@ export default function App() {
     setAppState('ready')
   }, [])
 
+  // CVTE zero-config: a provisioned-but-uncredentialed enterprise gateway connection
+  // collapses onboarding to the API-key step with endpoint/model prefilled (D7/D8).
+  const enterpriseSetupConnection = useMemo(() => {
+    if (llmConnections.length !== 1) return null
+    const c = llmConnections[0]
+    if (!c) return null
+    const isPendingGateway = c.providerType === 'anthropic' && c.authType === 'api_key' && !!c.baseUrl && !c.isAuthenticated
+    return isPendingGateway ? c : null
+  }, [llmConnections])
+
   // Onboarding hook — onConfigSaved fires immediately when billing is saved,
   // ensuring connection state updates before the wizard closes.
   const onboarding = useOnboarding({
     onComplete: handleOnboardingComplete,
     onConfigSaved: refreshLlmConnections,
     initialSetupNeeds: setupNeeds || undefined,
+    editingSlug: enterpriseSetupConnection?.slug ?? null,
   })
+
+  // Jump straight to the credentials step when the enterprise shortcut applies
+  const { step: onboardingStep } = onboarding.state
+  const { jumpToCredentials } = onboarding
+  useEffect(() => {
+    if (appState === 'onboarding' && enterpriseSetupConnection && onboardingStep === 'provider-select') {
+      jumpToCredentials('anthropic_api_key')
+    }
+  }, [appState, enterpriseSetupConnection, onboardingStep, jumpToCredentials])
 
   // Reauth login handler - placeholder (reauth is not currently used)
   const handleReauthLogin = useCallback(async () => {
@@ -1941,6 +1961,11 @@ export default function App() {
             onUseGitBashPath={onboarding.handleUseGitBashPath}
             onRecheckGitBash={onboarding.handleRecheckGitBash}
             onClearError={onboarding.handleClearError}
+            editInitialValues={enterpriseSetupConnection ? {
+              baseUrl: enterpriseSetupConnection.baseUrl,
+              connectionDefaultModel: enterpriseSetupConnection.defaultModel,
+              models: enterpriseSetupConnection.models?.filter((m): m is string => typeof m === 'string'),
+            } : undefined}
           />
         </ModalProvider>
       </DismissibleLayerProvider>

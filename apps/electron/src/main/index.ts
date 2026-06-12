@@ -98,7 +98,7 @@ import { setSearchPlatform, setImageProcessor } from '@craft-agent/server-core/s
 import { createApplicationMenu } from './menu'
 import { WindowManager } from './window-manager'
 import { loadWindowState, saveWindowState } from './window-state'
-import { getWorkspaces, getWorkspaceByNameOrId, loadStoredConfig, addWorkspace, saveConfig } from '@craft-agent/shared/config'
+import { getWorkspaces, getWorkspaceByNameOrId, loadStoredConfig, addWorkspace, saveConfig, ensureEnterpriseDefaultConnection } from '@craft-agent/shared/config'
 import { getDefaultWorkspacesDir } from '@craft-agent/shared/workspaces'
 import { initializeDocs } from '@craft-agent/shared/docs'
 import { initializeReleaseNotes } from '@craft-agent/shared/release-notes'
@@ -344,6 +344,12 @@ async function createInitialWindows(): Promise<void> {
     addWorkspace({ rootPath: defaultPath, name: 'My Workspace' })
     workspaces = getWorkspaces() // Refresh after creation
     mainLog.info('Created default workspace on first run')
+  }
+
+  // CVTE: provision the enterprise gateway connection on installs with no connections,
+  // collapsing onboarding to a single "paste your API key" step (D7/D8)
+  if (ensureEnterpriseDefaultConnection()) {
+    mainLog.info('Provisioned enterprise default LLM connection (cvte-gateway)')
   }
 
   const validWorkspaceIds = workspaces.map(ws => ws.id)

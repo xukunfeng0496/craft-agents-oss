@@ -2097,7 +2097,9 @@ function normalizeCvteGatewayRoute(config: StoredConfig): boolean {
  * later user customizations are never clobbered on subsequent launches.
  */
 function migrateCvteGatewayModels(config: StoredConfig): boolean {
-  const MARKER = 'cvte-gateway-models-1';
+  // v2: re-runs once over v1 to upgrade plain model-id strings to full
+  // ModelDefinition objects (descriptions, supportsImages, context windows).
+  const MARKER = 'cvte-gateway-models-2';
   if (config.migrationsApplied?.includes(MARKER)) return false;
   const ent = loadConfigDefaults().enterprise?.defaultLlmConnection;
   if (!ent?.baseUrl || !config.llmConnections?.length) return false;

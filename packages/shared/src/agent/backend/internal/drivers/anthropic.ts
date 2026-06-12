@@ -1,7 +1,8 @@
 import type { ProviderDriver } from '../driver-types.ts';
 import { applyAnthropicRuntimeBootstrap } from '../runtime-resolver.ts';
 import { validateAnthropicConnection } from '../../../../config/llm-validation.ts';
-import { DEFAULT_MODEL, getModelById, getModelContextWindow, normalizeDeprecatedModelId } from '../../../../config/models.ts';
+import { DEFAULT_MODEL, getModelById, getModelContextWindow, normalizeDeprecatedModelId, type ModelDefinition } from '../../../../config/models.ts';
+import { getEnterpriseDefaults } from '../../../../config/enterprise-defaults.ts';
 
 export const anthropicDriver: ProviderDriver = {
   provider: 'anthropic',
@@ -75,6 +76,14 @@ export const anthropicDriver: ProviderDriver = {
       throw new Error('No models returned from Anthropic API');
     }
 
+    // CVTE: enterprise model catalog supplies user-facing metadata (description,
+    // supportsImages, context window) the gateway /v1/models doesn't expose yet.
+    const enterpriseModelMeta = new Map(
+      (getEnterpriseDefaults()?.defaultLlmConnection?.models ?? [])
+        .filter((entry): entry is ModelDefinition => typeof entry !== 'string')
+        .map((entry) => [entry.id, entry]),
+    );
+
     const seen = new Set<string>();
     const models = allRawModels
       .filter(m => {
@@ -93,10 +102,11 @@ export const anthropicDriver: ProviderDriver = {
       })
       .map(m => {
         const registryModel = getModelById(m.id);
+        const enterpriseModel = enterpriseModelMeta.get(m.id);
         return {
           id: m.id,
-          name: registryModel?.name ?? m.display_name ?? m.id,
-          shortName: registryModel?.shortName ?? (() => {
+          name: registryModel?.name ?? enterpriseModel?.name ?? m.display_name ?? m.id,
+          shortName: registryModel?.shortName ?? enterpriseModel?.shortName ?? (() => {
             const stripped = m.id
               .replace('claude-', '')
               .replace(/-\d{8}$/, '')
@@ -107,12 +117,12 @@ export const anthropicDriver: ProviderDriver = {
               .replace(/^-/, '');
             return variant ? variant.charAt(0).toUpperCase() + variant.slice(1) : stripped;
           })(),
-          description: registryModel?.description ?? '',
+          description: registryModel?.description ?? enterpriseModel?.description ?? '',
           descriptionKey: registryModel?.descriptionKey,
           provider: 'anthropic' as const,
-          contextWindow: getModelContextWindow(m.id) ?? m.max_input_tokens ?? 200_000,
-          supportsThinking: registryModel?.supportsThinking,
-          supportsImages: registryModel?.supportsImages,
+          contextWindow: getModelContextWindow(m.id) ?? m.max_input_tokens ?? enterpriseModel?.contextWindow ?? 200_000,
+          supportsThinking: registryModel?.supportsThinking ?? enterpriseModel?.supportsThinking,
+          supportsImages: registryModel?.supportsImages ?? enterpriseModel?.supportsImages,
         };
       });
 

@@ -1,5 +1,6 @@
 import { formatPreferencesForPrompt, getCoAuthorPreference } from '../config/preferences.ts';
 import { getBrowserToolEnabled } from '../config/storage.ts';
+import { getEnterpriseDefaults } from '../config/enterprise-defaults.ts';
 import { debug } from '../utils/debug.ts';
 import { existsSync, readFileSync, readdirSync } from 'fs';
 import { join, relative, basename } from 'path';
@@ -517,9 +518,14 @@ Use the browser as an **alternative/fallback** path when source setup is fragile
 - \`hide\` — temporarily done, may need browser again later in conversation
 ` : '';
 
+  // CVTE: enterprise prompt appendix from config-defaults (static per launch,
+  // prompt-cache friendly; updatable per release without code changes)
+  const enterpriseAppendix = getEnterpriseDefaults()?.promptAppendix?.trim();
+
   return `${environmentMarker}
 
 You are Work Agent - an AI assistant that helps users connect and work across their data sources through a desktop interface.
+${enterpriseAppendix ? `\n## Enterprise Context\n\n${enterpriseAppendix}\n` : ''}
 
 **Core capabilities:**
 - **Connect external sources** - MCP servers, REST APIs, local filesystems. Users can integrate Linear, GitHub, Craft, custom APIs, and more.

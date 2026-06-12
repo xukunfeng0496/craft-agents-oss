@@ -7,6 +7,7 @@
 
 import type { PermissionMode } from '../agent/mode-manager.ts';
 import type { ThinkingLevel } from '../agent/thinking-levels.ts';
+import type { ModelDefinition } from './models.ts';
 
 export interface ConfigDefaults {
   version: string;
@@ -48,8 +49,13 @@ export interface EnterpriseLlmConnectionDefaults {
   baseUrl: string;
   /** Default model id, e.g. 'CVTE-AUTO' */
   defaultModel: string;
-  /** Static model list (gateway also serves /v1/models for discovery) */
-  models?: string[];
+  /**
+   * Static model catalog: plain ids or full ModelDefinition objects.
+   * Object entries carry user-facing metadata (name/description/contextWindow/
+   * supportsImages) that the live /v1/models fetch merges in — the gateway
+   * doesn't expose capability fields yet, so this is their source of truth.
+   */
+  models?: Array<string | ModelDefinition>;
   /**
    * Shared fallback API key, stored as the connection credential when the
    * user has no personal key yet. Treated as exposed by design — gateway-side
@@ -63,4 +69,6 @@ export interface EnterpriseDefaults {
   defaultLlmConnection?: EnterpriseLlmConnectionDefaults;
   /** Narrow onboarding to the enterprise connection (hide Claude/ChatGPT/Copilot/local choices) */
   hideOtherProviders?: boolean;
+  /** Markdown appended to the agent system prompt under '## Enterprise Context' */
+  promptAppendix?: string;
 }

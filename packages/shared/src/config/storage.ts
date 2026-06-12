@@ -2054,6 +2054,13 @@ function migrateLegacyProviderTypes(config: StoredConfig): boolean {
   let changed = false;
 
   for (const connection of config.llmConnections) {
+    // CVTE: rewrite the legacy test-gateway endpoint to the official one.
+    // Applies to every providerType, including already-migrated connections.
+    if (connection.baseUrl?.includes('navimaxx-cc.test.seewo.com')) {
+      connection.baseUrl = 'https://token.cvte.com';
+      changed = true;
+    }
+
     // Cast to string for legacy values removed from LlmProviderType
     const providerStr = connection.providerType as string;
 

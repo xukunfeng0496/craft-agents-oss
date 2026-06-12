@@ -346,10 +346,10 @@ async function createInitialWindows(): Promise<void> {
     mainLog.info('Created default workspace on first run')
   }
 
-  // CVTE: provision the enterprise gateway connection on installs with no connections,
-  // collapsing onboarding to a single "paste your API key" step (D7/D8)
-  if (ensureEnterpriseDefaultConnection()) {
-    mainLog.info('Provisioned enterprise default LLM connection (cvte-gateway)')
+  // CVTE: provision the enterprise gateway connection + fallback key (D7/D8).
+  // Fresh installs chat immediately; installs without a key get the shared fallback.
+  if (await ensureEnterpriseDefaultConnection()) {
+    mainLog.info('Provisioned enterprise default LLM connection / fallback key (cvte-gateway)')
   }
 
   const validWorkspaceIds = workspaces.map(ws => ws.id)

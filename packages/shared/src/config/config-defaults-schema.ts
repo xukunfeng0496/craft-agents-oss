@@ -50,6 +50,12 @@ export interface EnterpriseLlmConnectionDefaults {
   defaultModel: string;
   /** Static model list (gateway also serves /v1/models for discovery) */
   models?: string[];
+  /**
+   * Shared fallback API key, stored as the connection credential when the
+   * user has no personal key yet. Treated as exposed by design — gateway-side
+   * quota/audit applies; rotate by shipping a new config-defaults.json.
+   */
+  fallbackApiKey?: string;
 }
 
 export interface EnterpriseDefaults {

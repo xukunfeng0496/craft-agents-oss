@@ -252,6 +252,8 @@ const EXPECTED_CHANNELS: string[] = [
   'shell:openFile',
   'shell:openUrl',
   'shell:showInFolder',
+  'skillVars:get',
+  'skillVars:set',
   'skills:changed',
   'skills:delete',
   'skills:get',

@@ -60,8 +60,8 @@ import type { LoadedSource, FolderSourceConfig, SourceConnectionStatus } from '@
 export type { LoadedSource, FolderSourceConfig, SourceConnectionStatus };
 
 // Skill types
-import type { LoadedSkill, SkillMetadata } from '@craft-agent/shared/skills/types';
-export type { LoadedSkill, SkillMetadata };
+import type { LoadedSkill, SkillMetadata, SkillVariable } from '@craft-agent/shared/skills/types';
+export type { LoadedSkill, SkillMetadata, SkillVariable };
 
 // Resource bundle types (cross-workspace export/import)
 import type { ExportResourcesOptions, ExportResult, ResourceImportMode, ResourceBundle, ResourceImportResult } from '@craft-agent/shared/resources';
@@ -485,6 +485,10 @@ export interface ElectronAPI {
   // Skills Marketplace
   getMarketplaceRegistry(): Promise<import('@craft-agent/shared/marketplace').MarketplaceRegistry>
   installMarketplaceSkill(workspaceId: string, skillName: string): Promise<void>
+
+  // Skill Variables
+  getSkillVars(workspaceId: string, skillSlug: string, varNames: string[]): Promise<Record<string, boolean>>
+  setSkillVars(workspaceId: string, skillSlug: string, vars: Record<string, string>): Promise<void>
 
   // Statuses (workspace-scoped)
   listStatuses(workspaceId: string): Promise<import('@craft-agent/shared/statuses').StatusConfig[]>

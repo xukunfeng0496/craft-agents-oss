@@ -237,6 +237,10 @@ export const CHANNEL_MAP = {
   getMarketplaceRegistry: invoke(RPC_CHANNELS.marketplace.GET_REGISTRY),
   installMarketplaceSkill: invoke(RPC_CHANNELS.marketplace.INSTALL_SKILL),
 
+  // Skill Variables
+  getSkillVars: invoke(RPC_CHANNELS.skillVars.GET),
+  setSkillVars: invoke(RPC_CHANNELS.skillVars.SET),
+
   // Statuses
   listStatuses: invoke(RPC_CHANNELS.statuses.LIST),
   reorderStatuses: invoke(RPC_CHANNELS.statuses.REORDER),

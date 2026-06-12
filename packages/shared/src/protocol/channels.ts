@@ -268,6 +268,10 @@ export const RPC_CHANNELS = {
     GET_REGISTRY: 'marketplace:getRegistry',
     INSTALL_SKILL: 'marketplace:installSkill',
   },
+  skillVars: {
+    GET: 'skillVars:get',
+    SET: 'skillVars:set',
+  },
   statuses: {
     LIST: 'statuses:list',
     REORDER: 'statuses:reorder',

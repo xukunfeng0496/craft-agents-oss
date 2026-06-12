@@ -264,6 +264,10 @@ export const RPC_CHANNELS = {
     OPEN_FINDER: 'skills:openFinder',
     CHANGED: 'skills:changed',
   },
+  marketplace: {
+    GET_REGISTRY: 'marketplace:getRegistry',
+    INSTALL_SKILL: 'marketplace:installSkill',
+  },
   statuses: {
     LIST: 'statuses:list',
     REORDER: 'statuses:reorder',

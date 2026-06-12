@@ -108,6 +108,8 @@ const EXPECTED_CHANNELS: string[] = [
   'labels:delete',
   'labels:list',
   'logo:getUrl',
+  'marketplace:getRegistry',
+  'marketplace:installSkill',
   'menu:copy',
   'menu:cut',
   'menu:keyboardShortcuts',

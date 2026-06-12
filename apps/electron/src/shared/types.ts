@@ -482,6 +482,10 @@ export interface ElectronAPI {
   // Skills change listener (live updates when skills are added/removed/modified)
   onSkillsChanged(callback: (workspaceId: string, skills: LoadedSkill[]) => void): () => void
 
+  // Skills Marketplace
+  getMarketplaceRegistry(): Promise<import('@craft-agent/shared/marketplace').MarketplaceRegistry>
+  installMarketplaceSkill(workspaceId: string, skillName: string): Promise<void>
+
   // Statuses (workspace-scoped)
   listStatuses(workspaceId: string): Promise<import('@craft-agent/shared/statuses').StatusConfig[]>
   reorderStatuses(workspaceId: string, orderedIds: string[]): Promise<void>

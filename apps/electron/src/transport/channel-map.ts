@@ -233,6 +233,10 @@ export const CHANNEL_MAP = {
   openSkillInFinder: invoke(RPC_CHANNELS.skills.OPEN_FINDER),
   onSkillsChanged: listener(RPC_CHANNELS.skills.CHANGED),
 
+  // Skills Marketplace
+  getMarketplaceRegistry: invoke(RPC_CHANNELS.marketplace.GET_REGISTRY),
+  installMarketplaceSkill: invoke(RPC_CHANNELS.marketplace.INSTALL_SKILL),
+
   // Statuses
   listStatuses: invoke(RPC_CHANNELS.statuses.LIST),
   reorderStatuses: invoke(RPC_CHANNELS.statuses.REORDER),

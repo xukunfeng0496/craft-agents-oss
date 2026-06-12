@@ -1033,6 +1033,7 @@ export default function App() {
   }, [
     processAgentEvent,
     trackSessionActivity,
+    recordModelLatency,
     windowWorkspaceId,
     store,
     updateSessionDirect,

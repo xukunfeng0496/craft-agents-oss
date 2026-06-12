@@ -13,11 +13,24 @@
 
 import { cpSync, copyFileSync, mkdirSync } from 'fs';
 import { join } from 'path';
+import { execFileSync } from 'child_process';
 
 // Copy all resources (icons, themes, docs, permissions, tool-icons, etc.)
 cpSync('resources', 'dist/resources', { recursive: true });
 
 console.log('✓ Copied resources/ → dist/resources/');
+
+// CVTE: build & stage the subprocess servers. The upstream OSS tag commits a
+// prebuilt bridge-mcp-server bundle into resources/ but never stages
+// pi-agent-server / session-mcp-server, so packaged builds fail with
+// "piServerPath not configured" on any Pi (openai-compatible) connection.
+// runtime-resolver looks for <appRoot>/dist/resources/<name>/index.js.
+for (const server of ['pi-agent-server', 'session-mcp-server']) {
+  const pkgDir = join('..', '..', 'packages', server);
+  execFileSync('bun', ['run', 'build'], { cwd: pkgDir, stdio: 'inherit' });
+  cpSync(join(pkgDir, 'dist'), join('dist', 'resources', server), { recursive: true });
+  console.log(`✓ Built & staged ${server} → dist/resources/${server}/`);
+}
 
 // Copy PowerShell parser script (for Windows command validation in Explore mode)
 // Source: packages/shared/src/agent/powershell-parser.ps1

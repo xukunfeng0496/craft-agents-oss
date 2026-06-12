@@ -2068,6 +2068,10 @@ function normalizeCvteGatewayRoute(config: StoredConfig): boolean {
   let changed = false;
   for (const connection of config.llmConnections) {
     if (hostOf(connection.baseUrl) !== entHost) continue;
+    // Deliberate OpenAI-protocol connections to the gateway are legitimate
+    // (the gateway serves both protocols) — only repair anthropic-messages
+    // flips and protocol-less pi_compat states.
+    if (connection.customEndpoint?.api === 'openai-completions') continue;
     if (connection.providerType === 'pi_compat' && connection.authType !== 'oauth') {
       (connection as { providerType: LlmProviderType }).providerType = 'anthropic';
       connection.authType = 'api_key';

@@ -147,9 +147,10 @@ export function registerLlmConnectionsHandlers(server: RpcServer, deps: HandlerD
         // providerType from createBuiltInConnection().
         updates.customEndpoint = undefined
         if (connection.providerType === 'pi_compat' && connection.authType !== 'oauth' && !isNewConnection) {
-          if (isEnterpriseGateway) {
+          if (isEnterpriseGateway && connection.customEndpoint?.api !== 'openai-completions') {
             // CVTE D8: repair previously flipped gateway connections back onto
             // the Claude Agent SDK route instead of downgrading to plain Pi.
+            // Deliberate OpenAI-protocol gateway connections are left alone.
             updates.providerType = 'anthropic'
             updates.authType = 'api_key'
           } else {

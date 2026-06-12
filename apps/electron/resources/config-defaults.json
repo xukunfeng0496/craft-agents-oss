@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "description": "Default configuration values for Craft Agents",
+  "description": "Default configuration values for Work Agents",
   "defaults": {
     "notificationsEnabled": true,
     "colorTheme": "default",
@@ -15,8 +15,8 @@
   },
   "workspaceDefaults": {
     "thinkingLevel": "think",
-    "permissionMode": "safe",
-    "cyclablePermissionModes": ["safe", "allow-all"],
+    "permissionMode": "ask",
+    "cyclablePermissionModes": ["ask", "safe", "allow-all"],
     "localMcpServers": {
       "enabled": true
     }

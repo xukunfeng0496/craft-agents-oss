@@ -62,8 +62,17 @@ if (isDebugMode) {
   }
   log.transports.console.level = 'debug'
 } else {
-  // Disable file and console transports in production
-  log.transports.file.level = false
+  // Production: file logging enabled (info+) for diagnostics, console disabled
+  log.transports.file.format = ({ message }) => [
+    JSON.stringify({
+      timestamp: message.date.toISOString(),
+      level: message.level,
+      scope: message.scope,
+      message: message.data,
+    }),
+  ]
+  log.transports.file.level = 'info'
+  log.transports.file.maxSize = 5 * 1024 * 1024 // 5MB
   log.transports.console.level = false
 }
 
@@ -81,7 +90,7 @@ export const searchLog = log.scope('search')
  * Kept outside the Electron-managed logs folder so messaging issues can be
  * inspected independently at a stable path across debug and production builds.
  */
-export const messagingGatewayLogPath = join(homedir(), '.craft-agent', 'logs', 'messaging-gateway.log')
+export const messagingGatewayLogPath = join(homedir(), '.workagent', 'logs', 'messaging-gateway.log')
 const messagingGatewayBackupPath = `${messagingGatewayLogPath}.1`
 const MESSAGING_LOG_MAX_BYTES = 5 * 1024 * 1024 // 5MB
 
@@ -206,7 +215,7 @@ export const messagingGatewayLog: MessagingLogger = new StructuredMessagingGatew
  * Returns undefined if file logging is disabled.
  */
 export function getLogFilePath(): string | undefined {
-  if (!isDebugMode) return undefined
+  if (!log.transports.file.level) return undefined
   return log.transports.file.getFile()?.path
 }
 

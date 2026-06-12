@@ -33,7 +33,9 @@ export type CredentialType =
   | 'source_apikey'      // API keys
   | 'source_basic'       // Basic auth (base64 encoded user:pass)
   // Messaging gateway credentials (keyed by workspaceId + platform)
-  | 'messaging_bearer';  // Platform tokens (e.g., Telegram bot token)
+  | 'messaging_bearer'   // Platform tokens (e.g., Telegram bot token)
+  // CVTE: skill variable values ({{VAR}} substitution in SKILL.md)
+  | 'skill_var';
 
 /** Valid credential types for validation */
 const VALID_CREDENTIAL_TYPES: readonly CredentialType[] = [
@@ -49,6 +51,7 @@ const VALID_CREDENTIAL_TYPES: readonly CredentialType[] = [
   'source_apikey',
   'source_basic',
   'messaging_bearer',
+  'skill_var',
 ] as const;
 
 /** Check if a string is a valid CredentialType */
@@ -71,6 +74,12 @@ export interface CredentialId {
   sourceId?: string;
   /** Server name or API name */
   name?: string;
+
+  // CVTE: skill variable format (skill_var::{workspaceId}::{skillSlug}::{varName})
+  /** Skill slug for skill_var credentials */
+  skillSlug?: string;
+  /** Variable name for skill_var credentials */
+  varName?: string;
 }
 
 /**
@@ -202,6 +211,15 @@ export function credentialIdToAccount(id: CredentialId): string {
     return parts.join(CREDENTIAL_DELIMITER);
   }
 
+  // CVTE skill variable format:
+  // skill_var::{workspaceId}::{skillSlug}::{varName}
+  if (id.type === 'skill_var' && id.workspaceId && id.skillSlug && id.varName) {
+    parts.push(id.workspaceId);
+    parts.push(id.skillSlug);
+    parts.push(id.varName);
+    return parts.join(CREDENTIAL_DELIMITER);
+  }
+
   parts.push('global');
   return parts.join(CREDENTIAL_DELIMITER);
 }
@@ -268,6 +286,12 @@ export function accountToCredentialId(account: string): CredentialId | null {
   // messaging_bearer::{workspaceId}::{platform}
   if (isMessagingCredential(type) && parts.length === 3) {
     return { type, workspaceId: parts[1], name: parts[2] };
+  }
+
+  // CVTE skill variable format:
+  // skill_var::{workspaceId}::{skillSlug}::{varName}
+  if (type === 'skill_var' && parts.length === 4) {
+    return { type, workspaceId: parts[1], skillSlug: parts[2], varName: parts[3] };
   }
 
   if (parts.length === 2 && parts[1] === 'global') {

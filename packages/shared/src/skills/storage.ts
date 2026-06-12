@@ -86,6 +86,8 @@ function parseSkillFile(content: string): { metadata: SkillMetadata; body: strin
         alwaysAllow: parsed.data.alwaysAllow as string[] | undefined,
         icon,
         requiredSources: normalizeRequiredSources(parsed.data.requiredSources),
+        // CVTE: skill variable declarations for {{VAR}} substitution
+        vars: parsed.data.vars as SkillMetadata['vars'],
       },
       body: parsed.content,
     };

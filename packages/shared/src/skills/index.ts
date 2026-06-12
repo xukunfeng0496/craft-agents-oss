@@ -19,3 +19,8 @@ export {
   skillNeedsIconDownload,
   downloadSkillIcon,
 } from './storage.ts';
+
+// CVTE: skill variables ({{VAR}} substitution)
+export * from './vars-storage.ts';
+export * from './vars-substitution.ts';
+export * from './vars-runtime.ts';

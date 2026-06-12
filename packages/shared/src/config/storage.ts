@@ -2078,6 +2078,11 @@ function normalizeCvteGatewayRoute(config: StoredConfig): boolean {
       connection.customEndpoint = undefined;
       changed = true;
     }
+    // Scrub Pi-only fields left behind by a previous pi_compat flip.
+    if (connection.providerType === 'anthropic' && connection.piAuthProvider) {
+      delete connection.piAuthProvider;
+      changed = true;
+    }
   }
   return changed;
 }

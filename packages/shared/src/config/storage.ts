@@ -2049,6 +2049,36 @@ function migrateWorkspaceLegacyOpusToDefaultOpus(config: StoredConfig): void {
  * Also normalizes Pi+Bedrock connections that already have correct providerType.
  */
 /**
+ * CVTE route invariant (D8), enforced on every launch — NOT a one-shot.
+ *
+ * Any connection pointing at the enterprise gateway host must run on the
+ * Claude Agent SDK route. Repairs connections previously flipped to
+ * pi_compat (e.g. by the edit form's Protocol toggle before the handler
+ * guard existed).
+ */
+function normalizeCvteGatewayRoute(config: StoredConfig): boolean {
+  const ent = loadConfigDefaults().enterprise?.defaultLlmConnection;
+  if (!ent?.baseUrl || !config.llmConnections?.length) return false;
+  const hostOf = (url?: string): string | null => {
+    try { return url ? new URL(url).host : null; } catch { return null; }
+  };
+  const entHost = hostOf(ent.baseUrl);
+  if (!entHost) return false;
+
+  let changed = false;
+  for (const connection of config.llmConnections) {
+    if (hostOf(connection.baseUrl) !== entHost) continue;
+    if (connection.providerType === 'pi_compat' && connection.authType !== 'oauth') {
+      (connection as { providerType: LlmProviderType }).providerType = 'anthropic';
+      connection.authType = 'api_key';
+      connection.customEndpoint = undefined;
+      changed = true;
+    }
+  }
+  return changed;
+}
+
+/**
  * CVTE one-shot migration (marker: cvte-gateway-models-1).
  *
  * Connections pointing at the enterprise gateway host adopt the enterprise
@@ -2091,8 +2121,13 @@ function migrateLegacyProviderTypes(config: StoredConfig): boolean {
   for (const connection of config.llmConnections) {
     // CVTE: rewrite the legacy test-gateway endpoint to the official one.
     // Applies to every providerType, including already-migrated connections.
+    // The marker lets ensureEnterpriseDefaultConnection() swap the now-stale
+    // test-environment key for the fallback key exactly once.
     if (connection.baseUrl?.includes('navimaxx-cc.test.seewo.com')) {
       connection.baseUrl = 'https://token.cvte.com';
+      if (!config.migrationsApplied?.includes('cvte-gateway-endpoint-rewritten-1')) {
+        config.migrationsApplied = [...(config.migrationsApplied ?? []), 'cvte-gateway-endpoint-rewritten-1'];
+      }
       changed = true;
     }
 
@@ -2365,6 +2400,11 @@ export function migrateLegacyLlmConnectionsConfig(): void {
     // adopt the enterprise model catalog and auto-sync mode, so the live
     // /v1/models list keeps them aligned afterwards.
     if (migrateCvteGatewayModels(config)) {
+      needsSave = true;
+    }
+    // Phase 1n (CVTE): every-launch invariant — gateway connections stay on the
+    // Claude Agent SDK route (repairs pi_compat flips, D8).
+    if (normalizeCvteGatewayRoute(config)) {
       needsSave = true;
     }
 

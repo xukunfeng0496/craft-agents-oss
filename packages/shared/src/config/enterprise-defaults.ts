@@ -11,6 +11,8 @@
  */
 import {
   loadConfigDefaults,
+  loadStoredConfig,
+  saveConfig,
   getLlmConnections,
   addLlmConnection,
   getDefaultLlmConnection,
@@ -61,15 +63,41 @@ export async function ensureEnterpriseDefaultConnection(): Promise<boolean> {
     }
   }
 
-  // Backfill the shared fallback key when the enterprise connection has none.
+  // Fallback key handling for every connection pointing at the gateway host
+  // (migrated legacy connections keep their own slug):
+  // - no stored key → backfill the shared fallback key
+  // - endpoint was just rewritten from the legacy test gateway → the stored
+  //   test-environment key is stale on the official gateway; replace it once
+  //   (guarded by the rewritten/consumed marker pair).
   // Lazy import avoids a config ↔ credentials module cycle.
-  if (ent.fallbackApiKey && getLlmConnections().some((c) => c.slug === ent.slug)) {
-    const { getCredentialManager } = await import('../credentials/index.ts');
-    const manager = getCredentialManager();
-    const storedKey = await manager.getLlmApiKey(ent.slug);
-    if (!storedKey) {
-      await manager.setLlmApiKey(ent.slug, ent.fallbackApiKey);
-      changed = true;
+  if (ent.fallbackApiKey) {
+    const hostOf = (url?: string): string | null => {
+      try { return url ? new URL(url).host : null; } catch { return null; }
+    };
+    const entHost = hostOf(ent.baseUrl);
+    const gatewayConnections = getLlmConnections().filter((c) => hostOf(c.baseUrl) === entHost);
+    if (entHost && gatewayConnections.length > 0) {
+      const { getCredentialManager } = await import('../credentials/index.ts');
+      const manager = getCredentialManager();
+
+      const REWRITTEN = 'cvte-gateway-endpoint-rewritten-1';
+      const CONSUMED = 'cvte-gateway-stale-key-replaced-1';
+      const config = loadStoredConfig();
+      const mustReplaceStaleKey = !!config?.migrationsApplied?.includes(REWRITTEN)
+        && !config.migrationsApplied?.includes(CONSUMED);
+
+      for (const connection of gatewayConnections) {
+        const storedKey = await manager.getLlmApiKey(connection.slug);
+        if (!storedKey || mustReplaceStaleKey) {
+          await manager.setLlmApiKey(connection.slug, ent.fallbackApiKey);
+          changed = true;
+        }
+      }
+
+      if (mustReplaceStaleKey && config) {
+        config.migrationsApplied = [...(config.migrationsApplied ?? []), CONSUMED];
+        saveConfig(config);
+      }
     }
   }
 

@@ -71,18 +71,21 @@ export function registerLlmConnectionsHandlers(server: RpcServer, deps: HandlerD
 
       const updates: Partial<LlmConnection> = {}
       const hasConfiguredBaseUrl = !!setup.baseUrl?.trim()
+
+      // CVTE D8: any connection pointing at the enterprise gateway host (not just
+      // the provisioned slug — migrated legacy connections keep their own slug)
+      // stays on the Claude Agent SDK route instead of pi_compat. Used by both
+      // the baseUrl branch and the customEndpoint branch below.
+      const entConn = getEnterpriseDefaults()?.defaultLlmConnection
+      const hostOf = (u?: string): string | null => { try { return u ? new URL(u).host : null } catch { return null } }
+      const effectiveHost = hostOf(setup.baseUrl ?? connection.baseUrl)
+      const isEnterpriseGateway = !!entConn && (connection.slug === entConn.slug || (!!effectiveHost && effectiveHost === hostOf(entConn.baseUrl)))
+
       if (setup.baseUrl !== undefined) {
         updates.baseUrl = setup.baseUrl?.trim() || undefined
 
         // Only mutate providerType for API key connections (not OAuth connections)
         if (isAnthropicProvider(connection.providerType) && connection.authType !== 'oauth') {
-          // CVTE D8: any connection pointing at the enterprise gateway host (not just
-          // the provisioned slug — migrated legacy connections keep their own slug)
-          // stays on the Claude Agent SDK route instead of pi_compat.
-          const entConn = getEnterpriseDefaults()?.defaultLlmConnection
-          const hostOf = (u?: string): string | null => { try { return u ? new URL(u).host : null } catch { return null } }
-          const effectiveHost = hostOf(setup.baseUrl ?? connection.baseUrl)
-          const isEnterpriseGateway = !!entConn && (connection.slug === entConn.slug || (!!effectiveHost && effectiveHost === hostOf(entConn.baseUrl)))
           if (hasConfiguredBaseUrl && isEnterpriseGateway) {
             // The enterprise gateway serves the full Anthropic Messages protocol.
             updates.providerType = 'anthropic'
@@ -114,7 +117,12 @@ export function registerLlmConnectionsHandlers(server: RpcServer, deps: HandlerD
         updates.modelSelectionMode = setup.modelSelectionMode
       }
 
-      const customEndpoint = hasConfiguredBaseUrl ? setup.customEndpoint : undefined
+      // CVTE D8: the edit form's Protocol toggle submits customEndpoint for any
+      // custom-baseUrl connection — for the enterprise gateway (Anthropic Messages)
+      // this must NOT flip the connection onto the Pi route. Drop it here.
+      const customEndpoint = hasConfiguredBaseUrl && !(isEnterpriseGateway && setup.customEndpoint?.api === 'anthropic-messages')
+        ? setup.customEndpoint
+        : undefined
       const isCustomEndpointCompat = !!customEndpoint
       if (customEndpoint) {
         updates.customEndpoint = customEndpoint
@@ -139,8 +147,15 @@ export function registerLlmConnectionsHandlers(server: RpcServer, deps: HandlerD
         // providerType from createBuiltInConnection().
         updates.customEndpoint = undefined
         if (connection.providerType === 'pi_compat' && connection.authType !== 'oauth' && !isNewConnection) {
-          updates.providerType = 'pi'
-          updates.authType = 'api_key'
+          if (isEnterpriseGateway) {
+            // CVTE D8: repair previously flipped gateway connections back onto
+            // the Claude Agent SDK route instead of downgrading to plain Pi.
+            updates.providerType = 'anthropic'
+            updates.authType = 'api_key'
+          } else {
+            updates.providerType = 'pi'
+            updates.authType = 'api_key'
+          }
         }
       }
 

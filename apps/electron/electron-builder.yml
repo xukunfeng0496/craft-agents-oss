@@ -74,9 +74,12 @@ extraMetadata:
   main: dist/main.cjs
 
 # Auto-update: electron-updater fetches from this URL for update manifests (.yml files)
+# CVTE: fallback MUST point at the CVTE fast-update-server, never the upstream
+# craft.do feed — a build with un-baked AUTO_UPDATE_* env vars would otherwise
+# silently offer upstream vanilla releases to CVTE users.
 publish:
   provider: generic
-  url: https://agents.craft.do/electron/latest
+  url: http://rxpc.gz.cvte.cn/fast-update-server/api/v1/work-agents/download/stable
 
 # Disable ASAR to avoid decompression overhead and click delays
 asar: false

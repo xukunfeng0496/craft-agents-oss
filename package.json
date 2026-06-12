@@ -99,6 +99,9 @@
     "release": "bun run scripts/release.ts",
     "check-version": "bun run scripts/check-version.ts",
     "oss:sync": "bun run scripts/oss-sync.ts",
+    "fast-update:upload": "bun run scripts/upload-fast-update-release.ts",
+    "test:ota": "bun run scripts/test-ota-flow.ts",
+    "latency:probe": "bun run scripts/latency-probe.ts",
     "prepare": "husky"
   },
   "devDependencies": {

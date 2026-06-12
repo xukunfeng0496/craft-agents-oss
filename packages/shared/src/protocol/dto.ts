@@ -505,11 +505,17 @@ export interface GitBashStatus {
 
 export interface UpdateInfo {
   available: boolean
+  /** CVTE: whether automatic updates stay silent and install on quit */
+  silentMode?: boolean
   currentVersion: string
   latestVersion: string | null
-  downloadState: 'idle' | 'downloading' | 'ready' | 'installing' | 'error'
+  downloadState: 'idle' | 'downloading' | 'ready' | 'installing' | 'error' | 'manual-download'
   downloadProgress: number
+  /** CVTE: whether this platform supports download progress events */
+  supportsProgress?: boolean
   error?: string
+  /** CVTE: direct release URL for manual fallback (downloadState 'manual-download') */
+  releaseUrl?: string
 }
 
 // ---------------------------------------------------------------------------

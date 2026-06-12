@@ -57,6 +57,14 @@ function getBuildDefines(): string[] {
     "MICROSOFT_OAUTH_CLIENT_SECRET",
     "SENTRY_ELECTRON_INGEST_URL",
     "CRAFT_DEV_RUNTIME",
+    // CVTE: fast-update-server OTA config, baked at build time — without these
+    // esbuild defines them as empty strings and the packaged app silently
+    // falls back to the upstream GitHub Releases feed.
+    "AUTO_UPDATE_SERVER_URL",
+    "AUTO_UPDATE_PRODUCT_ID",
+    "AUTO_UPDATE_CHANNEL",
+    "AUTO_UPDATE_SILENT",
+    "AUTO_UPDATE_ENABLE_DEV",
   ];
 
   return definedVars.map((varName) => {

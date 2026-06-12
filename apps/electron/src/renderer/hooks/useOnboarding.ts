@@ -407,8 +407,10 @@ export function useOnboarding({
         return
       }
 
-      // When editing an existing connection, API key is optional (empty = keep existing credential)
-      if (!data.apiKey.trim() && editingSlug) {
+      // When editing an existing connection, API key is optional (empty = keep existing
+      // credential). The masked placeholder ('sk-1234••••ab') counts as unchanged too —
+      // it must never be tested or saved as a literal key.
+      if ((!data.apiKey.trim() || data.apiKey.includes('••')) && editingSlug) {
         const saved = await handleSaveConfig(undefined, {
           baseUrl: data.baseUrl,
           connectionDefaultModel: data.connectionDefaultModel,

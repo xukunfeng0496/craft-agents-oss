@@ -2048,6 +2048,41 @@ function migrateWorkspaceLegacyOpusToDefaultOpus(config: StoredConfig): void {
  *
  * Also normalizes Pi+Bedrock connections that already have correct providerType.
  */
+/**
+ * CVTE one-shot migration (marker: cvte-gateway-models-1).
+ *
+ * Connections pointing at the enterprise gateway host adopt the enterprise
+ * model catalog (static seed) plus auto-sync mode, so legacy claude-* model
+ * lists carried over from old configs are replaced by gateway models and the
+ * live /v1/models refresh keeps them aligned. Marked in migrationsApplied so
+ * later user customizations are never clobbered on subsequent launches.
+ */
+function migrateCvteGatewayModels(config: StoredConfig): boolean {
+  const MARKER = 'cvte-gateway-models-1';
+  if (config.migrationsApplied?.includes(MARKER)) return false;
+  const ent = loadConfigDefaults().enterprise?.defaultLlmConnection;
+  if (!ent?.baseUrl || !config.llmConnections?.length) return false;
+
+  const hostOf = (url?: string): string | null => {
+    try { return url ? new URL(url).host : null; } catch { return null; }
+  };
+  const entHost = hostOf(ent.baseUrl);
+  if (!entHost) return false;
+
+  let changed = false;
+  for (const connection of config.llmConnections) {
+    if (hostOf(connection.baseUrl) !== entHost) continue;
+    if (ent.models?.length) connection.models = [...ent.models];
+    connection.defaultModel = ent.defaultModel;
+    connection.modelSelectionMode = 'automaticallySyncedFromProvider';
+    changed = true;
+  }
+  if (changed) {
+    config.migrationsApplied = [...(config.migrationsApplied ?? []), MARKER];
+  }
+  return changed;
+}
+
 function migrateLegacyProviderTypes(config: StoredConfig): boolean {
   if (!config.llmConnections) return false;
 
@@ -2324,6 +2359,12 @@ export function migrateLegacyLlmConnectionsConfig(): void {
     // Important for old Bedrock connections: they become Pi+Bedrock first, then can
     // fall back from Opus 4.8 to 4.7 while Pi's catalog lacks 4.8.
     if (migrateLegacyOpusToDefaultOpus(config)) {
+      needsSave = true;
+    }
+    // Phase 1m (CVTE): one-shot — connections pointing at the enterprise gateway
+    // adopt the enterprise model catalog and auto-sync mode, so the live
+    // /v1/models list keeps them aligned afterwards.
+    if (migrateCvteGatewayModels(config)) {
       needsSave = true;
     }
 

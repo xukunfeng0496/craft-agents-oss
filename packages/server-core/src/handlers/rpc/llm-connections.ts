@@ -76,9 +76,15 @@ export function registerLlmConnectionsHandlers(server: RpcServer, deps: HandlerD
 
         // Only mutate providerType for API key connections (not OAuth connections)
         if (isAnthropicProvider(connection.providerType) && connection.authType !== 'oauth') {
-          if (hasConfiguredBaseUrl && connection.slug === getEnterpriseDefaults()?.defaultLlmConnection?.slug) {
-            // CVTE D8: the enterprise gateway serves the full Anthropic Messages
-            // protocol — keep the Claude Agent SDK route instead of pi_compat.
+          // CVTE D8: any connection pointing at the enterprise gateway host (not just
+          // the provisioned slug — migrated legacy connections keep their own slug)
+          // stays on the Claude Agent SDK route instead of pi_compat.
+          const entConn = getEnterpriseDefaults()?.defaultLlmConnection
+          const hostOf = (u?: string): string | null => { try { return u ? new URL(u).host : null } catch { return null } }
+          const effectiveHost = hostOf(setup.baseUrl ?? connection.baseUrl)
+          const isEnterpriseGateway = !!entConn && (connection.slug === entConn.slug || (!!effectiveHost && effectiveHost === hostOf(entConn.baseUrl)))
+          if (hasConfiguredBaseUrl && isEnterpriseGateway) {
+            // The enterprise gateway serves the full Anthropic Messages protocol.
             updates.providerType = 'anthropic'
             updates.authType = 'api_key'
           } else if (hasConfiguredBaseUrl) {
@@ -321,6 +327,11 @@ export function registerLlmConnectionsHandlers(server: RpcServer, deps: HandlerD
   server.handle(RPC_CHANNELS.settings.TEST_LLM_CONNECTION_SETUP, async (_ctx, params: import('@craft-agent/shared/protocol').TestLlmConnectionParams): Promise<import('@craft-agent/shared/protocol').TestLlmConnectionResult> => {
     const { provider, apiKey, baseUrl, model, piAuthProvider, customEndpoint } = params
     const trimmedKey = apiKey?.trim() ?? ''
+    // CVTE: the masked placeholder from GET_API_KEY ('sk-1234••••ab') must never
+    // reach fetch headers — '•' (U+2022) is not a valid ByteString character.
+    if (trimmedKey.includes('••')) {
+      return { success: false, error: 'API key field still shows the masked placeholder. Leave it empty to keep the saved key, or paste a new one.' }
+    }
     const allowEmptyApiKey = !setupTestRequiresApiKey(baseUrl)
 
     if (!trimmedKey && !allowEmptyApiKey) {

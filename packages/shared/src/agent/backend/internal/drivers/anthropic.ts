@@ -35,11 +35,15 @@ export const anthropicDriver: ProviderDriver = {
       headers.authorization = `Bearer ${oauthAccessToken}`;
     }
 
+    // CVTE: gateway /v1/models entries use the OpenAI list shape — they add
+    // supported_apis / max_input_tokens and may omit display_name / created_at.
     const allRawModels: Array<{
       id: string;
-      display_name: string;
-      created_at: string;
-      type: string;
+      display_name?: string;
+      created_at?: string;
+      type?: string;
+      supported_apis?: string[];
+      max_input_tokens?: number;
     }> = [];
     let afterId: string | undefined;
 
@@ -53,10 +57,10 @@ export const anthropicDriver: ProviderDriver = {
       }
 
       const data = await response.json() as {
-        data: Array<{ id: string; display_name: string; created_at: string; type: string }>;
-        has_more: boolean;
-        first_id: string;
-        last_id: string;
+        data: Array<{ id: string; display_name?: string; created_at?: string; type?: string; supported_apis?: string[]; max_input_tokens?: number }>;
+        has_more?: boolean;
+        first_id?: string;
+        last_id?: string;
       };
       if (data.data) allRawModels.push(...data.data);
 
@@ -73,10 +77,15 @@ export const anthropicDriver: ProviderDriver = {
 
     const seen = new Set<string>();
     const models = allRawModels
-      .filter(m => m.id.startsWith('claude-') && !m.id.startsWith('claude-2') && !m.id.startsWith('claude-instant') && !m.id.startsWith('claude-1'))
+      .filter(m => {
+        // CVTE: gateway entries declare supported protocols — keep every
+        // Anthropic-capable model regardless of vendor (CVTE-AUTO, deepseek, qwen, ...).
+        if (Array.isArray(m.supported_apis)) return m.supported_apis.includes('anthropic');
+        return m.id.startsWith('claude-') && !m.id.startsWith('claude-2') && !m.id.startsWith('claude-instant') && !m.id.startsWith('claude-1');
+      })
       // The live Anthropic API can still list deprecated models. Do not persist
       // them back into active connection catalogs at startup.
-      .filter(m => normalizeDeprecatedModelId(m.id) === m.id)
+      .filter(m => Array.isArray(m.supported_apis) || normalizeDeprecatedModelId(m.id) === m.id)
       .filter(m => {
         if (seen.has(m.id)) return false;
         seen.add(m.id);
@@ -86,7 +95,7 @@ export const anthropicDriver: ProviderDriver = {
         const registryModel = getModelById(m.id);
         return {
           id: m.id,
-          name: registryModel?.name ?? m.display_name,
+          name: registryModel?.name ?? m.display_name ?? m.id,
           shortName: registryModel?.shortName ?? (() => {
             const stripped = m.id
               .replace('claude-', '')
@@ -101,7 +110,7 @@ export const anthropicDriver: ProviderDriver = {
           description: registryModel?.description ?? '',
           descriptionKey: registryModel?.descriptionKey,
           provider: 'anthropic' as const,
-          contextWindow: getModelContextWindow(m.id) ?? 200_000,
+          contextWindow: getModelContextWindow(m.id) ?? m.max_input_tokens ?? 200_000,
           supportsThinking: registryModel?.supportsThinking,
           supportsImages: registryModel?.supportsImages,
         };

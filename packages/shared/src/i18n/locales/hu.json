@@ -2,6 +2,7 @@
   "apiSetup.authorizationCode": "Engedélyezési kód",
   "apiSetup.credentials.environment": "Környezet (AWS CLI)",
   "apiSetup.credentials.iam": "IAM hitelesítő adatok",
+  "apiSetup.cvteGetKeyHint": "Szerezd be személyes API-kulcsodat itt: https://ai.cvte.com/profile/ai-account, majd illeszd be ide.",
   "apiSetup.format.anthropicCompatible": "Anthropic kompatibilis",
   "apiSetup.format.openaiCompatible": "OpenAI kompatibilis",
   "apiSetup.loadingModels": "Modellek betöltése...",

@@ -2,6 +2,7 @@
   "apiSetup.authorizationCode": "Autorisierungscode",
   "apiSetup.credentials.environment": "Umgebung (AWS CLI)",
   "apiSetup.credentials.iam": "IAM-Anmeldedaten",
+  "apiSetup.cvteGetKeyHint": "Hol dir deinen persönlichen API-Schlüssel unter https://ai.cvte.com/profile/ai-account und füge ihn hier ein.",
   "apiSetup.format.anthropicCompatible": "Anthropic-kompatibel",
   "apiSetup.format.openaiCompatible": "OpenAI-kompatibel",
   "apiSetup.loadingModels": "Modelle werden geladen...",

@@ -255,7 +255,13 @@ export function mapClaudeSdkAssistantError(
         code: 'invalid_api_key',
         title: 'Authentication Failed',
         message: 'Unable to authenticate. Your API key may be invalid or expired.',
-        details: ['Check your API key in settings', 'Ensure your API key has not been revoked'],
+        details: [
+          // CVTE: self-service key recovery guidance
+          '前往 https://ai.cvte.com/profile/ai-account 获取你的个人 API Key',
+          '复制后在 设置 → AI → 连接 → 编辑 中粘贴即可完成配置',
+          'Check your API key in settings',
+          'Ensure your API key has not been revoked',
+        ],
         actions: [
           { key: 's', label: 'Settings', action: 'settings' },
           { key: 'r', label: 'Retry', action: 'retry' },

@@ -2,6 +2,7 @@
   "apiSetup.authorizationCode": "認証コード",
   "apiSetup.credentials.environment": "環境 (AWS CLI)",
   "apiSetup.credentials.iam": "IAM 認証情報",
+  "apiSetup.cvteGetKeyHint": "https://ai.cvte.com/profile/ai-account で個人の API キーを取得し、ここに貼り付けてください。",
   "apiSetup.format.anthropicCompatible": "Anthropic 互換",
   "apiSetup.format.openaiCompatible": "OpenAI 互換",
   "apiSetup.loadingModels": "モデルを読み込み中...",

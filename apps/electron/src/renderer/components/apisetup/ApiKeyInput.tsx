@@ -463,6 +463,8 @@ export function ApiKeyInput({
             )}
           </button>
         </div>
+        {/* CVTE: self-service key acquisition guidance */}
+        <p className="text-xs text-muted-foreground">{t("apiSetup.cvteGetKeyHint")}</p>
       </div>)}
 
       {/* Endpoint/Provider Preset Selector - hidden when only one preset (e.g. Codex/OpenAI direct) */}

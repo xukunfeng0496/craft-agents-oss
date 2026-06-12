@@ -71,4 +71,10 @@ export interface EnterpriseDefaults {
   hideOtherProviders?: boolean;
   /** Markdown appended to the agent system prompt under '## Enterprise Context' */
   promptAppendix?: string;
+  /**
+   * Domain suffixes that must always bypass HTTP proxies (intranet services:
+   * gateway, key API, skills registry, update server). Merged into NO_PROXY
+   * for the main process and every subprocess.
+   */
+  noProxyDomains?: string[];
 }

@@ -90,9 +90,17 @@ interface Preset {
   placeholder?: string
 }
 
+// CVTE enterprise gateway — Anthropic-Messages protocol at the intranet host.
+// Exposed as a first-class provider preset (D7/D8) so token.cvte.com resolves
+// to a branded "CVTE" entry instead of falling through to "Custom"; selecting
+// it collapses the form to key-only (endpoint/protocol/models are provisioned).
+const CVTE_GATEWAY_URL = 'https://token.cvte.com'
+const CVTE_GATEWAY_PRESET_KEY = 'cvte-cch'
+
 // Anthropic provider presets - for Claude Code backend
 // Also used by Pi API key flow (same providers, routed via Pi SDK)
 const ANTHROPIC_PRESETS: Preset[] = [
+  { key: CVTE_GATEWAY_PRESET_KEY, label: 'CVTE', url: CVTE_GATEWAY_URL, placeholder: 'sk-...' },
   { key: 'anthropic', label: 'Anthropic', url: 'https://api.anthropic.com', placeholder: 'sk-ant-...' },
   { key: 'openai', label: 'OpenAI', url: 'https://api.openai.com/v1', placeholder: 'sk-...' },
   { key: 'openai-eu', label: 'OpenAI EU', url: 'https://eu.api.openai.com/v1', placeholder: 'sk-...' },
@@ -159,7 +167,21 @@ function getPresetsForProvider(providerType: 'anthropic' | 'openai' | 'pi' | 'go
   return ANTHROPIC_PRESETS.filter(p => !PI_ONLY_PRESET_KEYS.has(p.key))
 }
 
+/** Both the Anthropic host (token.cvte.com) and the OpenAI host (…/v1) are the CVTE gateway. */
+function isCvteGatewayUrl(url: string): boolean {
+  if (!url) return false
+  try {
+    return new URL(url).host === new URL(CVTE_GATEWAY_URL).host
+  } catch {
+    return url.startsWith(CVTE_GATEWAY_URL)
+  }
+}
+
 function getPresetForUrl(url: string, presets: Preset[]): PresetKey {
+  // CVTE gateway resolves to the branded preset regardless of the /v1 OpenAI suffix.
+  if (presets.some(p => p.key === CVTE_GATEWAY_PRESET_KEY) && isCvteGatewayUrl(url)) {
+    return CVTE_GATEWAY_PRESET_KEY
+  }
   const match = presets.find(p => p.key !== 'custom' && p.url === url)
   return match?.key ?? 'custom'
 }
@@ -201,7 +223,10 @@ export function ApiKeyInput({
     initialPreset !== 'custom' ? initialPreset : defaultPreset.key
   )
   const [connectionDefaultModel, setConnectionDefaultModel] = useState(initialValues?.connectionDefaultModel ?? '')
-  const [customApi, setCustomApi] = useState<CustomEndpointApi>(initialValues?.customApi ?? 'openai-completions')
+  // CVTE gateway defaults to its Anthropic-Messages protocol; everything else to OpenAI-compatible.
+  const [customApi, setCustomApi] = useState<CustomEndpointApi>(
+    initialValues?.customApi ?? (initialPreset === CVTE_GATEWAY_PRESET_KEY ? 'anthropic-messages' : 'openai-completions')
+  )
   const [modelError, setModelError] = useState<string | null>(null)
 
   // Bedrock auth state
@@ -227,6 +252,10 @@ export function ApiKeyInput({
 
   const isPiApiKeyFlow = providerType === 'pi_api_key'
   const isBedrock = activePreset === 'amazon-bedrock'
+  // CVTE gateway preset: fixed intranet endpoint, key-only form. The protocol
+  // toggle stays (Anthropic ↔ OpenAI-compatible /v1) but base URL + model list
+  // are derived/provisioned, never typed.
+  const isCvteGateway = activePreset === CVTE_GATEWAY_PRESET_KEY
   // Hide endpoint/model fields for providers with well-known endpoints handled by the SDK
   const DEFAULT_ENDPOINT_PROVIDERS = new Set(['anthropic', 'openai', 'pi', 'google'])
   const isDefaultProviderPreset = DEFAULT_ENDPOINT_PROVIDERS.has(activePreset)
@@ -282,6 +311,10 @@ export function ApiKeyInput({
       setBaseUrl('')
     } else {
       setBaseUrl(preset.url)
+    }
+    // CVTE gateway: default back to its Anthropic-Messages protocol when (re)selected.
+    if (preset.key === CVTE_GATEWAY_PRESET_KEY) {
+      setCustomApi('anthropic-messages')
     }
     setModelError(null)
     // Pre-fill recommended model for Ollama; clear for all others
@@ -386,6 +419,20 @@ export function ApiKeyInput({
       return
     }
 
+    // CVTE gateway — endpoint is fixed by the chosen protocol, models are
+    // provisioned + auto-refreshed from /v1/models. Anthropic-Messages keeps the
+    // Claude Agent SDK route (D8, no customEndpoint); OpenAI-compatible targets
+    // the /v1 host and routes through the Pi openai-completions adapter.
+    if (isCvteGateway) {
+      const useOpenAi = customApi === 'openai-completions'
+      onSubmit({
+        apiKey: apiKey.trim(),
+        baseUrl: useOpenAi ? `${CVTE_GATEWAY_URL}/v1` : CVTE_GATEWAY_URL,
+        customEndpoint: useOpenAi ? { api: 'openai-completions' } : undefined,
+      })
+      return
+    }
+
     const effectiveBaseUrl = baseUrl.trim()
 
     const parsedModels = parseModelList(connectionDefaultModel)
@@ -471,7 +518,7 @@ export function ApiKeyInput({
       {presets.length > 1 && (
       <div className="space-y-2">
         <div className="flex items-center justify-between">
-          <Label htmlFor="base-url">Endpoint</Label>
+          <Label htmlFor="base-url">{t("apiSetup.endpoint")}</Label>
           <DropdownMenu>
             <DropdownMenuTrigger
               disabled={isDisabled}
@@ -494,8 +541,9 @@ export function ApiKeyInput({
             </StyledDropdownMenuContent>
           </DropdownMenu>
         </div>
-        {/* Base URL input - hidden for default provider presets (Anthropic/OpenAI) and Bedrock */}
-        {!isDefaultProviderPreset && !isBedrock && (
+        {/* Base URL input - hidden for default provider presets, Bedrock, and the
+            CVTE gateway (its endpoint is fixed by the protocol toggle). */}
+        {!isDefaultProviderPreset && !isBedrock && !isCvteGateway && (
           <div className={cn(
             "rounded-md shadow-minimal transition-colors",
             "bg-foreground-2 focus-within:bg-background"
@@ -514,18 +562,19 @@ export function ApiKeyInput({
       </div>
       )}
 
-      {/* Protocol Toggle — visible as soon as Custom preset is selected */}
-      {activePreset === 'custom' && !isDefaultProviderPreset && (
+      {/* Protocol Toggle — for the generic Custom preset and the CVTE gateway
+          (Anthropic-Messages by default, OpenAI-compatible → token.cvte.com/v1). */}
+      {(activePreset === 'custom' || isCvteGateway) && !isDefaultProviderPreset && (
         <div className="space-y-2">
-          <Label>Protocol</Label>
+          <Label>{t("apiSetup.protocol")}</Label>
           <div className={cn(
             "flex rounded-md shadow-minimal overflow-hidden",
             "bg-foreground-2",
             isDisabled && "opacity-50 pointer-events-none"
           )}>
             {([
-              { value: 'openai-completions' as const, label: 'OpenAI Compatible' },
-              { value: 'anthropic-messages' as const, label: 'Anthropic Compatible' },
+              { value: 'anthropic-messages' as const, label: t("apiSetup.format.anthropicCompatible") },
+              { value: 'openai-completions' as const, label: t("apiSetup.format.openaiCompatible") },
             ]).map(({ value, label }) => (
               <button
                 key={value}
@@ -544,7 +593,7 @@ export function ApiKeyInput({
             ))}
           </div>
           <p className="text-xs text-foreground/30">
-            Most third-party APIs (Ollama, vLLM, DashScope) use OpenAI Compatible.
+            {isCvteGateway ? t("apiSetup.cvteProtocolHint") : t("apiSetup.protocolHint")}
           </p>
         </div>
       )}
@@ -784,12 +833,12 @@ export function ApiKeyInput({
             </>
           )}
         </div>
-      ) : !isDefaultProviderPreset && (
+      ) : !isDefaultProviderPreset && !isCvteGateway && (
         <div className="space-y-2">
           <Label htmlFor="connection-default-model" className="text-muted-foreground font-normal">
-            Default Model{' '}
+            {t("apiSetup.defaultModel")}{' '}
             <span className="text-foreground/30">
-              · {!isBedrock && baseUrl.trim() ? 'required' : 'optional'}
+              · {!isBedrock && baseUrl.trim() ? t("apiSetup.required") : t("apiSetup.optional")}
             </span>
           </Label>
           <div className={cn(
@@ -814,11 +863,11 @@ export function ApiKeyInput({
             <p className="text-xs text-destructive">{modelError}</p>
           )}
           <p className="text-xs text-foreground/30">
-            Comma-separated list. The first model is the default. The last is used for summarization.
+            {t("apiSetup.modelListHint")}
           </p>
           {(activePreset === 'custom' || !activePreset) && (
             <p className="text-xs text-foreground/30">
-              Required for custom endpoints. Use the provider-specific model ID.
+              {t("apiSetup.customModelHint")}
             </p>
           )}
         </div>

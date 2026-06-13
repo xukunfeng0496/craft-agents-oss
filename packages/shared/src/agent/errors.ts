@@ -62,9 +62,10 @@ export interface AgentError {
  */
 const ERROR_DEFINITIONS: Record<ErrorCode, Omit<AgentError, 'code' | 'originalError' | 'details'>> = {
   invalid_api_key: {
-    title: 'Invalid API Key',
-    // CVTE: includes self-service key recovery guidance
-    message: 'Your API key was rejected. It may be invalid or expired. 前往 https://ai.cvte.com/profile/ai-account 获取你的个人 API Key，在 设置 → AI 中粘贴即可。',
+    title: 'API Key 无效',
+    // CVTE: self-service key recovery. Endpoint (token.cvte.com) and model list
+    // are provisioned/auto-fetched — the user only needs a valid personal key.
+    message: 'API Key 无效或已过期。前往 https://ai.cvte.com/profile/ai-account 获取个人 API Key，在 设置 → AI 中粘贴即可（端点与模型已自动配置，无需填写）。',
     actions: [
       { key: 's', label: 'Update API key', command: '/settings', action: 'settings' },
     ],

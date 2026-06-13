@@ -34,6 +34,7 @@ export const HANDLED_CHANNELS = [
   RPC_CHANNELS.chatgpt.CANCEL_OAUTH,
   RPC_CHANNELS.chatgpt.GET_AUTH_STATUS,
   RPC_CHANNELS.chatgpt.LOGOUT,
+  RPC_CHANNELS.cvte.IS_AVAILABLE,
   RPC_CHANNELS.cvte.START_OAUTH,
   RPC_CHANNELS.cvte.COMPLETE_OAUTH,
   RPC_CHANNELS.cvte.CANCEL_OAUTH,
@@ -871,6 +872,15 @@ export function registerLlmConnectionsHandlers(server: RpcServer, deps: HandlerD
       gatewayBaseUrl: gateway.baseUrl,
     }
   }
+
+  // cvte:isAvailable — does this build have portal SSO configured? Drives whether
+  // the renderer shows the "CVTE 门户登录" entry points.
+  server.handle(RPC_CHANNELS.cvte.IS_AVAILABLE, async (): Promise<{ available: boolean; portalHost?: string }> => {
+    const sso = getEnterpriseDefaults()?.sso
+    const gateway = getEnterpriseDefaults()?.defaultLlmConnection
+    const available = !!sso?.portalHost && !!sso?.clientId && !!sso?.relayUrl && !!gateway?.slug && !!gateway?.baseUrl
+    return available ? { available: true, portalHost: sso!.portalHost } : { available: false }
+  })
 
   // cvte:startOAuth — build the portal authorize URL, store the flow keyed by a
   // server-generated flowId (the strong anti-CSRF binding; state is defense in

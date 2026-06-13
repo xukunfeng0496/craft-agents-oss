@@ -16,7 +16,7 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { Button } from '@/components/ui/button'
 import { HeaderMenu } from '@/components/ui/HeaderMenu'
 import { routes } from '@/lib/navigate'
-import { X, MoreHorizontal, Pencil, Trash2, Star, ChevronDown, ChevronRight, CheckCircle2, AlertTriangle, RefreshCcw, Settings2, MessageSquareMore, Zap, Clock, Check } from 'lucide-react'
+import { X, MoreHorizontal, Pencil, Trash2, Star, ChevronDown, ChevronRight, CheckCircle2, AlertTriangle, RefreshCcw, Settings2, MessageSquareMore, Zap, Clock, Check, LogIn } from 'lucide-react'
 import type { CredentialHealthStatus, CredentialHealthIssue } from '../../../shared/types'
 import { Spinner, FullscreenOverlayBase, Tooltip, TooltipTrigger, TooltipContent } from '@craft-agent/ui'
 import { useSetAtom } from 'jotai'
@@ -199,9 +199,12 @@ interface ConnectionRowProps {
   validationError?: string
   /** True when another OAuth connection resolves to the same Anthropic account (issue #838) */
   isDuplicateAccount?: boolean
+  /** CVTE gateway + portal SSO configured → show the "CVTE 门户登录" menu item */
+  showCvteLogin?: boolean
+  onCvteLogin?: () => void
 }
 
-function ConnectionRow({ connection, isLastConnection, onRenameClick, onDelete, onSetDefault, onValidate, onReauthenticate, onEdit, onSetMidStreamBehavior, validationState, validationError, isDuplicateAccount }: ConnectionRowProps) {
+function ConnectionRow({ connection, isLastConnection, onRenameClick, onDelete, onSetDefault, onValidate, onReauthenticate, onEdit, onSetMidStreamBehavior, validationState, validationError, isDuplicateAccount, showCvteLogin, onCvteLogin }: ConnectionRowProps) {
   const { t } = useTranslation()
   const [menuOpen, setMenuOpen] = useState(false)
   const [piBaseUrl, setPiBaseUrl] = useState<string | undefined>(undefined)
@@ -348,6 +351,12 @@ function ConnectionRow({ connection, isLastConnection, onRenameClick, onDelete, 
             <StyledDropdownMenuItem onClick={() => runAfterMenuClose(onEdit)}>
               <Settings2 className="h-3.5 w-3.5" />
               <span>{t("common.edit")}</span>
+            </StyledDropdownMenuItem>
+          )}
+          {showCvteLogin && onCvteLogin && (
+            <StyledDropdownMenuItem onClick={() => runAfterMenuClose(onCvteLogin)}>
+              <LogIn className="h-3.5 w-3.5" />
+              <span>{t("settings.ai.cvteSso.menuItem")}</span>
             </StyledDropdownMenuItem>
           )}
           <StyledDropdownMenuItem
@@ -668,6 +677,34 @@ export default function AiSettingsPage() {
 
   // Credential health state (for startup warning banner)
   const [credentialHealthIssues, setCredentialHealthIssues] = useState<CredentialHealthIssue[]>([])
+
+  // CVTE 统一门户 SSO availability (gates the "CVTE 门户登录" entry on the gateway row)
+  const [cvteSsoAvailable, setCvteSsoAvailable] = useState(false)
+  useEffect(() => {
+    let cancelled = false
+    window.electronAPI.isCvtePortalSsoAvailable()
+      .then(r => { if (!cancelled) setCvteSsoAvailable(!!r.available) })
+      .catch(() => { /* non-enterprise build — leave hidden */ })
+    return () => { cancelled = true }
+  }, [])
+
+  // CVTE SSO login from the gateway connection row: portal login → personal key →
+  // gateway re-configured (replaces the shared fallback key). Refreshes on success.
+  const handleCvteLogin = useCallback(async (connection: LlmConnectionWithStatus) => {
+    const toastId = toast.loading(t('settings.ai.cvteSso.inProgress'))
+    try {
+      const result = await window.electronAPI.startCvtePortalOAuth(connection.slug)
+      if (result.success) {
+        const who = result.identity?.name || result.identity?.account || result.identity?.email
+        toast.success(t('settings.ai.cvteSso.success', { name: who ?? '' }).trim(), { id: toastId })
+        await refreshLlmConnections()
+      } else {
+        toast.error(t('settings.ai.cvteSso.failed', { error: result.error ?? '' }).trim(), { id: toastId })
+      }
+    } catch (error) {
+      toast.error(t('settings.ai.cvteSso.failed', { error: error instanceof Error ? error.message : '' }).trim(), { id: toastId })
+    }
+  }, [refreshLlmConnections, t])
 
   // Rename dialog state
   const [renameDialogOpen, setRenameDialogOpen] = useState(false)
@@ -1155,6 +1192,8 @@ export default function AiSettingsPage() {
                         validationState={validationStates[conn.slug]?.state || 'idle'}
                         validationError={validationStates[conn.slug]?.error}
                         isDuplicateAccount={!!conn.oauthAccountUuid && duplicateAccountUuids.has(conn.oauthAccountUuid)}
+                        showCvteLogin={cvteSsoAvailable && isCvteGatewayUrl(conn.baseUrl ?? '')}
+                        onCvteLogin={() => handleCvteLogin(conn)}
                       />
                     ))
                   )}

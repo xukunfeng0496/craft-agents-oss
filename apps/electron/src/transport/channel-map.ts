@@ -138,6 +138,9 @@ export const CHANNEL_MAP = {
   getChatGptAuthStatus: invoke(RPC_CHANNELS.chatgpt.GET_AUTH_STATUS),
   chatGptLogout: invoke(RPC_CHANNELS.chatgpt.LOGOUT),
 
+  // CVTE 统一门户 SSO (startCvtePortalOAuth is a preload-orchestrated override)
+  isCvtePortalSsoAvailable: invoke(RPC_CHANNELS.cvte.IS_AVAILABLE),
+
   // GitHub Copilot OAuth
   startCopilotOAuth: invoke(RPC_CHANNELS.copilot.START_OAUTH),
   cancelCopilotOAuth: invoke(RPC_CHANNELS.copilot.CANCEL_OAUTH),

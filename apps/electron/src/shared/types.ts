@@ -410,6 +410,8 @@ export interface ElectronAPI {
     identity?: { account?: string; name?: string; email?: string; simUid?: string; userId?: number }
     error?: string
   }>
+  /** Whether this build has CVTE portal SSO configured (gates the login UI). */
+  isCvtePortalSsoAvailable(): Promise<{ available: boolean; portalHost?: string }>
 
   // GitHub Copilot OAuth
   startCopilotOAuth(connectionSlug: string): Promise<{ success: boolean; error?: string }>

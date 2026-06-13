@@ -197,6 +197,7 @@ export const RPC_CHANNELS = {
   // auto-config the enterprise gateway connection. Client runs the loopback
   // callback server; server builds the auth URL and exchanges the code.
   cvte: {
+    IS_AVAILABLE: 'cvte:isAvailable',
     START_OAUTH: 'cvte:startOAuth',
     COMPLETE_OAUTH: 'cvte:completeOAuth',
     CANCEL_OAUTH: 'cvte:cancelOAuth',

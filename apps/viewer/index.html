@@ -3,20 +3,14 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="View and share Craft Agents session transcripts" />
-    <title>Craft Agents Session Viewer</title>
-    <!-- Plausible Analytics -->
-    <script async src="https://plausible.io/js/pa-VCOpOqeNVm6n6u1hUMMUH.js"></script>
-    <script>
-      window.plausible=window.plausible||function(){(plausible.q=plausible.q||[]).push(arguments)},plausible.init=plausible.init||function(i){plausible.o=i||{}};
-      plausible.init()
-    </script>
-    <!-- JetBrains Mono for code blocks -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap">
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap" media="print" onload="this.media='all'">
-    <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap"></noscript>
+    <meta name="description" content="查看与分享 Work Agents 会话记录" />
+    <title>Work Agents 会话查看器</title>
+    <!--
+      CVTE 内网构建：移除全部外部依赖，做到自包含 / 可离网部署。
+      原有：Plausible 分析（plausible.io）+ Google Fonts（fonts.googleapis.com，JetBrains Mono）。
+      代码块改用系统等宽字体兜底（Tailwind `font-mono`）。如需自定义代码字体，
+      自托管 woff2 并在 index.css 加 @font-face。
+    -->
   </head>
   <body>
     <div id="root"></div>

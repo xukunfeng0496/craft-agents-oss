@@ -244,11 +244,7 @@ if (process.defaultApp) {
 import { applyConfiguredProxySettings } from './network-proxy'
 void applyConfiguredProxySettings()
 
-// CVTE: intranet domains (gateway/key API/skills registry/update server) must
-// never route through a proxy — including proxies inherited from the user's
-// shell environment via loadShellEnv.
-import { applyEnterpriseNoProxyToProcessEnv } from '@craft-agent/shared/config'
-applyEnterpriseNoProxyToProcessEnv()
+import { applyEnterpriseNoProxyToProcessEnv, ensureConfigDir } from '@craft-agent/shared/config'
 
 // Accept self-signed / untrusted certificates when connecting to a user-configured remote server.
 // Only bypasses cert validation for the exact CRAFT_SERVER_URL origin — all other connections
@@ -433,6 +429,14 @@ app.whenReady().then(async () => {
   // Re-apply proxy settings now that Electron sessions are available
   // (first call before app.whenReady only configured Node-level proxy)
   await applyConfiguredProxySettings()
+
+  // CVTE: intranet domains (gateway/key API/skills registry/update server) must
+  // never route through a proxy — including proxies inherited from the user's
+  // shell environment via loadShellEnv. ensureConfigDir() first: the enterprise
+  // domain list lives in config-defaults.json, which doesn't exist on disk
+  // until the first sync (fresh installs).
+  ensureConfigDir()
+  applyEnterpriseNoProxyToProcessEnv()
 
   // Note: electron-updater handles pending updates internally via autoInstallOnAppQuit
 

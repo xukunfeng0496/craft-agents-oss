@@ -7,7 +7,15 @@ import { getEnterpriseDefaults } from './enterprise-defaults.ts';
  * there is nothing to bypass.
  */
 function mergedNoProxy(userNoProxy?: string): string | null {
-  const enterpriseDomains = getEnterpriseDefaults()?.noProxyDomains ?? [];
+  // loadConfigDefaults() throws until ensureConfigDir() has synced
+  // config-defaults.json on first launch — NO_PROXY enrichment is best-effort
+  // and must never block startup.
+  let enterpriseDomains: string[] = [];
+  try {
+    enterpriseDomains = getEnterpriseDefaults()?.noProxyDomains ?? [];
+  } catch {
+    // First launch, before config-defaults sync: fall back to user entries only.
+  }
   const parts = new Set<string>();
   for (const entry of (userNoProxy ?? '').split(',')) {
     const trimmed = entry.trim();

@@ -73,14 +73,16 @@ export function SkillsListPanel({
   const [sendResourceSlug, setSendResourceSlug] = React.useState<string | null>(null)
   const [sendResourceLabel, setSendResourceLabel] = React.useState('')
 
-  const fetchRemote = useCallback(async () => {
-    if (remoteFetched) return
+  const fetchRemote = useCallback(async (force = false) => {
+    if (remoteFetched && !force) return
     try {
       const registry = await window.electronAPI.getMarketplaceRegistry()
       setRemoteSkills(registry.skills || [])
     } catch (error) {
       if (isMarketplaceAuthError(error)) {
-        toast.error(t('marketplace.authRequired'))
+        toast.error(t('marketplace.authRequired'), {
+          action: { label: t('marketplace.login'), onClick: () => void handleMarketplaceLogin() },
+        })
       } else if (isMarketplaceConnectivityError(error)) {
         toast.error(t('marketplace.unreachable', { host: MARKETPLACE_HOST }))
       } else {
@@ -91,7 +93,27 @@ export function SkillsListPanel({
     } finally {
       setRemoteFetched(true)
     }
+    // handleMarketplaceLogin is declared below; the closure reads the latest one
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [remoteFetched, t])
+
+  // CVTE: complete the 统一门户 SSO login for the marketplace (shared portal
+  // session with the gateway), then re-run the original action (e.g. install).
+  const handleMarketplaceLogin = useCallback(async (onDone?: () => void) => {
+    const id = toast.loading(t('marketplace.loggingIn'))
+    try {
+      const r = await window.electronAPI.loginMarketplace()
+      if (r.success) {
+        toast.success(t('marketplace.loginSuccess'), { id })
+        await fetchRemote(true)
+        onDone?.()
+      } else {
+        toast.error(t('marketplace.loginFailed'), { id, description: r.error })
+      }
+    } catch (e) {
+      toast.error(t('marketplace.loginFailed'), { id, description: e instanceof Error ? e.message : undefined })
+    }
+  }, [t, fetchRemote])
 
   useEffect(() => {
     if (workspaceId) void fetchRemote()
@@ -148,7 +170,9 @@ export function SkillsListPanel({
       toast.success(`${name} ${t('skillsList.installed')}`)
     } catch (e) {
       if (isMarketplaceAuthError(e)) {
-        toast.error(t('marketplace.authRequired'))
+        toast.error(t('marketplace.authRequired'), {
+          action: { label: t('marketplace.login'), onClick: () => void handleMarketplaceLogin(() => void handleInstall(name)) },
+        })
       } else if (isMarketplaceConnectivityError(e)) {
         toast.error(t('marketplace.unreachable', { host: MARKETPLACE_HOST }))
       } else {

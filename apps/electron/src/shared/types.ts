@@ -495,6 +495,11 @@ export interface ElectronAPI {
   // Skills Marketplace
   getMarketplaceRegistry(): Promise<import('@craft-agent/shared/marketplace').MarketplaceRegistry>
   installMarketplaceSkill(workspaceId: string, skillName: string): Promise<void>
+  /** CVTE: open the 统一门户 login window for the skill marketplace (shares the
+   * portal session with the gateway SSO). Resolves once the session cookie is captured. */
+  loginMarketplace(): Promise<{ success: boolean; error?: string }>
+  getMarketplaceAuthStatus(): Promise<{ authenticated: boolean }>
+  logoutMarketplace(): Promise<{ success: boolean }>
 
   // Skill Variables
   getSkillVars(workspaceId: string, skillSlug: string, varNames: string[]): Promise<Record<string, boolean>>

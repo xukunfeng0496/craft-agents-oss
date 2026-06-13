@@ -60,11 +60,26 @@ async function throwForStatus(res: Response, label: string): Promise<never> {
   throw new Error(`${MARKETPLACE_HTTP_ERROR_PREFIX} ${res.status} (${label})${serverMsg ? `: ${serverMsg}` : ''}`);
 }
 
+export interface MarketplaceClientOptions {
+  registryUrl?: string;
+  /** skills.gz.cvte.cn session cookie header ("name=value; …") from a portal
+   * login, attached to requests so downloads (which require 统一门户 SSO) work. */
+  cookie?: string;
+}
+
 export class MarketplaceClient {
   private baseUrl: string;
+  private cookie?: string;
 
-  constructor(registryUrl?: string) {
-    this.baseUrl = (registryUrl || DEFAULT_REGISTRY_URL).replace(/\/$/, '');
+  constructor(options?: MarketplaceClientOptions | string) {
+    // Back-compat: a bare string is the legacy registryUrl argument.
+    const opts = typeof options === 'string' ? { registryUrl: options } : (options ?? {});
+    this.baseUrl = (opts.registryUrl || DEFAULT_REGISTRY_URL).replace(/\/$/, '');
+    this.cookie = opts.cookie || undefined;
+  }
+
+  private headers(): Record<string, string> | undefined {
+    return this.cookie ? { Cookie: this.cookie } : undefined;
   }
 
   private rethrowMarketplaceError(error: unknown): never {
@@ -81,7 +96,7 @@ export class MarketplaceClient {
 
   async getRegistry(): Promise<MarketplaceRegistry> {
     try {
-      const res = await fetch(`${this.baseUrl}/api/registry`);
+      const res = await fetch(`${this.baseUrl}/api/registry`, { headers: this.headers() });
       if (!res.ok) await throwForStatus(res, 'registry');
       return await res.json() as MarketplaceRegistry;
     } catch (error) {
@@ -91,7 +106,7 @@ export class MarketplaceClient {
 
   async getSkillFiles(name: string): Promise<MarketplaceSkillFile[]> {
     try {
-      const res = await fetch(`${this.baseUrl}/api/skills/${encodeURIComponent(name)}/files`);
+      const res = await fetch(`${this.baseUrl}/api/skills/${encodeURIComponent(name)}/files`, { headers: this.headers() });
       if (!res.ok) await throwForStatus(res, 'skill files');
       const data = await res.json() as { files: MarketplaceSkillFile[] };
       return data.files;

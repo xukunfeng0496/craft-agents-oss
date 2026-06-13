@@ -16,3 +16,4 @@ export {
   type ConfigWatcherCallbacks,
 } from './watcher.ts';
 export * from './enterprise-defaults.ts';
+export * from './cvte-gateway-invariant.ts';

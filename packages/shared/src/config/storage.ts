@@ -24,6 +24,7 @@ import { isValidThinkingLevel, normalizeThinkingLevel } from '../agent/thinking-
 import { parsePermissionMode, PERMISSION_MODE_ORDER } from '../agent/mode-types.ts';
 import { type ConfigDefaults } from './config-defaults-schema.ts';
 import { isValidThemeFile } from './validators.ts';
+import { enforceCvteGatewayShape } from './cvte-gateway-invariant.ts';
 
 // Re-export CONFIG_DIR for convenience (centralized in paths.ts)
 export { CONFIG_DIR } from './paths.ts';
@@ -2049,40 +2050,21 @@ function migrateWorkspaceLegacyOpusToDefaultOpus(config: StoredConfig): void {
  * Also normalizes Pi+Bedrock connections that already have correct providerType.
  */
 /**
- * CVTE route invariant (D8), enforced on every launch — NOT a one-shot.
+ * CVTE gateway invariant (D8), enforced on every launch — NOT a one-shot.
  *
- * Any connection pointing at the enterprise gateway host must run on the
- * Claude Agent SDK route. Repairs connections previously flipped to
- * pi_compat (e.g. by the edit form's Protocol toggle before the handler
- * guard existed).
+ * Coerces every connection pointing at the enterprise gateway host into one of
+ * its two legal shapes (Anthropic-Messages @ token.cvte.com, or OpenAI-compat @
+ * token.cvte.com/v1). Self-heals connections that got mangled by the edit form
+ * before the handler invariant existed: `pi` downgrades, leaked Pi GPT catalogs,
+ * and bare-host OpenAI URLs (which silently break chat). The actual per-shape
+ * logic lives in {@link enforceCvteGatewayShape} so the launch normalizer and
+ * the SETUP handler share one canonical implementation and can never drift.
  */
 function normalizeCvteGatewayRoute(config: StoredConfig): boolean {
-  const ent = loadConfigDefaults().enterprise?.defaultLlmConnection;
-  if (!ent?.baseUrl || !config.llmConnections?.length) return false;
-  const hostOf = (url?: string): string | null => {
-    try { return url ? new URL(url).host : null; } catch { return null; }
-  };
-  const entHost = hostOf(ent.baseUrl);
-  if (!entHost) return false;
-
+  if (!config.llmConnections?.length) return false;
   let changed = false;
   for (const connection of config.llmConnections) {
-    if (hostOf(connection.baseUrl) !== entHost) continue;
-    // Deliberate OpenAI-protocol connections to the gateway are legitimate
-    // (the gateway serves both protocols) — only repair anthropic-messages
-    // flips and protocol-less pi_compat states.
-    if (connection.customEndpoint?.api === 'openai-completions') continue;
-    if (connection.providerType === 'pi_compat' && connection.authType !== 'oauth') {
-      (connection as { providerType: LlmProviderType }).providerType = 'anthropic';
-      connection.authType = 'api_key';
-      connection.customEndpoint = undefined;
-      changed = true;
-    }
-    // Scrub Pi-only fields left behind by a previous pi_compat flip.
-    if (connection.providerType === 'anthropic' && connection.piAuthProvider) {
-      delete connection.piAuthProvider;
-      changed = true;
-    }
+    if (enforceCvteGatewayShape(connection)) changed = true;
   }
   return changed;
 }
@@ -2815,6 +2797,25 @@ export function updateLlmConnection(slug: string, updates: Partial<Omit<LlmConne
     }
   }
 
+  saveConfig(config);
+  return true;
+}
+
+/**
+ * Full-replace an LLM connection by slug, persisting the object exactly as given.
+ *
+ * Unlike {@link updateLlmConnection} (whose allowlist preserves the existing
+ * value for any field passed as `undefined`), this CLEARS fields the new object
+ * omits — required when repairing a connection's *shape*, e.g. dropping
+ * `customEndpoint` / `piAuthProvider` on the CVTE gateway OpenAI→Anthropic
+ * transition. Returns true if replaced, false if the slug was not found.
+ */
+export function replaceLlmConnection(connection: LlmConnection): boolean {
+  const config = loadStoredConfig();
+  if (!config?.llmConnections?.length) return false;
+  const index = config.llmConnections.findIndex(c => c.slug === connection.slug);
+  if (index === -1) return false;
+  config.llmConnections[index] = { ...connection };
   saveConfig(config);
   return true;
 }

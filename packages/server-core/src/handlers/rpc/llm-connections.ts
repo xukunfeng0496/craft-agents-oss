@@ -1,5 +1,5 @@
 import { RPC_CHANNELS, type LlmConnectionSetup } from '@craft-agent/shared/protocol'
-import { getLlmConnections, getLlmConnection, addLlmConnection, updateLlmConnection, deleteLlmConnection, getDefaultLlmConnection, setDefaultLlmConnection, touchLlmConnection, isCompatProvider, isAnthropicProvider, getDefaultModelsForConnection, getDefaultModelForConnection, getEnterpriseDefaults, type LlmConnection, type LlmConnectionWithStatus, toBedrockNativeId, deriveBedrockRegionPrefix } from '@craft-agent/shared/config'
+import { getLlmConnections, getLlmConnection, addLlmConnection, updateLlmConnection, deleteLlmConnection, getDefaultLlmConnection, setDefaultLlmConnection, touchLlmConnection, isCompatProvider, isAnthropicProvider, getDefaultModelsForConnection, getDefaultModelForConnection, getEnterpriseDefaults, enforceCvteGatewayShape, replaceLlmConnection, type LlmConnection, type LlmConnectionWithStatus, toBedrockNativeId, deriveBedrockRegionPrefix } from '@craft-agent/shared/config'
 import { getCredentialManager } from '@craft-agent/shared/credentials'
 import { setSetupDeferred } from '@craft-agent/shared/config/storage'
 import {
@@ -225,6 +225,26 @@ export function registerLlmConnectionsHandlers(server: RpcServer, deps: HandlerD
         ...updates,
       }
 
+      // CVTE gateway invariant (D8): coerce a gateway connection into one of its
+      // two legal shapes (Anthropic @ token.cvte.com, or OpenAI @ …/v1) as a
+      // final override of whatever the branches above set. Closes the `pi`
+      // downgrade hole and enforces the mandatory `/v1` for the OpenAI shape
+      // (a bare host silently breaks chat). No-op for non-gateway connections.
+      // Persisted via replaceLlmConnection below (the update allowlist can't
+      // drop customEndpoint/piAuthProvider on the OpenAI→Anthropic transition).
+      const gatewayShapeEnforced = isEnterpriseGateway && enforceCvteGatewayShape(pendingConnection)
+      if (gatewayShapeEnforced) {
+        // Mirror the canonical fields into `updates` so the downstream model
+        // validation sees the corrected state (persist still uses pendingConnection).
+        updates.providerType = pendingConnection.providerType
+        updates.authType = pendingConnection.authType
+        updates.baseUrl = pendingConnection.baseUrl
+        updates.customEndpoint = pendingConnection.customEndpoint
+        updates.models = pendingConnection.models
+        updates.defaultModel = pendingConnection.defaultModel
+        updates.modelSelectionMode = pendingConnection.modelSelectionMode
+      }
+
       if (pendingConnection.providerType === 'pi') {
         const modelIds = (pendingConnection.models ?? []).map(m => typeof m === 'string' ? m : m.id)
         deps.platform.logger?.info('Pi setup pending connection snapshot', {
@@ -269,6 +289,15 @@ export function registerLlmConnectionsHandlers(server: RpcServer, deps: HandlerD
           return { success: false, error: 'Failed to save connection. Check server logs for details.' }
         }
         deps.platform.logger?.info(`Created LLM connection: ${setup.slug}`)
+      } else if (gatewayShapeEnforced) {
+        // Full replace so the invariant's cleared fields (customEndpoint /
+        // piAuthProvider) actually drop — the update allowlist keeps them on undefined.
+        const replaced = replaceLlmConnection(pendingConnection)
+        if (!replaced) {
+          deps.platform.logger?.error(`Failed to persist CVTE gateway connection: ${setup.slug}`)
+          return { success: false, error: 'Failed to update connection. Check server logs for details.' }
+        }
+        deps.platform.logger?.info(`Updated CVTE gateway connection (shape enforced): ${setup.slug}`)
       } else if (Object.keys(updates).length > 0) {
         const updated = updateLlmConnection(setup.slug, updates)
         if (!updated) {

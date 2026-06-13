@@ -54,6 +54,7 @@ import { RenameDialog } from '@/components/ui/rename-dialog'
 import { useAppShellContext } from '@/context/AppShellContext'
 import { getModelShortName, type ModelDefinition } from '@config/models'
 import { getModelsForProviderType, resolveMidStreamBehavior, type CustomEndpointApi, type MidStreamBehavior } from '@config/llm-connections'
+import { isCvteGatewayUrl, CVTE_GATEWAY_PRESET_KEY } from '@/components/apisetup/ApiKeyInput'
 import { toast } from 'sonner'
 
 /**
@@ -836,13 +837,25 @@ export default function AiSettingsPage() {
 
     const isCustomEndpointConnection = !!connection.customEndpoint && !!connection.baseUrl?.trim()
 
+    // CVTE gateway (either protocol shape) → the branded CVTE preset, NOT 'custom',
+    // so the edit form renders the key-only CVTE layout. Host match covers both
+    // token.cvte.com (Anthropic) and token.cvte.com/v1 (OpenAI). The protocol toggle
+    // is seeded from the connection's customEndpoint.
+    const isGateway = isCvteGatewayUrl(connection.baseUrl ?? '')
+    const activePreset = isGateway
+      ? CVTE_GATEWAY_PRESET_KEY
+      : (isCustomEndpointConnection ? 'custom' : (connection.piAuthProvider || undefined))
+    const customApi: CustomEndpointApi | undefined = isGateway
+      ? (connection.customEndpoint?.api === 'openai-completions' ? 'openai-completions' : 'anthropic-messages')
+      : connection.customEndpoint?.api
+
     setEditInitialValues({
       apiKey,
       baseUrl: connection.baseUrl,
       connectionDefaultModel: modelStr,
-      activePreset: isCustomEndpointConnection ? 'custom' : (connection.piAuthProvider || undefined),
+      activePreset,
       models: modelIds,
-      customApi: connection.customEndpoint?.api,
+      customApi,
     })
 
     // Open overlay and jump directly to credentials step (no reset — jumpToCredentials sets state)

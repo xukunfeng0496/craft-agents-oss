@@ -20,10 +20,68 @@ import {
 } from './storage.ts';
 import type { EnterpriseDefaults } from './config-defaults-schema.ts';
 import type { LlmConnection } from './llm-connections.ts';
+import type { ModelDefinition } from './models.ts';
 import { VIEWER_URL } from '../branding.ts';
 
 export function getEnterpriseDefaults(): EnterpriseDefaults | undefined {
   return loadConfigDefaults().enterprise;
+}
+
+/** Canonical identity of the CVTE enterprise gateway, or null on non-enterprise builds. */
+export interface EnterpriseGatewayIdentity {
+  slug: string;
+  /** Host of the gateway (e.g. `token.cvte.com`). */
+  host: string;
+  /** Canonical Anthropic-shape base URL — no `/v1`, no trailing slash. */
+  baseUrl: string;
+  /** Seed model catalog (the gateway `/v1/models` set). */
+  models: Array<string | ModelDefinition>;
+  defaultModel: string;
+}
+
+function hostOf(url: string | undefined): string | null {
+  try {
+    return url ? new URL(url).host : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Single source of truth for the enterprise gateway's identity, derived from
+ * `enterprise.defaultLlmConnection` in config-defaults.json. Returns null on
+ * non-enterprise builds (or before config-defaults has been synced) so every
+ * caller safely no-ops. Fail-soft: never throws.
+ */
+export function getEnterpriseGatewayIdentity(): EnterpriseGatewayIdentity | null {
+  let ent: EnterpriseDefaults | undefined;
+  try {
+    ent = getEnterpriseDefaults();
+  } catch {
+    return null;
+  }
+  const conn = ent?.defaultLlmConnection;
+  if (!conn?.slug || !conn.baseUrl) return null;
+  const host = hostOf(conn.baseUrl);
+  if (!host) return null;
+  return {
+    slug: conn.slug,
+    host,
+    baseUrl: conn.baseUrl.replace(/\/+$/, ''),
+    models: conn.models ?? [],
+    defaultModel: conn.defaultModel,
+  };
+}
+
+/**
+ * True when `url`'s host matches the enterprise gateway host — so both the
+ * Anthropic shape (`token.cvte.com`) and the OpenAI shape (`token.cvte.com/v1`)
+ * resolve to the gateway. Fail-soft: false on non-enterprise builds / parse error.
+ */
+export function isEnterpriseGatewayHost(url: string | undefined): boolean {
+  const id = getEnterpriseGatewayIdentity();
+  if (!id) return false;
+  return hostOf(url) === id.host;
 }
 
 /**

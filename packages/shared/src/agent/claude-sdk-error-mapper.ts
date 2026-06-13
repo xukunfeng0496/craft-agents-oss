@@ -397,7 +397,11 @@ export function mapClaudeSdkAssistantError(
         message: 'An unexpected error occurred.',
         details: [
           ...apiDetails,
-          'This may be a temporary issue',
+          // CVTE: surface the raw SDK error code so an otherwise-detail-less
+          // "Unknown Error" (capturedApiError is empty on the Claude SDK route —
+          // the interceptor is Pi-only) is still diagnosable. Usually transient.
+          `SDK error code: ${errorCode}`,
+          'This may be a temporary issue (often transient — click Retry)',
           'Check your network connection',
         ],
         actions: retryAction,
@@ -414,7 +418,11 @@ export function mapClaudeSdkAssistantError(
         message: 'An unexpected error occurred.',
         details: [
           ...apiDetails,
-          'This may be a temporary issue',
+          // CVTE: surface the raw SDK error code so an otherwise-detail-less
+          // "Unknown Error" (capturedApiError is empty on the Claude SDK route —
+          // the interceptor is Pi-only) is still diagnosable. Usually transient.
+          `SDK error code: ${errorCode}`,
+          'This may be a temporary issue (often transient — click Retry)',
           'Check your network connection',
         ],
         actions: retryAction,

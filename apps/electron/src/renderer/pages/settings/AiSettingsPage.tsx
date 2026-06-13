@@ -615,6 +615,12 @@ function WorkspaceOverrideCard({ workspace, llmConnections, onSettingsChange }: 
 
 /** Map a connection's provider type to the corresponding API key setup method. */
 function getApiKeyMethodForConnection(conn: LlmConnectionWithStatus): ApiSetupMethod {
+  // CVTE gateway always edits in the Anthropic-API-Key flow (its native D8 route),
+  // regardless of the current Anthropic/OpenAI protocol shape. This keeps the
+  // form on the CVTE preset + protocol toggle and avoids the Pi-flow setup-test
+  // guard ("custom endpoint requires a provider preset") — the server-side
+  // gateway invariant derives providerType/piAuthProvider on save.
+  if (isCvteGatewayUrl(conn.baseUrl ?? '')) return 'anthropic_api_key'
   const provider = conn.providerType || conn.type
   if (provider === 'pi' || provider === 'pi_compat') return 'pi_api_key'
   return 'anthropic_api_key'

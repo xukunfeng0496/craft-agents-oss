@@ -18,6 +18,7 @@ import type {
 import type { ProviderChoice } from '@/components/onboarding/ProviderSelectStep'
 import type { LocalModelSubmitData } from '@/components/onboarding/LocalModelStep'
 import type { ApiKeySubmitData } from '@/components/apisetup'
+import { isCvteGatewayUrl } from '@/components/apisetup/ApiKeyInput'
 import type { CustomEndpointConfig } from '@config/llm-connections'
 import type { SetupNeeds, LlmConnectionSetup, ClaudeOAuthIdentityDto } from '../../shared/types'
 
@@ -424,6 +425,27 @@ export function useOnboarding({
         } else {
           setState(s => ({ ...s, credentialStatus: 'error' }))
         }
+        return
+      }
+
+      // CVTE gateway: a provisioned, known-good endpoint that serves two
+      // protocols (Anthropic @ token.cvte.com, OpenAI @ …/v1). The upstream
+      // pre-save setup-test can't route that dual nature — it would treat the
+      // Anthropic shape as a pi_compat custom endpoint (wrong model/protocol)
+      // and reject the OpenAI shape for lacking a Pi provider preset. Skip the
+      // test and save directly: the server-side gateway invariant derives the
+      // correct shape, and the first chat surfaces any real auth error with the
+      // "前往 ai.cvte.com…" guidance.
+      if (isCvteGatewayUrl(data.baseUrl ?? '')) {
+        const saved = await handleSaveConfig(data.apiKey, {
+          baseUrl: data.baseUrl,
+          connectionDefaultModel: data.connectionDefaultModel,
+          models: data.models,
+          piAuthProvider: data.piAuthProvider,
+          modelSelectionMode: data.modelSelectionMode,
+          customEndpoint: data.customEndpoint,
+        })
+        setState(s => ({ ...s, credentialStatus: saved ? 'success' : 'error', ...(saved ? { step: 'complete' as const } : {}) }))
         return
       }
 

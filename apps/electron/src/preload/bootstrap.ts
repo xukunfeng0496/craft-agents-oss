@@ -422,8 +422,17 @@ client.onConnectionStateChanged((state) => {
   let flowId: string | undefined
 
   try {
+    // 0. Fetch the return deep link so the browser callback page redirects back
+    //    to (and focuses) the app on success instead of stranding the user on the
+    //    callback tab. Best-effort — the flow still works without it.
+    let returnDeeplink: string | undefined
+    try {
+      const info: { returnDeeplink?: string } = await client.invoke('cvte:isAvailable')
+      returnDeeplink = info?.returnDeeplink
+    } catch { /* leave undefined */ }
+
     // 1. Loopback callback server on a dynamic port (op-fat accepts any loopback)
-    callbackServer = await createCallbackServer({ appType: 'electron' })
+    callbackServer = await createCallbackServer({ appType: 'electron', deeplinkUrl: returnDeeplink })
     const redirectUri = `${callbackServer.url}/callback`
 
     // 2. Ask the server to build the authorize URL + store the flow

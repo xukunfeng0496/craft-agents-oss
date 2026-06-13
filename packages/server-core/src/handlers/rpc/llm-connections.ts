@@ -874,12 +874,16 @@ export function registerLlmConnectionsHandlers(server: RpcServer, deps: HandlerD
   }
 
   // cvte:isAvailable — does this build have portal SSO configured? Drives whether
-  // the renderer shows the "CVTE 门户登录" entry points.
-  server.handle(RPC_CHANNELS.cvte.IS_AVAILABLE, async (): Promise<{ available: boolean; portalHost?: string }> => {
+  // the renderer shows the "CVTE 门户登录" entry points. Also returns the deep link
+  // the browser callback page redirects to on success, so login auto-returns to
+  // (and focuses) the app instead of leaving the user on the callback tab.
+  server.handle(RPC_CHANNELS.cvte.IS_AVAILABLE, async (): Promise<{ available: boolean; portalHost?: string; returnDeeplink?: string }> => {
     const sso = getEnterpriseDefaults()?.sso
     const gateway = getEnterpriseDefaults()?.defaultLlmConnection
     const available = !!sso?.portalHost && !!sso?.clientId && !!sso?.relayUrl && !!gateway?.slug && !!gateway?.baseUrl
-    return available ? { available: true, portalHost: sso!.portalHost } : { available: false }
+    if (!available) return { available: false }
+    const scheme = process.env.CRAFT_DEEPLINK_SCHEME || 'workagents'
+    return { available: true, portalHost: sso!.portalHost, returnDeeplink: `${scheme}://settings/ai` }
   })
 
   // cvte:startOAuth — build the portal authorize URL, store the flow keyed by a

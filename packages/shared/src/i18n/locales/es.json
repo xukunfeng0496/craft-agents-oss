@@ -475,6 +475,7 @@
   "hints.syncCalendar": "Sincroniza los eventos de {source:Calendar} con los plazos de proyectos en {source:Linear}",
   "hints.transcribeVoiceMemo": "Transcribe un {file:voice memo} y conviértelo en tareas de {source:Notion}",
   "labels.addNewLabel": "Agregar nueva etiqueta {{prefill}}",
+  "marketplace.authRequired": "Inicia sesión en el marketplace de skills para descargar skills.",
   "marketplace.installFailed": "No se pudo instalar la habilidad.",
   "marketplace.loadFailed": "No se pudo cargar el marketplace de habilidades.",
   "marketplace.previewFailed": "No se pudo cargar la vista previa de la habilidad.",

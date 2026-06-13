@@ -475,6 +475,7 @@
   "hints.syncCalendar": "{source:Kalender}-Ereignisse mit {source:Linear}-Projektfristen synchronisieren",
   "hints.transcribeVoiceMemo": "Eine {file:Sprachnotiz} transkribieren und in {source:Notion}-Aufgaben umwandeln",
   "labels.addNewLabel": "Neues Label {{prefill}} hinzufügen",
+  "marketplace.authRequired": "Melde dich im Skill-Marktplatz an, um Skills herunterzuladen.",
   "marketplace.installFailed": "Skill konnte nicht installiert werden.",
   "marketplace.loadFailed": "Skill-Marktplatz konnte nicht geladen werden.",
   "marketplace.previewFailed": "Skill-Vorschau konnte nicht geladen werden.",

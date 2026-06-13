@@ -23,7 +23,7 @@ import { EditPopover, getEditConfig } from '@/components/ui/EditPopover'
 import { useActiveWorkspace, useAppShellContext } from '@/context/AppShellContext'
 import { getFileManagerName } from '@/lib/platform'
 import type { LoadedSkill } from '../../../shared/types'
-import { MARKETPLACE_HOST, isMarketplaceConnectivityError } from '@craft-agent/shared/marketplace'
+import { MARKETPLACE_HOST, isMarketplaceConnectivityError, isMarketplaceAuthError } from '@craft-agent/shared/marketplace'
 import type { MarketplaceSkillMeta } from '@craft-agent/shared/marketplace'
 
 type FilterType = 'all' | 'installed' | 'not-installed'
@@ -79,7 +79,9 @@ export function SkillsListPanel({
       const registry = await window.electronAPI.getMarketplaceRegistry()
       setRemoteSkills(registry.skills || [])
     } catch (error) {
-      if (isMarketplaceConnectivityError(error)) {
+      if (isMarketplaceAuthError(error)) {
+        toast.error(t('marketplace.authRequired'))
+      } else if (isMarketplaceConnectivityError(error)) {
         toast.error(t('marketplace.unreachable', { host: MARKETPLACE_HOST }))
       } else {
         toast.error(t('marketplace.loadFailed'), {
@@ -145,7 +147,9 @@ export function SkillsListPanel({
       await window.electronAPI.installMarketplaceSkill(workspaceId, name)
       toast.success(`${name} ${t('skillsList.installed')}`)
     } catch (e) {
-      if (isMarketplaceConnectivityError(e)) {
+      if (isMarketplaceAuthError(e)) {
+        toast.error(t('marketplace.authRequired'))
+      } else if (isMarketplaceConnectivityError(e)) {
         toast.error(t('marketplace.unreachable', { host: MARKETPLACE_HOST }))
       } else {
         toast.error(t('marketplace.installFailed'), {

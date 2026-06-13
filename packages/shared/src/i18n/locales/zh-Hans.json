@@ -475,6 +475,7 @@
   "hints.syncCalendar": "同步 {source:Calendar} 事件与 {source:Linear} 项目截止日期",
   "hints.transcribeVoiceMemo": "转录 {file:voice memo} 并转为 {source:Notion} 任务",
   "labels.addNewLabel": "添加新标签 {{prefill}}",
+  "marketplace.authRequired": "下载技能需要先登录技能市场。",
   "marketplace.installFailed": "安装技能失败。",
   "marketplace.loadFailed": "加载技能市场失败。",
   "marketplace.previewFailed": "加载技能预览失败。",

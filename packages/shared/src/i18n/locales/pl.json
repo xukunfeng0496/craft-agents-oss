@@ -475,6 +475,7 @@
   "hints.syncCalendar": "Synchronizuj wydarzenia {source:Calendar} z terminami projektów {source:Linear}",
   "hints.transcribeVoiceMemo": "Transkrybuj {file:voice memo} i zamień w zadania {source:Notion}",
   "labels.addNewLabel": "Dodaj nową etykietę {{prefill}}",
+  "marketplace.authRequired": "Zaloguj się do marketplace umiejętności, aby pobierać skille.",
   "marketplace.installFailed": "Nie udało się zainstalować umiejętności.",
   "marketplace.loadFailed": "Nie udało się załadować rynku umiejętności.",
   "marketplace.previewFailed": "Nie udało się załadować podglądu umiejętności.",

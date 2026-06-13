@@ -20,9 +20,37 @@ import {
 } from './storage.ts';
 import type { EnterpriseDefaults } from './config-defaults-schema.ts';
 import type { LlmConnection } from './llm-connections.ts';
+import { VIEWER_URL } from '../branding.ts';
 
 export function getEnterpriseDefaults(): EnterpriseDefaults | undefined {
   return loadConfigDefaults().enterprise;
+}
+
+/**
+ * Resolve the session-viewer base URL for sharing (D11).
+ *
+ *  - Enterprise build **with** `enterprise.viewerUrl` → that intranet viewer.
+ *  - Enterprise build **without** `viewerUrl` → `null`: sharing is disabled so
+ *    a transcript can never egress to the public Craft viewer by default. The
+ *    caller surfaces a "sharing not configured" error instead of uploading.
+ *  - Non-enterprise build → the bundled default (`agents.craft.do`), preserving
+ *    upstream behavior.
+ *
+ * Best-effort: never throws (config-defaults may be unread very early in
+ * startup), though the share paths that call this always run post-startup.
+ */
+export function resolveViewerUrl(): string | null {
+  let enterprise: EnterpriseDefaults | undefined;
+  try {
+    enterprise = getEnterpriseDefaults();
+  } catch {
+    return VIEWER_URL;
+  }
+  if (!enterprise) return VIEWER_URL;
+  const configured = enterprise.viewerUrl?.trim();
+  if (configured) return configured.replace(/\/$/, '');
+  // Enterprise build, no intranet viewer configured → sharing disabled.
+  return null;
 }
 
 /**

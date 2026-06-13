@@ -34,6 +34,7 @@ import {
   migrateLegacyLlmConnectionsConfig,
   migrateOrphanedDefaultConnections,
   MODEL_REGISTRY,
+  resolveViewerUrl,
   type Workspace,
   type WorkspaceInfo,
 } from '@craft-agent/shared/config'
@@ -4545,8 +4546,14 @@ export class SessionManager implements ISessionManager {
         return { success: false, error: 'Session file not found' }
       }
 
-      const { VIEWER_URL } = await import('@craft-agent/shared/branding')
-      const response = await fetch(`${VIEWER_URL}/s/api`, {
+      // CVTE D11: enterprise builds upload only to the configured intranet
+      // viewer; absent that, sharing is disabled so the transcript never
+      // egresses to the public Craft viewer.
+      const viewerUrl = resolveViewerUrl()
+      if (!viewerUrl) {
+        return { success: false, error: 'Session sharing is not configured for this deployment (no intranet viewer). Contact your administrator.' }
+      }
+      const response = await fetch(`${viewerUrl}/s/api`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(storedSession)
@@ -4609,8 +4616,12 @@ export class SessionManager implements ISessionManager {
         return { success: false, error: 'Session file not found' }
       }
 
-      const { VIEWER_URL } = await import('@craft-agent/shared/branding')
-      const response = await fetch(`${VIEWER_URL}/s/api/${managed.sharedId}`, {
+      // CVTE D11: same intranet-only guard as shareToViewer.
+      const viewerUrl = resolveViewerUrl()
+      if (!viewerUrl) {
+        return { success: false, error: 'Session sharing is not configured for this deployment (no intranet viewer). Contact your administrator.' }
+      }
+      const response = await fetch(`${viewerUrl}/s/api/${managed.sharedId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(storedSession)
@@ -4654,15 +4665,19 @@ export class SessionManager implements ISessionManager {
     this.sendEvent({ type: 'async_operation', sessionId, isOngoing: true }, managed.workspace.id)
 
     try {
-      const { VIEWER_URL } = await import('@craft-agent/shared/branding')
-      const response = await fetch(
-        `${VIEWER_URL}/s/api/${managed.sharedId}`,
-        { method: 'DELETE' }
-      )
+      // CVTE D11: when no viewer is configured (enterprise build, sharing
+      // disabled) there is nothing to revoke remotely — just clear local state.
+      const viewerUrl = resolveViewerUrl()
+      if (viewerUrl) {
+        const response = await fetch(
+          `${viewerUrl}/s/api/${managed.sharedId}`,
+          { method: 'DELETE' }
+        )
 
-      if (!response.ok) {
-        sessionLog.error(`Revoke failed with status ${response.status}`)
-        return { success: false, error: 'Failed to revoke share' }
+        if (!response.ok) {
+          sessionLog.error(`Revoke failed with status ${response.status}`)
+          return { success: false, error: 'Failed to revoke share' }
+        }
       }
 
       // Clear shared info
@@ -5337,21 +5352,24 @@ export class SessionManager implements ISessionManager {
       await new Promise(resolve => setTimeout(resolve, 100))
     }
 
-    // Revoke share if session was shared (prevent orphaned viewer copies)
+    // Revoke share if session was shared (prevent orphaned viewer copies).
+    // CVTE D11: skip when no viewer is configured (sharing disabled).
     if (managed.sharedId) {
-      try {
-        const { VIEWER_URL } = await import('@craft-agent/shared/branding')
-        const response = await fetch(
-          `${VIEWER_URL}/s/api/${managed.sharedId}`,
-          { method: 'DELETE', signal: AbortSignal.timeout(5000) }
-        )
-        if (!response.ok) {
-          sessionLog.warn(`Failed to revoke share for ${sessionId}: HTTP ${response.status}`)
-        } else {
-          sessionLog.info(`Revoked share for deleted session ${sessionId}`)
+      const viewerUrl = resolveViewerUrl()
+      if (viewerUrl) {
+        try {
+          const response = await fetch(
+            `${viewerUrl}/s/api/${managed.sharedId}`,
+            { method: 'DELETE', signal: AbortSignal.timeout(5000) }
+          )
+          if (!response.ok) {
+            sessionLog.warn(`Failed to revoke share for ${sessionId}: HTTP ${response.status}`)
+          } else {
+            sessionLog.info(`Revoked share for deleted session ${sessionId}`)
+          }
+        } catch (error) {
+          sessionLog.warn(`Failed to revoke share for ${sessionId}:`, error)
         }
-      } catch (error) {
-        sessionLog.warn(`Failed to revoke share for ${sessionId}:`, error)
       }
     }
 

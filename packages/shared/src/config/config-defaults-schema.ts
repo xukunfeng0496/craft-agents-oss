@@ -72,6 +72,15 @@ export interface EnterpriseDefaults {
   /** Markdown appended to the agent system prompt under '## Enterprise Context' */
   promptAppendix?: string;
   /**
+   * Base URL of the CVTE-hosted session viewer (D11). Session sharing uploads
+   * the full transcript here instead of the public Craft viewer
+   * (agents.craft.do), keeping internal data on the intranet. When this is
+   * absent on an enterprise build, session sharing is disabled outright so a
+   * transcript can never egress to the public viewer by default. Set this to
+   * the deployed intranet viewer (apps/viewer) origin to re-enable sharing.
+   */
+  viewerUrl?: string;
+  /**
    * Domain suffixes that must always bypass HTTP proxies (intranet services:
    * gateway, key API, skills registry, update server). Merged into NO_PROXY
    * for the main process and every subprocess.

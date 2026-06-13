@@ -104,6 +104,7 @@ import { initializeDocs } from '@craft-agent/shared/docs'
 import { initializeReleaseNotes } from '@craft-agent/shared/release-notes'
 import { ensureDefaultPermissions } from '@craft-agent/shared/agent/permissions-config'
 import { ensureToolIcons, ensurePresetThemes } from '@craft-agent/shared/config'
+import { migrateLegacyGlobalSkills } from '@craft-agent/shared/skills'
 import { setBundledAssetsRoot } from '@craft-agent/shared/utils'
 import { initializeBackendHostRuntime } from '@craft-agent/shared/agent/backend'
 import { setPowerShellValidatorRoot } from '@craft-agent/shared/agent'
@@ -422,6 +423,22 @@ app.whenReady().then(async () => {
 
   // Seed preset themes to ~/.workagent/themes/ (copies bundled theme JSONs on first run)
   ensurePresetThemes()
+
+  // CVTE D10: one-shot migration of legacy global skills (~/.workagent/skills →
+  // ~/.agents/skills). Upstream moved the global skills dir (#171) with no
+  // migration; without this, every v0.7.1 user's skills vanish from the UI on
+  // upgrade. No-op on fresh installs and after the first run (marker-gated).
+  try {
+    const skillsMigration = migrateLegacyGlobalSkills()
+    if (skillsMigration.migrated || skillsMigration.skippedSlugs.length > 0) {
+      mainLog.info(
+        `[skills-migration] copied ${skillsMigration.copiedSlugs.length}, ` +
+          `skipped ${skillsMigration.skippedSlugs.length} (already present)`,
+      )
+    }
+  } catch (error) {
+    mainLog.warn(`[skills-migration] failed (non-fatal): ${error instanceof Error ? error.message : error}`)
+  }
 
   // Register thumbnail:// protocol handler (scheme was registered earlier, before app.whenReady)
   registerThumbnailHandler()

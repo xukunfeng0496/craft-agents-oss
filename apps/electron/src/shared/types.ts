@@ -403,6 +403,14 @@ export interface ElectronAPI {
   getChatGptAuthStatus(connectionSlug: string): Promise<{ authenticated: boolean; expiresAt?: number; hasRefreshToken?: boolean }>
   chatGptLogout(connectionSlug: string): Promise<{ success: boolean }>
 
+  // CVTE 统一门户 SSO (D8 §六): portal login → personal gateway key → auto-config.
+  // Omitting connectionSlug targets the enterprise gateway connection (default).
+  startCvtePortalOAuth(connectionSlug?: string): Promise<{
+    success: boolean
+    identity?: { account?: string; name?: string; email?: string; simUid?: string; userId?: number }
+    error?: string
+  }>
+
   // GitHub Copilot OAuth
   startCopilotOAuth(connectionSlug: string): Promise<{ success: boolean; error?: string }>
   cancelCopilotOAuth(): Promise<{ success: boolean }>

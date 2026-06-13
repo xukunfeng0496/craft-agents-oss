@@ -410,6 +410,67 @@ client.onConnectionStateChanged((state) => {
   }
 }
 
+// ── startCvtePortalOAuth ─────────────────────────────────────────────────
+// CVTE 统一门户 SSO (D8 §六). Same client-runs-callback shape as performOAuth:
+// loopback callback server (dynamic port) → cvte:startOAuth (server builds the
+// authorize URL) → browser → callback → cvte:completeOAuth (server exchanges the
+// code, resolves the personal key via the intranet relay, configures the gateway).
+;(api as any).startCvtePortalOAuth = async (
+  connectionSlug?: string,
+): Promise<{ success: boolean; identity?: unknown; error?: string }> => {
+  let callbackServer: Awaited<ReturnType<typeof createCallbackServer>> | null = null
+  let flowId: string | undefined
+
+  try {
+    // 1. Loopback callback server on a dynamic port (op-fat accepts any loopback)
+    callbackServer = await createCallbackServer({ appType: 'electron' })
+    const redirectUri = `${callbackServer.url}/callback`
+
+    // 2. Ask the server to build the authorize URL + store the flow
+    const startResult: { authUrl: string; state: string; flowId: string } = await client.invoke(
+      'cvte:startOAuth',
+      { slug: connectionSlug, redirectUri },
+    )
+    flowId = startResult.flowId
+
+    // 3. Open the system browser for portal login
+    await shell.openExternal(startResult.authUrl)
+
+    // 4. Wait for the portal to redirect to our callback server
+    const callback = await callbackServer.promise
+
+    // 5. Provider-side error?
+    if (callback.query.error) {
+      const error = callback.query.error_description || callback.query.error
+      await client.invoke('cvte:cancelOAuth', { flowId })
+      return { success: false, error }
+    }
+
+    const code = callback.query.code
+    if (!code) {
+      await client.invoke('cvte:cancelOAuth', { flowId })
+      return { success: false, error: 'No authorization code received' }
+    }
+
+    // 6. Server exchanges the code + resolves the personal key + configures the gateway
+    const result: { success: boolean; identity?: unknown; error?: string } = await client.invoke(
+      'cvte:completeOAuth',
+      { flowId, code, state: callback.query.state },
+    )
+    return { success: result.success, identity: result.identity, error: result.error }
+  } catch (err) {
+    if (flowId) {
+      client.invoke('cvte:cancelOAuth', { flowId }).catch(() => {})
+    }
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : 'CVTE SSO flow failed',
+    }
+  } finally {
+    callbackServer?.close()
+  }
+}
+
 // App lifecycle — direct IPC (not WS RPC) since it restarts the server itself
 ;(api as ElectronAPI).relaunchApp = () => ipcRenderer.invoke('app:relaunch')
 ;(api as ElectronAPI).removeWorkspace = (workspaceId: string) => ipcRenderer.invoke('workspace:remove', workspaceId)

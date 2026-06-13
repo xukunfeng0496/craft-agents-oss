@@ -34,6 +34,9 @@ export const HANDLED_CHANNELS = [
   RPC_CHANNELS.chatgpt.CANCEL_OAUTH,
   RPC_CHANNELS.chatgpt.GET_AUTH_STATUS,
   RPC_CHANNELS.chatgpt.LOGOUT,
+  RPC_CHANNELS.cvte.START_OAUTH,
+  RPC_CHANNELS.cvte.COMPLETE_OAUTH,
+  RPC_CHANNELS.cvte.CANCEL_OAUTH,
   RPC_CHANNELS.copilot.START_OAUTH,
   RPC_CHANNELS.copilot.CANCEL_OAUTH,
   RPC_CHANNELS.copilot.GET_AUTH_STATUS,
@@ -48,8 +51,11 @@ export const HANDLED_CHANNELS = [
 export function registerLlmConnectionsHandlers(server: RpcServer, deps: HandlerDeps): void {
   const { sessionManager } = deps
 
-  // Unified handler for LLM connection setup
-  server.handle(RPC_CHANNELS.settings.SETUP_LLM_CONNECTION, async (_ctx, setup: LlmConnectionSetup): Promise<{ success: boolean; error?: string }> => {
+  // Core LLM-connection setup logic. Shared by the SETUP_LLM_CONNECTION RPC and
+  // the CVTE portal SSO flow (cvte:completeOAuth) so both materialize the
+  // connection, enforce the gateway invariant, persist the credential, refresh
+  // models and reinitialize auth through one tested path.
+  async function applyLlmConnectionSetup(setup: LlmConnectionSetup): Promise<{ success: boolean; error?: string }> {
     try {
       const manager = getCredentialManager()
 
@@ -365,7 +371,14 @@ export function registerLlmConnectionsHandlers(server: RpcServer, deps: HandlerD
       deps.platform.logger?.error('Failed to setup LLM connection:', message)
       return { success: false, error: message }
     }
-  })
+  }
+
+  // Unified handler for LLM connection setup (thin wrapper over the shared logic)
+  server.handle(
+    RPC_CHANNELS.settings.SETUP_LLM_CONNECTION,
+    async (_ctx, setup: LlmConnectionSetup): Promise<{ success: boolean; error?: string }> =>
+      applyLlmConnectionSetup(setup),
+  )
 
   // Unified connection test — uses the agent factory to spawn a real agent subprocess
   // and validate credentials via runMiniCompletion(). Same code path as actual chat.
@@ -812,6 +825,146 @@ export function registerLlmConnectionsHandlers(server: RpcServer, deps: HandlerD
       deps.platform.logger?.error('Failed to clear ChatGPT credentials:', error)
       return { success: false }
     }
+  })
+
+  // ============================================================
+  // CVTE 统一门户 SSO (D8 §六)
+  // Server-owned portal OAuth → personal CCH key (via intranet relay) →
+  // auto-configure the enterprise gateway connection. Browser + loopback
+  // callback run on the client; build + exchange + relay + setup run here.
+  // ============================================================
+
+  interface PendingCvteFlow {
+    flowId: string
+    state: string
+    redirectUri: string
+    connectionSlug: string
+    ownerClientId: string
+    createdAt: number
+  }
+  const pendingCvteFlows = new Map<string, PendingCvteFlow>()
+  const CVTE_FLOW_TTL_MS = 5 * 60 * 1000
+
+  function cleanupExpiredCvteFlows() {
+    const now = Date.now()
+    for (const [id, flow] of pendingCvteFlows) {
+      if (now - flow.createdAt > CVTE_FLOW_TTL_MS) pendingCvteFlows.delete(id)
+    }
+  }
+
+  // Resolve the SSO config + target gateway connection from enterprise defaults.
+  function resolveCvteSsoContext(slug?: string) {
+    const ent = getEnterpriseDefaults()
+    const sso = ent?.sso
+    const gateway = ent?.defaultLlmConnection
+    if (!sso?.portalHost || !sso?.clientId || !sso?.relayUrl) {
+      throw new Error('CVTE SSO is not configured (enterprise.sso.portalHost/clientId/relayUrl missing).')
+    }
+    if (!gateway?.slug || !gateway?.baseUrl) {
+      throw new Error('CVTE gateway connection is not configured (enterprise.defaultLlmConnection missing).')
+    }
+    return {
+      portalHost: sso.portalHost,
+      clientId: sso.clientId,
+      relayUrl: sso.relayUrl,
+      connectionSlug: slug || gateway.slug,
+      gatewayBaseUrl: gateway.baseUrl,
+    }
+  }
+
+  // cvte:startOAuth — build the portal authorize URL, store the flow keyed by a
+  // server-generated flowId (the strong anti-CSRF binding; state is defense in
+  // depth). The client passed its loopback redirectUri so the port can be dynamic.
+  server.handle(RPC_CHANNELS.cvte.START_OAUTH, async (ctx, args: { slug?: string; redirectUri: string }): Promise<{
+    authUrl: string
+    state: string
+    flowId: string
+  }> => {
+    cleanupExpiredCvteFlows()
+    const { redirectUri, slug } = args
+    if (!redirectUri) throw new Error('redirectUri is required to start CVTE SSO')
+
+    const sso = resolveCvteSsoContext(slug)
+    const { buildPortalAuthorizeUrl, generatePortalState } = await import('@craft-agent/shared/auth')
+
+    const state = generatePortalState()
+    const flowId = randomUUID()
+    const authUrl = buildPortalAuthorizeUrl({ portalHost: sso.portalHost, clientId: sso.clientId }, redirectUri, state)
+
+    pendingCvteFlows.set(flowId, {
+      flowId,
+      state,
+      redirectUri,
+      connectionSlug: sso.connectionSlug,
+      ownerClientId: ctx.clientId,
+      createdAt: Date.now(),
+    })
+
+    deps.platform.logger?.info(`[CVTE SSO] Flow started for ${sso.connectionSlug} (flow=${flowId}, portal=${sso.portalHost})`)
+    return { authUrl, state, flowId }
+  })
+
+  // cvte:completeOAuth — exchange code → access_token → relay → personal key →
+  // configure the gateway connection. Returns the resolved identity for the UI.
+  server.handle(RPC_CHANNELS.cvte.COMPLETE_OAUTH, async (ctx, args: {
+    flowId: string
+    code: string
+    state?: string
+  }): Promise<{ success: boolean; identity?: import('@craft-agent/shared/auth').CvtePortalIdentity; error?: string }> => {
+    const { flowId, code, state } = args
+    const flow = pendingCvteFlows.get(flowId)
+
+    if (!flow) throw new Error('Unknown or expired CVTE SSO flow')
+    if (flow.ownerClientId !== ctx.clientId) throw new Error('OAuth flow owned by different client')
+    if (state && flow.state !== state) throw new Error('OAuth state mismatch')
+    if (Date.now() - flow.createdAt > CVTE_FLOW_TTL_MS) {
+      pendingCvteFlows.delete(flowId)
+      throw new Error('CVTE SSO flow expired')
+    }
+
+    try {
+      const sso = resolveCvteSsoContext(flow.connectionSlug)
+      const { exchangePortalToken, resolvePersonalKeyViaRelay } = await import('@craft-agent/shared/auth')
+
+      // 1) code → portal access_token (public client, no secret/PKCE)
+      const tokens = await exchangePortalToken(
+        { portalHost: sso.portalHost, clientId: sso.clientId },
+        code,
+        flow.redirectUri,
+      )
+      // 2) access_token → personal CCH key (relay holds the admin key server-side)
+      const { apiKey, identity } = await resolvePersonalKeyViaRelay(sso.relayUrl, tokens.accessToken)
+
+      // 3) configure the enterprise gateway connection with the personal key.
+      // The gateway invariant coerces it into the Anthropic @ token.cvte.com shape.
+      const result = await applyLlmConnectionSetup({
+        slug: flow.connectionSlug,
+        baseUrl: sso.gatewayBaseUrl,
+        credential: apiKey,
+      })
+
+      pendingCvteFlows.delete(flowId)
+      if (!result.success) return { success: false, error: result.error }
+      deps.platform.logger?.info(`[CVTE SSO] Flow complete for ${flow.connectionSlug} (user=${identity.account ?? identity.userId ?? '?'})`)
+      return { success: true, identity }
+    } catch (error) {
+      pendingCvteFlows.delete(flowId)
+      const message = error instanceof Error ? error.message : 'CVTE SSO failed'
+      deps.platform.logger?.error('[CVTE SSO] Flow failed:', message)
+      return { success: false, error: message }
+    }
+  })
+
+  // cvte:cancelOAuth — drop a pending flow (browser closed / user aborted)
+  server.handle(RPC_CHANNELS.cvte.CANCEL_OAUTH, async (ctx, args?: { flowId?: string }): Promise<{ success: boolean }> => {
+    if (args?.flowId) {
+      const flow = pendingCvteFlows.get(args.flowId)
+      if (flow && flow.ownerClientId === ctx.clientId) {
+        pendingCvteFlows.delete(args.flowId)
+        deps.platform.logger?.info(`[CVTE SSO] Flow cancelled for ${flow.connectionSlug}`)
+      }
+    }
+    return { success: true }
   })
 
   // ============================================================

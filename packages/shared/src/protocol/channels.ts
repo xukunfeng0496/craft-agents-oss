@@ -193,6 +193,14 @@ export const RPC_CHANNELS = {
     GET_AUTH_STATUS: 'chatgpt:getAuthStatus',
     LOGOUT: 'chatgpt:logout',
   },
+  // CVTE 统一门户 SSO (D8 §六): server-owned portal OAuth → personal CCH key →
+  // auto-config the enterprise gateway connection. Client runs the loopback
+  // callback server; server builds the auth URL and exchanges the code.
+  cvte: {
+    START_OAUTH: 'cvte:startOAuth',
+    COMPLETE_OAUTH: 'cvte:completeOAuth',
+    CANCEL_OAUTH: 'cvte:cancelOAuth',
+  },
   copilot: {
     START_OAUTH: 'copilot:startOAuth',
     CANCEL_OAUTH: 'copilot:cancelOAuth',

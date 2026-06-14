@@ -11,9 +11,15 @@
  * Run: bun scripts/copy-assets.ts
  */
 
-import { cpSync, copyFileSync, mkdirSync } from 'fs';
+import { cpSync, copyFileSync, rmSync } from 'fs';
 import { join } from 'path';
 import { execFileSync } from 'child_process';
+
+// cpSync is additive — it never deletes files removed from resources/. Release
+// notes are a curated, replace-not-append set (CVTE notes, not upstream's), so a
+// previously-built dist/ would keep stale .md files and "最新动态" would still show
+// them. Clear that dir first so it mirrors source exactly.
+rmSync('dist/resources/release-notes', { recursive: true, force: true });
 
 // Copy all resources (icons, themes, docs, permissions, tool-icons, etc.)
 cpSync('resources', 'dist/resources', { recursive: true });

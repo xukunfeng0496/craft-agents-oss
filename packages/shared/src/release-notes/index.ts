@@ -9,7 +9,7 @@
 
 import { join } from 'path';
 import { homedir } from 'os';
-import { existsSync, mkdirSync, writeFileSync, readdirSync, readFileSync } from 'fs';
+import { existsSync, mkdirSync, writeFileSync, readdirSync, readFileSync, rmSync } from 'fs';
 import { getBundledAssetsDir } from '../utils/paths.ts';
 import { debug } from '../utils/debug.ts';
 
@@ -78,6 +78,15 @@ export function initializeReleaseNotes(): void {
 
   if (!existsSync(RELEASE_NOTES_DIR)) {
     mkdirSync(RELEASE_NOTES_DIR, { recursive: true });
+  } else {
+    // Remove stale notes (e.g. upstream changelogs synced by an older build) so the
+    // config-dir copy exactly mirrors the bundled (CVTE) set — otherwise "最新动态"
+    // could still surface leftover upstream release notes.
+    try {
+      for (const f of readdirSync(RELEASE_NOTES_DIR)) {
+        if (f.endsWith('.md')) rmSync(join(RELEASE_NOTES_DIR, f), { force: true });
+      }
+    } catch { /* best-effort cleanup */ }
   }
 
   const bundledNotes = getBundledReleaseNotes();

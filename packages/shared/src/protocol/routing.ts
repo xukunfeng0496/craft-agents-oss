@@ -208,6 +208,24 @@ export const LOCAL_ONLY_CHANNELS = new Set<string>([
   RPC_CHANNELS.settings.GET_SERVER_CONFIG,
   RPC_CHANNELS.settings.SET_SERVER_CONFIG,
   RPC_CHANNELS.settings.GET_SERVER_STATUS,
+
+  // CVTE 统一门户 SSO — loopback OAuth callback + local enterprise config; the
+  // personal-key exchange + connection setup all run on the local server.
+  RPC_CHANNELS.cvte.IS_AVAILABLE,
+  RPC_CHANNELS.cvte.START_OAUTH,
+  RPC_CHANNELS.cvte.COMPLETE_OAUTH,
+  RPC_CHANNELS.cvte.CANCEL_OAUTH,
+
+  // CVTE skills marketplace — auth is a skills.gz.cvte.cn session COOKIE captured
+  // in the local Electron BrowserWindow session (PlatformServices.marketplaceAuth,
+  // Electron-only). registry/install carry that local cookie, and login/status/
+  // logout are inherently local — so the whole marketplace stays LOCAL_ONLY (a
+  // remote/headless workspace server has no cookie and would 401 on download).
+  RPC_CHANNELS.marketplace.GET_REGISTRY,
+  RPC_CHANNELS.marketplace.INSTALL_SKILL,
+  RPC_CHANNELS.marketplace.LOGIN,
+  RPC_CHANNELS.marketplace.GET_AUTH_STATUS,
+  RPC_CHANNELS.marketplace.LOGOUT,
 ])
 
 // ---------------------------------------------------------------------------
@@ -451,6 +469,10 @@ export const REMOTE_ELIGIBLE_CHANNELS = new Set<string>([
   RPC_CHANNELS.messaging.DISMISS_PENDING_SENDER,
   RPC_CHANNELS.messaging.ALLOW_PENDING_SENDER,
   RPC_CHANNELS.messaging.SET_BINDING_ACCESS,
+
+  // skill variables — workspace-scoped skill config; runs on the workspace's server.
+  RPC_CHANNELS.skillVars.GET,
+  RPC_CHANNELS.skillVars.SET,
 ])
 
 // ---------------------------------------------------------------------------

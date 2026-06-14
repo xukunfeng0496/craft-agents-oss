@@ -23,7 +23,6 @@ import { registerSystemCoreHandlers } from './system'
 import { registerTransferHandlers } from './transfer'
 import { registerWorkspaceCoreHandlers } from './workspace'
 import { registerMessagingHandlers } from './messaging'
-import { registerMarketplaceHandlers } from './marketplace'
 import { registerSkillVarsHandlers } from './skill-vars'
 
 export function registerCoreRpcHandlers(
@@ -49,6 +48,5 @@ export function registerCoreRpcHandlers(
   registerTransferHandlers(server)
   registerWorkspaceCoreHandlers(server, deps)
   registerMessagingHandlers(server, deps)
-  registerMarketplaceHandlers(server, deps)
   registerSkillVarsHandlers(server, deps)
 }

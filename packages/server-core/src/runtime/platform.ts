@@ -62,26 +62,6 @@ export interface PlatformServices {
   isDebugMode: boolean
   getLogFilePath?(): string | undefined
   captureError?(error: Error): void
-
-  // -- CVTE skills marketplace auth (Electron only; needs a BrowserWindow + a
-  //    cookie jar to complete 统一门户 OAuth and capture the skills.gz.cvte.cn
-  //    session cookie). Absent on headless. --
-  marketplaceAuth?: MarketplaceAuthService
-}
-
-/** Skills-marketplace login backed by a portal-OAuth browser session. The login
- * shares the persistent CVTE portal session, so a user already signed in to the
- * gateway SSO is not prompted again. */
-export interface MarketplaceAuthService {
-  /** Open the portal-login window; resolves once a marketplace session cookie is
-   * captured (or the user cancels / it fails). */
-  login(): Promise<{ success: boolean; error?: string }>
-  /** Current skills.gz.cvte.cn cookie header ("name=value; …"), or undefined. */
-  getCookie(): Promise<string | undefined>
-  /** Whether a marketplace session cookie is currently present. */
-  isAuthenticated(): Promise<boolean>
-  /** Clear the captured marketplace session. */
-  logout(): Promise<void>
 }
 
 // ── Logger helpers ──────────────────────────────────────────────────────────

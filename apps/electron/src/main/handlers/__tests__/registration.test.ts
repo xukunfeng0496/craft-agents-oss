@@ -105,7 +105,6 @@ async function getExpectedChannels(): Promise<Set<string>> {
     onboarding,
     resources,
     transfer,
-    marketplace,
     skillVars,
   ] = await Promise.all([
     import('@craft-agent/server-core/handlers/rpc/auth'),
@@ -124,7 +123,6 @@ async function getExpectedChannels(): Promise<Set<string>> {
     import('@craft-agent/server-core/handlers/rpc/onboarding'),
     import('@craft-agent/server-core/handlers/rpc/resources'),
     import('@craft-agent/server-core/handlers/rpc/transfer'),
-    import('@craft-agent/server-core/handlers/rpc/marketplace'),
     import('@craft-agent/server-core/handlers/rpc/skill-vars'),
   ])
 
@@ -153,7 +151,6 @@ async function getExpectedChannels(): Promise<Set<string>> {
     ...onboarding.HANDLED_CHANNELS,
     ...resources.HANDLED_CHANNELS,
     ...transfer.HANDLED_CHANNELS,
-    ...marketplace.HANDLED_CHANNELS,
     ...skillVars.HANDLED_CHANNELS,
     ...browser.HANDLED_CHANNELS,
     ...guiSystem.GUI_HANDLED_CHANNELS,

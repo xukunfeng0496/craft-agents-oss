@@ -13,7 +13,6 @@ import { getNetworkProxySettings, setNetworkProxySettings } from '@craft-agent/s
 import { mergedNoProxy } from '@craft-agent/shared/config';
 import type { NetworkProxySettings } from '@craft-agent/shared/config/types';
 import { BROWSER_PANE_SESSION_PARTITION } from './browser-pane-manager';
-import { CVTE_PORTAL_PARTITION } from './marketplace-auth';
 import log from './logger';
 
 // Track the current dispatcher so we can close it when reconfiguring
@@ -122,11 +121,6 @@ async function configureElectronProxy(settings: NetworkProxySettings | undefined
   const sessions = [
     session.defaultSession,
     session.fromPartition(BROWSER_PANE_SESSION_PARTITION),
-    // CVTE: the skills-marketplace / portal login window runs in this partition.
-    // Without the same proxy config (incl. the .gz.cvte.cn bypass / direct mode)
-    // Chromium falls back to the system/corporate proxy and resets the intranet
-    // host (ERR_CONNECTION_RESET) — even though undici reaches it fine.
-    session.fromPartition(CVTE_PORTAL_PARTITION),
   ];
 
   await Promise.all(sessions.map(ses => ses.setProxy(proxyConfig)));

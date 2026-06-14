@@ -428,15 +428,25 @@ export function useOnboarding({
         return
       }
 
-      // CVTE gateway: a provisioned, known-good endpoint that serves two
-      // protocols (Anthropic @ token.cvte.com, OpenAI @ …/v1). The upstream
-      // pre-save setup-test can't route that dual nature — it would treat the
-      // Anthropic shape as a pi_compat custom endpoint (wrong model/protocol)
-      // and reject the OpenAI shape for lacking a Pi provider preset. Skip the
-      // test and save directly: the server-side gateway invariant derives the
-      // correct shape, and the first chat surfaces any real auth error with the
-      // "前往 ai.cvte.com…" guidance.
+      // CVTE gateway: a provisioned endpoint that serves two protocols (Anthropic
+      // @ token.cvte.com, OpenAI-compatible @ …/v1). The generic pre-save test
+      // can't route that dual nature on its own, so build the protocol-correct
+      // test payload here (mirrors enforceCvteGatewayShape): the OpenAI shape needs
+      // provider 'pi' + customEndpoint openai-completions + piAuthProvider 'openai';
+      // the Anthropic shape uses provider 'anthropic' with no customEndpoint. This
+      // verifies the key + endpoint + protocol all actually reach the gateway before
+      // saving (bug #3: "确保配置 OK 且各方面一致").
       if (isCvteGatewayUrl(data.baseUrl ?? '')) {
+        const useOpenAi = !!data.customEndpoint
+        const gwTest = await window.electronAPI.testLlmConnectionSetup(
+          useOpenAi
+            ? { provider: 'pi', apiKey: data.apiKey, baseUrl: data.baseUrl, customEndpoint: { api: 'openai-completions' }, piAuthProvider: 'openai', model: data.models?.[0] }
+            : { provider: 'anthropic', apiKey: data.apiKey, baseUrl: data.baseUrl, model: data.models?.[0] }
+        )
+        if (!gwTest.success) {
+          setState(s => ({ ...s, credentialStatus: 'error', errorMessage: gwTest.error || 'Connection test failed' }))
+          return
+        }
         const saved = await handleSaveConfig(data.apiKey, {
           baseUrl: data.baseUrl,
           connectionDefaultModel: data.connectionDefaultModel,

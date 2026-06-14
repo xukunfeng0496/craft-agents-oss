@@ -755,6 +755,7 @@
   "settings.ai.cvteSso.failed": "CVTE ログインに失敗しました：{{error}}",
   "settings.ai.cvteSso.inProgress": "CVTE ポータルでログイン中…",
   "settings.ai.cvteSso.menuItem": "CVTE ポータルでログイン",
+  "settings.ai.cvteSso.relayUnreachable": "社内キーサービスに接続できませんでした。共有のデフォルトキーで利用できます。個人の割り当てを使うには社内ネットワーク/VPN に接続して再試行してください。",
   "settings.ai.cvteSso.success": "CVTE 個人 API キーを設定しました {{name}}",
   "settings.ai.defaultSection": "デフォルト",
   "settings.ai.defaultSectionDesc": "Workspaceの上書きが設定されていない場合の新規チャットの設定です。",

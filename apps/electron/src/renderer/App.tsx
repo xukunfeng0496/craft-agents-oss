@@ -13,6 +13,7 @@ import type { AgentEvent, Effect } from './event-processor'
 import { AppShell } from '@/components/app-shell/AppShell'
 import type { AppShellContextType } from '@/context/AppShellContext'
 import { OnboardingWizard, ReauthScreen } from '@/components/onboarding'
+import { CVTE_GATEWAY_PRESET_KEY } from '@/components/apisetup/ApiKeyInput'
 import { WorkspacePicker } from '@/components/workspace'
 import { ResetConfirmationDialog } from '@/components/ResetConfirmationDialog'
 import { SplashScreen } from '@/components/SplashScreen'
@@ -1974,6 +1975,11 @@ export default function App() {
               baseUrl: enterpriseSetupConnection.baseUrl,
               connectionDefaultModel: enterpriseSetupConnection.defaultModel,
               models: enterpriseSetupConnection.models?.filter((m): m is string => typeof m === 'string'),
+              // CVTE: pin the branded preset + Anthropic-Messages protocol explicitly so the
+              // onboarding form's protocol toggle matches the "默认 Anthropic" helper text
+              // (don't rely on getPresetForUrl inference, which a /v1 variant could miss).
+              activePreset: CVTE_GATEWAY_PRESET_KEY,
+              customApi: 'anthropic-messages',
             } : undefined}
           />
         </ModalProvider>

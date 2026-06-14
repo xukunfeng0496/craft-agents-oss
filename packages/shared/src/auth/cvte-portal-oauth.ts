@@ -108,17 +108,29 @@ export interface RelayResolvedKey {
  * personal CCH (token.cvte.com) gateway key server-side and returns it. The
  * admin key never leaves the relay.
  */
+/** Stable marker so the renderer can recognize "relay couldn't be reached" (vs an
+ * HTTP error) and show a friendly message instead of a raw "fetch failed". */
+export const RELAY_UNREACHABLE = 'RELAY_UNREACHABLE';
+
 export async function resolvePersonalKeyViaRelay(
   relayUrl: string,
   accessToken: string,
   fetchFn: typeof fetch = fetch,
 ): Promise<RelayResolvedKey> {
   const base = relayUrl.replace(/\/+$/, '');
-  const res = await fetchFn(`${base}/api/resolve-key`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-    body: JSON.stringify({ accessToken }),
-  });
+  let res: Response;
+  try {
+    res = await fetchFn(`${base}/api/resolve-key`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify({ accessToken }),
+    });
+  } catch (err) {
+    // Transport-level failure (relay not running / unreachable / untrusted TLS).
+    // Node fetch throws a bare "fetch failed" — surface a recognizable, actionable error.
+    const code = (err as { cause?: { code?: string } } | undefined)?.cause?.code;
+    throw new Error(`${RELAY_UNREACHABLE}: ${base}${code ? ` (${code})` : ''}`);
+  }
   if (!res.ok) {
     let detail = '';
     try {

@@ -698,6 +698,10 @@ export default function AiSettingsPage() {
         const who = result.identity?.name || result.identity?.account || result.identity?.email
         toast.success(t('settings.ai.cvteSso.success', { name: who ?? '' }).trim(), { id: toastId })
         await refreshLlmConnections()
+      } else if (/RELAY_UNREACHABLE|fetch failed|ECONNREFUSED|ENOTFOUND/i.test(result.error ?? '')) {
+        // Relay not reachable — the app still works on the shared fallback key; this only
+        // means the personal key wasn't fetched. Say so clearly instead of "fetch failed".
+        toast.error(t('settings.ai.cvteSso.relayUnreachable'), { id: toastId })
       } else {
         toast.error(t('settings.ai.cvteSso.failed', { error: result.error ?? '' }).trim(), { id: toastId })
       }

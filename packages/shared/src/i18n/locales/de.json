@@ -755,6 +755,7 @@
   "settings.ai.cvteSso.failed": "CVTE-Anmeldung fehlgeschlagen: {{error}}",
   "settings.ai.cvteSso.inProgress": "Anmeldung über CVTE-Portal…",
   "settings.ai.cvteSso.menuItem": "Mit CVTE-Portal anmelden",
+  "settings.ai.cvteSso.relayUnreachable": "Der Intranet-Schlüsseldienst war nicht erreichbar. Du nutzt den gemeinsamen Standardschlüssel (sofort einsatzbereit); für dein persönliches Kontingent verbinde dich mit dem Firmen-Intranet/VPN und versuche es erneut.",
   "settings.ai.cvteSso.success": "Persönlicher CVTE-Schlüssel konfiguriert {{name}}",
   "settings.ai.defaultSection": "Standard",
   "settings.ai.defaultSectionDesc": "Einstellungen für neue Chats, wenn keine Workspace-Überschreibung gesetzt ist.",

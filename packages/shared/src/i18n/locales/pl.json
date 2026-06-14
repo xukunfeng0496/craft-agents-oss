@@ -755,6 +755,7 @@
   "settings.ai.cvteSso.failed": "Logowanie CVTE nie powiodło się: {{error}}",
   "settings.ai.cvteSso.inProgress": "Logowanie przez CVTE Portal…",
   "settings.ai.cvteSso.menuItem": "Zaloguj się przez CVTE Portal",
+  "settings.ai.cvteSso.relayUnreachable": "Nie można połączyć się z wewnętrzną usługą kluczy. Używasz współdzielonego klucza domyślnego (gotowego do użycia); aby użyć osobistego limitu, połącz się z firmowym intranetem/VPN i spróbuj ponownie.",
   "settings.ai.cvteSso.success": "Skonfigurowano osobisty klucz CVTE {{name}}",
   "settings.ai.defaultSection": "Domyślne",
   "settings.ai.defaultSectionDesc": "Ustawienia dla nowych czatów, gdy nie ustawiono nadpisania Workspace.",

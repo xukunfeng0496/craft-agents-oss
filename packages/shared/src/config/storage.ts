@@ -2115,6 +2115,53 @@ function migrateCvteGatewayModels(config: StoredConfig): boolean {
   return changed;
 }
 
+/**
+ * CVTE D8 one-shot: pull any enterprise-gateway connection back to the default
+ * Anthropic-Messages (Claude Agent SDK) shape.
+ *
+ * enforceCvteGatewayShape only un-flips a gateway connection when its
+ * customEndpoint is NOT 'openai-completions' — so a connection left as
+ * openai-completions by an older build (or a one-off OpenAI selection) stays
+ * pi_compat forever, mislabeled "Work Agents Backend (Anthropic)" but actually
+ * OpenAI. Correct such stale connections once. Marker-guarded so a deliberate
+ * later OpenAI choice is never re-clobbered (the marker is set on first run
+ * regardless of whether anything was fixed).
+ */
+function migrateCvteGatewayToAnthropic(config: StoredConfig): boolean {
+  const MARKER = 'cvte-gateway-anthropic-default-1';
+  if (config.migrationsApplied?.includes(MARKER)) return false;
+  if (!config.llmConnections?.length) return false;
+  let defaults: ReturnType<typeof loadConfigDefaults> | null = null;
+  try {
+    defaults = loadConfigDefaults();
+  } catch {
+    return false; // config-defaults not synced yet — retry next launch (no marker)
+  }
+  const ent = defaults.enterprise?.defaultLlmConnection;
+  if (!ent?.baseUrl) return false;
+  const hostOf = (url?: string): string | null => {
+    try { return url ? new URL(url).host : null; } catch { return null; }
+  };
+  const entHost = hostOf(ent.baseUrl);
+  if (!entHost) return false;
+
+  for (const connection of config.llmConnections) {
+    if (hostOf(connection.baseUrl) !== entHost) continue;
+    if (connection.customEndpoint || connection.piAuthProvider || connection.providerType !== 'anthropic') {
+      delete connection.customEndpoint;
+      delete connection.piAuthProvider;
+      connection.providerType = 'anthropic';
+      connection.authType = 'api_key';
+      connection.baseUrl = ent.baseUrl;
+      if (ent.name) connection.name = ent.name; // repair "(Anthropic)" mislabel
+    }
+  }
+  // Set the marker on first run regardless, so a future deliberate OpenAI choice
+  // is not reset on the next launch. Always save it.
+  config.migrationsApplied = [...(config.migrationsApplied ?? []), MARKER];
+  return true;
+}
+
 function migrateLegacyProviderTypes(config: StoredConfig): boolean {
   if (!config.llmConnections) return false;
 
@@ -2402,6 +2449,12 @@ export function migrateLegacyLlmConnectionsConfig(): void {
     // adopt the enterprise model catalog and auto-sync mode, so the live
     // /v1/models list keeps them aligned afterwards.
     if (migrateCvteGatewayModels(config)) {
+      needsSave = true;
+    }
+    // Phase 1m2 (CVTE): one-shot — reset stale openai-completions gateway
+    // connections (which enforceCvteGatewayShape never un-flips) back to the
+    // Anthropic-Messages default. Must run before normalizeCvteGatewayRoute.
+    if (migrateCvteGatewayToAnthropic(config)) {
       needsSave = true;
     }
     // Phase 1n (CVTE): every-launch invariant — gateway connections stay on the

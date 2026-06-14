@@ -2083,7 +2083,16 @@ function migrateCvteGatewayModels(config: StoredConfig): boolean {
   // ModelDefinition objects (descriptions, supportsImages, context windows).
   const MARKER = 'cvte-gateway-models-2';
   if (config.migrationsApplied?.includes(MARKER)) return false;
-  const ent = loadConfigDefaults().enterprise?.defaultLlmConnection;
+  // Best-effort enrichment: if config-defaults.json hasn't been synced yet
+  // (tests, or any pre-ensureConfigDir state), skip rather than throw and abort
+  // the whole legacy-config migration. Mirrors proxy-env.ts's guarded load.
+  let defaults: ReturnType<typeof loadConfigDefaults> | null = null;
+  try {
+    defaults = loadConfigDefaults();
+  } catch {
+    return false;
+  }
+  const ent = defaults.enterprise?.defaultLlmConnection;
   if (!ent?.baseUrl || !config.llmConnections?.length) return false;
 
   const hostOf = (url?: string): string | null => {

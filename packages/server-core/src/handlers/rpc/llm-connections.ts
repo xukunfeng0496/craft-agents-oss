@@ -930,7 +930,9 @@ export function registerLlmConnectionsHandlers(server: RpcServer, deps: HandlerD
 
     if (!flow) throw new Error('Unknown or expired CVTE SSO flow')
     if (flow.ownerClientId !== ctx.clientId) throw new Error('OAuth flow owned by different client')
-    if (state && flow.state !== state) throw new Error('OAuth state mismatch')
+    // CSRF: state is mandatory (RFC 6749 §4.1.2 requires the AS to echo it). The
+    // flowId binding is the primary defense; strict state is defense-in-depth.
+    if (!state || flow.state !== state) throw new Error('OAuth state mismatch')
     if (Date.now() - flow.createdAt > CVTE_FLOW_TTL_MS) {
       pendingCvteFlows.delete(flowId)
       throw new Error('CVTE SSO flow expired')

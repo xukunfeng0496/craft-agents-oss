@@ -76,6 +76,14 @@ describe('resolveUserKey', () => {
     await expect(resolveUserKey('t', CFG, fn)).rejects.toMatchObject({ status: 502 });
   });
 
+  it('partly-numeric simUid (e.g. "12abc") → 502, not a silently-truncated userId', async () => {
+    // parseInt('12abc') === 12 would have mapped to the wrong CCH user; strict
+    // /^\d+$/ rejects it.
+    const { fn, calls } = mockFetch({ '/portal/oauth2/user': () => ok({ simUid: '12abc', account: 'u' }) });
+    await expect(resolveUserKey('t', CFG, fn)).rejects.toMatchObject({ status: 502 });
+    expect(calls.some((c) => c.url.includes('/api/v1/users/'))).toBe(false); // never hit CCH with userId 12
+  });
+
   it('no key + autoCreate=false → 404', async () => {
     const { fn } = mockFetch({
       '/portal/oauth2/user': () => ok({ simUid: '1528', account: 'u' }),

@@ -78,10 +78,12 @@ export async function resolveUserKey(
   }
   const user = (await userRes.json()) as { simUid?: string; account?: string; name?: string; email?: string };
   const simUid = user.simUid;
-  const userId = Number.parseInt(String(simUid ?? ''), 10);
-  if (!simUid || !Number.isInteger(userId)) {
+  // Strict numeric check — parseInt('12abc') would silently yield 12 (a wrong
+  // userId). Require an all-digits simUid before deriving the CCH userId.
+  if (!simUid || !/^\d+$/.test(simUid)) {
     throw new RelayError(502, `portal user has no numeric simUid (got ${JSON.stringify(simUid)})`);
   }
+  const userId = Number.parseInt(simUid, 10);
 
   // 2. List the user's CCH keys.
   const cchHeaders = cchAuthHeaders(cfg);

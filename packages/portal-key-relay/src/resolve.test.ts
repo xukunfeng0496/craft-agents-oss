@@ -69,6 +69,19 @@ describe('resolveUserKey', () => {
     await expect(resolveUserKey('t', CFG, fn)).rejects.toMatchObject({ status: 404 });
   });
 
+  it('all keys disabled/deleted → 404, never reveals a non-working key (regression)', async () => {
+    const { fn, calls } = mockFetch({
+      '/portal/oauth2/user': () => ok({ simUid: '1528', account: 'u' }),
+      '/api/v1/users/1528/keys': () => ok({ items: [
+        { id: 1, isEnabled: false, deletedAt: null },
+        { id: 2, isEnabled: true, deletedAt: '2026-01-01' },
+      ] }),
+    });
+    await expect(resolveUserKey('t', CFG, fn)).rejects.toMatchObject({ status: 404 });
+    // must NOT have attempted to reveal the disabled/deleted key
+    expect(calls.some((c) => c.url.includes(':reveal'))).toBe(false);
+  });
+
   it('no key + autoCreate=true → creates (full key from create response)', async () => {
     const { fn } = mockFetch({
       '/portal/oauth2/user': () => ok({ simUid: '1528', account: 'u' }),

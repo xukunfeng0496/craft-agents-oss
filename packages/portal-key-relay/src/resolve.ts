@@ -77,7 +77,10 @@ export async function resolveUserKey(
     throw new RelayError(502, `CCH list keys failed (${listRes.status})`);
   }
   const list = (await listRes.json()) as { items?: Array<{ id: number; isEnabled?: boolean; deletedAt?: string | null }> };
-  const enabled = (list.items ?? []).find((k) => k.isEnabled && !k.deletedAt) ?? (list.items ?? [])[0];
+  // Only an enabled, non-deleted key is usable. Do NOT fall back to items[0] —
+  // that would reveal a disabled/deleted key (a non-working credential). When no
+  // usable key exists, the !enabled branch below provisions one or returns 404.
+  const enabled = (list.items ?? []).find((k) => k.isEnabled && !k.deletedAt);
 
   let apiKey: string | undefined;
 

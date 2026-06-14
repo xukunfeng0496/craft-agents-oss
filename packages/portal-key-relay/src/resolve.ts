@@ -20,10 +20,23 @@ export interface RelayConfig {
   portalHost: string;
   /** CCH base, e.g. `https://token.cvte.com` (no trailing slash). */
   cchBase: string;
-  /** CCH admin service key (X-Api-Key). Server-side only — never to the client. */
+  /** CCH admin credential. Server-side only — never to the client. Prefer a
+   * revocable, per-person admin-USER API key (CCH `users.role='admin'` +
+   * `ENABLE_API_KEY_ADMIN_ACCESS=true`, sent as Bearer) over the raw static
+   * ADMIN_TOKEN (X-Api-Key) — the user key can be rotated/revoked/audited. */
   cchAdminKey: string;
+  /** How to present cchAdminKey to CCH: 'bearer' for an admin-user API key
+   * (recommended), 'x-api-key' for the raw ADMIN_TOKEN. */
+  cchAuthScheme: 'bearer' | 'x-api-key';
   /** Create a key when the user has none (returns the full key once). */
   autoCreateKey: boolean;
+}
+
+/** Build the CCH admin auth header for the configured scheme. */
+function cchAuthHeaders(cfg: RelayConfig): Record<string, string> {
+  return cfg.cchAuthScheme === 'bearer'
+    ? { Authorization: `Bearer ${cfg.cchAdminKey}`, Accept: 'application/json' }
+    : { 'X-Api-Key': cfg.cchAdminKey, Accept: 'application/json' };
 }
 
 export interface ResolvedIdentity {
@@ -71,7 +84,7 @@ export async function resolveUserKey(
   }
 
   // 2. List the user's CCH keys.
-  const cchHeaders = { 'X-Api-Key': cfg.cchAdminKey, Accept: 'application/json' };
+  const cchHeaders = cchAuthHeaders(cfg);
   const listRes = await fetchFn(`${cfg.cchBase}/api/v1/users/${userId}/keys`, { headers: cchHeaders });
   if (!listRes.ok) {
     throw new RelayError(502, `CCH list keys failed (${listRes.status})`);
@@ -112,7 +125,7 @@ export async function resolveUserKey(
 
 async function revealKey(cfg: RelayConfig, keyId: number, fetchFn: FetchFn): Promise<string | undefined> {
   const res = await fetchFn(`${cfg.cchBase}/api/v1/keys/${keyId}:reveal`, {
-    headers: { 'X-Api-Key': cfg.cchAdminKey, Accept: 'application/json' },
+    headers: cchAuthHeaders(cfg),
   });
   if (!res.ok) throw new RelayError(502, `CCH reveal key failed (${res.status})`);
   const body = (await res.json()) as { key?: string };
@@ -123,6 +136,8 @@ export function relayConfigFromEnv(env: NodeJS.ProcessEnv = process.env): RelayC
   const portalHost = env.PORTAL_HOST ?? 'op-fat.cvte.com';
   const cchBase = (env.CCH_BASE ?? 'https://token.cvte.com').replace(/\/+$/, '');
   const cchAdminKey = env.CCH_ADMIN_KEY ?? '';
-  if (!cchAdminKey) throw new Error('CCH_ADMIN_KEY is required (the CCH X-Api-Key service credential)');
-  return { portalHost, cchBase, cchAdminKey, autoCreateKey: env.AUTO_CREATE_KEY === 'true' };
+  if (!cchAdminKey) throw new Error('CCH_ADMIN_KEY is required (CCH admin credential — prefer a revocable admin-user API key)');
+  // 'bearer' = revocable admin-user API key (recommended); 'x-api-key' = raw ADMIN_TOKEN (default, back-compat).
+  const cchAuthScheme = env.CCH_AUTH_SCHEME === 'bearer' ? 'bearer' : 'x-api-key';
+  return { portalHost, cchBase, cchAdminKey, cchAuthScheme, autoCreateKey: env.AUTO_CREATE_KEY === 'true' };
 }

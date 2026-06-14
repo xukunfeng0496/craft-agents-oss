@@ -3,12 +3,12 @@ import { getEnterpriseDefaults } from './enterprise-defaults.ts';
 
 /**
  * CVTE: merge user-configured NO_PROXY with the enterprise intranet domain
- * list (gateway, key API, skills registry, update server). Returns null when
- * there is nothing to bypass.
+ * list (LLM gateway, key relay, update server). Returns null when there is
+ * nothing to bypass.
  *
  * Exported so the Electron-side proxy config (undici dispatcher + Chromium
  * session proxyBypassRules) bypasses the same intranet domains — otherwise
- * enabling an in-app HTTP proxy routes token.cvte.com / skills.gz.cvte.cn
+ * enabling an in-app HTTP proxy routes token.cvte.com (and the intranet relay)
  * through it and resets the connection.
  */
 export function mergedNoProxy(userNoProxy?: string): string | null {

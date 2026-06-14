@@ -5,6 +5,7 @@ const CFG: RelayConfig = {
   portalHost: 'op-fat.cvte.com',
   cchBase: 'https://token.cvte.com',
   cchAdminKey: 'admin-x-key',
+  cchAuthScheme: 'x-api-key',
   autoCreateKey: false,
 };
 
@@ -39,6 +40,20 @@ describe('resolveUserKey', () => {
     expect((portalCall.init?.headers as Record<string, string>).Authorization).toBe('Bearer tok');
     const revealCall = calls.find((c) => c.url.includes(':reveal'))!;
     expect((revealCall.init?.headers as Record<string, string>)['X-Api-Key']).toBe('admin-x-key');
+  });
+
+  it('cchAuthScheme=bearer sends the admin-user key as Bearer, not X-Api-Key', async () => {
+    const { fn, calls } = mockFetch({
+      '/portal/oauth2/user': () => ok({ simUid: '1528', account: 'u' }),
+      '/api/v1/users/1528/keys': () => ok({ items: [{ id: 9, isEnabled: true, deletedAt: null }] }),
+      '/api/v1/keys/9:reveal': () => ok({ key: 'sk-via-bearer' }),
+    });
+    const res = await resolveUserKey('t', { ...CFG, cchAuthScheme: 'bearer', cchAdminKey: 'admin-user-key' }, fn);
+    expect(res.apiKey).toBe('sk-via-bearer');
+    const listCall = calls.find((c) => c.url.includes('/users/1528/keys'))!;
+    const h = listCall.init?.headers as Record<string, string>;
+    expect(h.Authorization).toBe('Bearer admin-user-key');
+    expect(h['X-Api-Key']).toBeUndefined();
   });
 
   it('picks the enabled key when several exist', async () => {

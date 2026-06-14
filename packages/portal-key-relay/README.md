@@ -30,8 +30,21 @@ Resolution (each step verified live against op-fat + token.cvte.com):
 | `PORT` | `8788` | listen port |
 | `PORTAL_HOST` | `op-fat.cvte.com` | portal host — **`op-fat.cvte.com` (test)** / `home.cvte.com` (prod) |
 | `CCH_BASE` | `https://token.cvte.com` | CCH base |
-| `CCH_ADMIN_KEY` | — (**required**) | CCH `X-Api-Key`, admin-level — keep server-side only; rotate the shared test value before prod |
+| `CCH_ADMIN_KEY` | — (**required**) | CCH admin credential — keep server-side only. **Prefer a revocable admin-USER API key** (see below) over the raw `ADMIN_TOKEN`. |
+| `CCH_AUTH_SCHEME` | `x-api-key` | `bearer` → send `CCH_ADMIN_KEY` as `Authorization: Bearer` (for an admin-user key); `x-api-key` → raw `ADMIN_TOKEN` |
 | `AUTO_CREATE_KEY` | `false` | `true` → provision a key (`POST …/keys`) when the user has none |
+
+### Recommended credential: a revocable admin-user key (not the raw ADMIN_TOKEN)
+
+The raw `ADMIN_TOKEN` is global, static, non-expiring and **cannot be revoked**
+(only swapped via env). CCH supports a safer alternative — a normal **API key
+owned by an admin user** — which is per-person, rotatable, revocable and audited.
+To use it:
+
+1. On CCH, set the user `role = 'admin'`.
+2. Create an API key for that user.
+3. Enable `ENABLE_API_KEY_ADMIN_ACCESS=true` on CCH.
+4. Run the relay with `CCH_ADMIN_KEY=<that admin-user key>` and `CCH_AUTH_SCHEME=bearer`.
 
 ## Run / test
 
@@ -51,7 +64,10 @@ unit file. Wire the desktop via `enterprise.sso.relayUrl` in config-defaults.jso
 
 - The relay is the only holder of `CCH_ADMIN_KEY`. Restrict network access to the
   desktop fleet / intranet.
+- **Use a revocable admin-user key (`CCH_AUTH_SCHEME=bearer`), not the raw
+  `ADMIN_TOKEN`** — so the relay's credential can be rotated/revoked/audited
+  without an env swap, and a leak is contained.
 - The portal access token is short-lived (120s); the relay verifies it live every call.
 - Logs must never print the resolved key (this service does not).
 - **Cleanest future**: ask the CCH team for a "get my own key" endpoint authed by
-  the portal token — then this relay (and the admin key) can be retired.
+  the portal token — then this relay (and any admin credential) can be retired.

@@ -829,6 +829,8 @@ interface ManagedSession {
   sharedUrl?: string
   // Shared session ID in viewer (for revoke)
   sharedId?: string
+  // Per-share write token (HMAC) authorizing update/revoke when the viewer has write-auth on
+  sharedEditToken?: string
   // Model to use for this session (overrides global config if set)
   model?: string
   // LLM connection slug for this session (locked after first message)
@@ -1940,6 +1942,7 @@ export class SessionManager implements ISessionManager {
       if (managed.hasUnread === undefined) managed.hasUnread = stored.hasUnread
       if (managed.sharedUrl === undefined) managed.sharedUrl = stored.sharedUrl
       if (managed.sharedId === undefined) managed.sharedId = stored.sharedId
+      if (managed.sharedEditToken === undefined) managed.sharedEditToken = stored.sharedEditToken
       if (managed.transferredSessionSummary === undefined) managed.transferredSessionSummary = stored.transferredSessionSummary
       if (managed.transferredSessionSummaryApplied === undefined) managed.transferredSessionSummaryApplied = stored.transferredSessionSummaryApplied
 
@@ -2409,6 +2412,7 @@ export class SessionManager implements ISessionManager {
       managed.enabledSourceSlugs = storedSession.enabledSourceSlugs
       managed.sharedUrl = storedSession.sharedUrl
       managed.sharedId = storedSession.sharedId
+      managed.sharedEditToken = storedSession.sharedEditToken
       // Sync name from disk - ensures title persistence across lazy loading
       managed.name = storedSession.name
       // Restore LLM connection state - ensures correct provider on resume
@@ -4567,15 +4571,18 @@ export class SessionManager implements ISessionManager {
         return { success: false, error: 'Failed to upload session' }
       }
 
-      const data = await response.json() as { id: string; url: string }
+      const data = await response.json() as { id: string; url: string; editToken?: string }
 
-      // Store shared info in session
+      // Store shared info in session (editToken authorizes later update/revoke
+      // when the viewer has write-auth enabled — absent otherwise, harmless).
       managed.sharedUrl = data.url
       managed.sharedId = data.id
+      managed.sharedEditToken = data.editToken
       const workspaceRootPath = managed.workspace.rootPath
       await updateSessionMetadata(workspaceRootPath, sessionId, {
         sharedUrl: data.url,
         sharedId: data.id,
+        sharedEditToken: data.editToken,
       })
 
       sessionLog.info(`Session ${sessionId} shared at ${data.url}`)
@@ -4623,7 +4630,10 @@ export class SessionManager implements ISessionManager {
       }
       const response = await fetch(`${viewerUrl}/s/api/${managed.sharedId}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(managed.sharedEditToken ? { 'x-edit-token': managed.sharedEditToken } : {}),
+        },
         body: JSON.stringify(storedSession)
       })
 
@@ -4671,7 +4681,10 @@ export class SessionManager implements ISessionManager {
       if (viewerUrl) {
         const response = await fetch(
           `${viewerUrl}/s/api/${managed.sharedId}`,
-          { method: 'DELETE' }
+          {
+            method: 'DELETE',
+            headers: managed.sharedEditToken ? { 'x-edit-token': managed.sharedEditToken } : undefined,
+          }
         )
 
         if (!response.ok) {
@@ -4683,10 +4696,12 @@ export class SessionManager implements ISessionManager {
       // Clear shared info
       delete managed.sharedUrl
       delete managed.sharedId
+      delete managed.sharedEditToken
       const workspaceRootPath = managed.workspace.rootPath
       await updateSessionMetadata(workspaceRootPath, sessionId, {
         sharedUrl: undefined,
         sharedId: undefined,
+        sharedEditToken: undefined,
       })
 
       sessionLog.info(`Session ${sessionId} share revoked`)

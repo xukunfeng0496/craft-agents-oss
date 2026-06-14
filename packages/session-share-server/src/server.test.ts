@@ -78,4 +78,43 @@ describe('session-share handler', () => {
     expect((await handle(req('GET', '/'))).status).toBe(404);
     expect((await handle(req('POST', '/s/api/x', session()))).status).toBe(404);
   });
+
+  it('no writeSecret → no editToken issued (backward compatible)', async () => {
+    const body = await (await handle(req('POST', '/s/api', session()))).json() as { editToken?: string };
+    expect(body.editToken).toBeUndefined();
+  });
+});
+
+describe('session-share write-auth (writeSecret set)', () => {
+  let s: MemStore;
+  let h: (r: Request) => Promise<Response>;
+  beforeEach(() => { s = new MemStore(); h = createHandler(s, { ...CONFIG, writeSecret: 'secret-123' }); });
+  const reqT = (method: string, path: string, token?: string, body?: Uint8Array) =>
+    new Request(`http://x${path}`, { method, headers: token ? { 'x-edit-token': token } : undefined, ...(body ? { body } : {}) });
+
+  it('POST returns an editToken; PUT/DELETE require it', async () => {
+    const created = await (await h(req('POST', '/s/api', session()))).json() as { id: string; editToken: string };
+    expect(typeof created.editToken).toBe('string');
+    expect(created.editToken.length).toBeGreaterThan(0);
+
+    // no token → 403, store unchanged
+    expect((await h(reqT('PUT', `/s/api/${created.id}`, undefined, session({ name: 'x' })))).status).toBe(403);
+    // wrong token → 403
+    expect((await h(reqT('PUT', `/s/api/${created.id}`, 'wrong', session({ name: 'x' })))).status).toBe(403);
+    // correct token → 200
+    expect((await h(reqT('PUT', `/s/api/${created.id}`, created.editToken, session({ name: 'ok' })))).status).toBe(200);
+
+    // DELETE: no token → 403 (share survives), correct token → 200
+    expect((await h(reqT('DELETE', `/s/api/${created.id}`))).status).toBe(403);
+    expect(await s.has(created.id)).toBe(true);
+    expect((await h(reqT('DELETE', `/s/api/${created.id}`, created.editToken))).status).toBe(200);
+    expect(await s.has(created.id)).toBe(false);
+  });
+
+  it('editToken is per-share (one share token does not authorize another)', async () => {
+    const a = await (await h(req('POST', '/s/api', session()))).json() as { id: string; editToken: string };
+    const b = await (await h(req('POST', '/s/api', session()))).json() as { id: string; editToken: string };
+    expect((await h(reqT('DELETE', `/s/api/${b.id}`, a.editToken))).status).toBe(403);
+    expect(await s.has(b.id)).toBe(true);
+  });
 });

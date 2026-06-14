@@ -8,11 +8,17 @@
  *   PUT    /s/api/:id    body=StoredSession JSON  → 200               (update; 404 if missing)
  *   DELETE /s/api/:id                              → 200               (revoke; idempotent)
  *
- * No auth: the client sends no credentials — protect with network-layer access
- * control (intranet-only / IP allowlist / mTLS). The store never parses the
- * blob; this handler does the minimal validity check the viewer also does
- * (`id` + `messages` array) and enforces the size limit / id charset.
+ * Write auth: defense-in-depth on top of network-layer access control. When
+ * `writeSecret` is set, POST returns a per-share `editToken = HMAC(secret, id)`
+ * and PUT/DELETE require a matching `x-edit-token` header — so knowing a share id
+ * is not enough to overwrite or revoke it. Stateless (no token storage; derivable
+ * from id + secret → works across replicas). When `writeSecret` is unset the
+ * behaviour is unchanged (rely on network-layer control); the client always
+ * stores+sends whatever token it received, so enabling the secret is seamless.
+ * The store never parses the blob; this handler does the minimal validity check
+ * the viewer also does (`id` + `messages` array) and enforces size / id charset.
  */
+import { createHmac } from 'node:crypto';
 import type { SessionStore } from './storage.ts';
 
 export interface ServerConfig {
@@ -20,6 +26,13 @@ export interface ServerConfig {
   publicBase: string;
   /** Reject bodies larger than this with 413 (client shows "too large to share"). */
   maxBytes: number;
+  /** When set, PUT/DELETE require `x-edit-token` = HMAC-SHA256(writeSecret, id). */
+  writeSecret?: string;
+}
+
+/** Per-share write token, derivable from the share id + the server secret. */
+function editTokenFor(id: string, secret: string): string {
+  return createHmac('sha256', secret).update(id).digest('base64url');
 }
 
 // Must match the viewer route regex `^/s/([a-zA-Z0-9_-]+)$`.
@@ -53,7 +66,8 @@ export function createHandler(store: SessionStore, config: ServerConfig) {
       if (!isValidSession(body)) return new Response('Invalid session', { status: 400 });
       const id = newId();
       await store.put(id, body);
-      return json({ id, url: `${config.publicBase}/s/${id}` }, 201);
+      const editToken = config.writeSecret ? editTokenFor(id, config.writeSecret) : undefined;
+      return json({ id, url: `${config.publicBase}/s/${id}`, ...(editToken ? { editToken } : {}) }, 201);
     }
 
     // GET | PUT | DELETE /s/api/:id
@@ -61,6 +75,13 @@ export function createHandler(store: SessionStore, config: ServerConfig) {
     if (m) {
       const id = m[1]!;
       if (!VALID_ID.test(id)) return new Response('Bad id', { status: 400 });
+
+      // Write auth (defense-in-depth): mutations require the per-share edit token.
+      if ((req.method === 'PUT' || req.method === 'DELETE') && config.writeSecret) {
+        if (req.headers.get('x-edit-token') !== editTokenFor(id, config.writeSecret)) {
+          return new Response('Forbidden', { status: 403 });
+        }
+      }
 
       if (req.method === 'GET') {
         const data = await store.get(id);

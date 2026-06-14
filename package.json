@@ -1,6 +1,6 @@
 {
   "name": "craft-agent",
-  "version": "0.10.305",
+  "version": "0.10.306",
   "license": "Apache-2.0",
   "description": "Claude Code-like agent for Craft documents",
   "type": "module",

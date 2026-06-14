@@ -69,7 +69,8 @@ export async function resolveUserKey(
 ): Promise<ResolveResult> {
   if (!accessToken?.trim()) throw new RelayError(400, 'accessToken required');
 
-  // 1. Verify the portal token → identity.
+  // 1. Verify the portal token → identity. The portal reliably returns the
+  // username (account). simUid is an employee number, NOT the CCH user id.
   const userRes = await fetchFn(`https://${cfg.portalHost}/portal/oauth2/user`, {
     headers: { Authorization: `Bearer ${accessToken}` },
   });
@@ -77,16 +78,39 @@ export async function resolveUserKey(
     throw new RelayError(401, `portal token rejected (${userRes.status})`);
   }
   const user = (await userRes.json()) as { simUid?: string; account?: string; name?: string; email?: string };
-  const simUid = user.simUid;
-  // Strict numeric check — parseInt('12abc') would silently yield 12 (a wrong
-  // userId). Require an all-digits simUid before deriving the CCH userId.
-  if (!simUid || !/^\d+$/.test(simUid)) {
-    throw new RelayError(502, `portal user has no numeric simUid (got ${JSON.stringify(simUid)})`);
+  const username = user.account?.trim();
+  if (!username) {
+    throw new RelayError(502, `portal user has no account/username (got ${JSON.stringify(user.account)})`);
   }
-  const userId = Number.parseInt(simUid, 10);
 
-  // 2. List the user's CCH keys.
   const cchHeaders = cchAuthHeaders(cfg);
+
+  // 2. Resolve the CCH user id by username. CRITICAL: CCH `users.id` is an
+  // autoincrement primary key with NO relation to the portal simUid (employee
+  // number) — using parseInt(simUid) as the id fetched a DIFFERENT user's keys
+  // (cross-account key leak). CCH keeps several rows per username over time, and
+  // `status=active` does NOT drop the disabled ones (observed: 15 rows for one
+  // username — 14 with isEnabled=false + 1 true). So we filter on the `isEnabled`
+  // flag ourselves and require an exact name match (`q=` is a fuzzy search). Any
+  // non-unique result is rejected, so an ambiguous lookup can never hand back
+  // another user's key — verified across the full users table that
+  // (name, isEnabled=true, non-deleted) is globally unique.
+  const lookupUrl = `${cfg.cchBase}/api/v1/users?q=${encodeURIComponent(username)}&status=active&limit=100`;
+  const lookupRes = await fetchFn(lookupUrl, { headers: cchHeaders });
+  if (!lookupRes.ok) {
+    throw new RelayError(502, `CCH user lookup failed (${lookupRes.status})`);
+  }
+  const lookup = (await lookupRes.json()) as { items?: Array<{ id: number; name: string; isEnabled?: boolean }> };
+  const matches = (lookup.items ?? []).filter((u) => u.name === username && u.isEnabled === true);
+  if (matches.length === 0) {
+    throw new RelayError(404, `no active CCH user for username ${JSON.stringify(username)}`);
+  }
+  if (matches.length > 1) {
+    throw new RelayError(409, `ambiguous username ${JSON.stringify(username)}: ${matches.length} active CCH users`);
+  }
+  const userId = matches[0].id;
+
+  // 3. List the user's CCH keys.
   const listRes = await fetchFn(`${cfg.cchBase}/api/v1/users/${userId}/keys`, { headers: cchHeaders });
   if (!listRes.ok) {
     throw new RelayError(502, `CCH list keys failed (${listRes.status})`);
@@ -121,7 +145,7 @@ export async function resolveUserKey(
 
   return {
     apiKey,
-    identity: { account: user.account ?? '', name: user.name, email: user.email, simUid, userId },
+    identity: { account: username, name: user.name, email: user.email, simUid: user.simUid ?? '', userId },
   };
 }
 

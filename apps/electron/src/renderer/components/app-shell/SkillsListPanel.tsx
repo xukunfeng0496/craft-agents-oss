@@ -24,6 +24,12 @@ import { useActiveWorkspace, useAppShellContext } from '@/context/AppShellContex
 import { getFileManagerName } from '@/lib/platform'
 import type { LoadedSkill } from '../../../shared/types'
 import { MARKETPLACE_HOST, isMarketplaceConnectivityError, isMarketplaceAuthError } from '@craft-agent/shared/marketplace'
+
+/** A Chromium/transport-level connection failure (vs. a normal auth/HTTP result),
+ * so we can show the clean "check network" message instead of a raw error code. */
+function isConnectionLevelError(msg?: string): boolean {
+  return !!msg && /ERR_(CONNECTION|PROXY|NAME_NOT_RESOLVED|INTERNET|NETWORK|TIMED_OUT|ADDRESS)|ECONNRESET|ECONNREFUSED|ENOTFOUND/i.test(msg)
+}
 import type { MarketplaceSkillMeta } from '@craft-agent/shared/marketplace'
 
 type FilterType = 'all' | 'installed' | 'not-installed'
@@ -107,6 +113,11 @@ export function SkillsListPanel({
         toast.success(t('marketplace.loginSuccess'), { id })
         await fetchRemote(true)
         onDone?.()
+      } else if (isConnectionLevelError(r.error)) {
+        // Don't dump a raw "ERR_CONNECTION_RESET (-101)…" — show the clean network message.
+        toast.error(t('marketplace.unreachable', { host: MARKETPLACE_HOST }), { id })
+      } else if (r.error === 'CANCELLED') {
+        toast.dismiss(id) // user closed the window on purpose — no error noise
       } else {
         toast.error(t('marketplace.loginFailed'), { id, description: r.error })
       }

@@ -39,15 +39,29 @@ async function readCookieHeader(): Promise<string | undefined> {
   return cookies.map((c) => `${c.name}=${c.value}`).join('; ')
 }
 
-/** Verify the session is actually valid (GET /api/me → 200) using the partition's
- * cookie jar — more reliable than mere cookie presence (which can be pre-auth). */
+/** Verify a real logged-in session. NB: GET /api/me returns 200 even when logged
+ * out (`{"user":null}`), so the status code is not enough — we must inspect the
+ * body for a non-null user. Uses the partition's cookie jar (useSessionCookies). */
 function verifySession(): Promise<boolean> {
   return new Promise((resolve) => {
     const req = net.request({ url: ME_URL, session: portalSession(), useSessionCookies: true })
     req.on('response', (res) => {
-      resolve(res.statusCode === 200)
-      res.on('data', () => {})
-      res.on('end', () => {})
+      if (res.statusCode !== 200) {
+        resolve(false)
+        res.on('data', () => {})
+        res.on('end', () => {})
+        return
+      }
+      let body = ''
+      res.on('data', (c) => { body += c.toString() })
+      res.on('end', () => {
+        try {
+          const me = JSON.parse(body) as { user?: unknown }
+          resolve(me?.user != null)
+        } catch {
+          resolve(false)
+        }
+      })
     })
     req.on('error', () => resolve(false))
     req.end()
@@ -80,26 +94,29 @@ export function createMarketplaceAuth(logger: PlatformServices['logger']): Marke
         }
 
         // Login completes when the window lands back on a non-/auth/ page of
-        // skills.gz.cvte.cn (the callback set the cookie and redirected to the app).
+        // skills.gz.cvte.cn AND /api/me confirms a real user (a cookie alone can be
+        // pre-auth, and /api/me 200s even when logged out). Only settle on success
+        // here — a not-yet-authed navigation just waits for the next one.
         const onNavigate = (url: string) => {
           try {
             const u = new URL(url)
             if (u.host === HOST && !u.pathname.startsWith('/auth/')) {
-              void readCookieHeader().then((cookie) =>
-                settle(cookie ? { success: true } : { success: false, error: '登录未取得会话，请重试' }),
-              )
+              void verifySession().then((ok) => { if (ok) settle({ success: true }) })
             }
           } catch { /* non-URL navigation — ignore */ }
         }
 
         win.webContents.on('did-navigate', (_e, url) => onNavigate(url))
         win.webContents.on('did-redirect-navigation', (_e, url) => onNavigate(url))
-        win.on('closed', () => settle({ success: false, error: '登录已取消' }))
+        win.on('closed', () => settle({ success: false, error: 'CANCELLED' }))
 
-        timer = setTimeout(() => settle({ success: false, error: '登录超时' }), LOGIN_TIMEOUT_MS)
+        timer = setTimeout(() => settle({ success: false, error: 'TIMEOUT' }), LOGIN_TIMEOUT_MS)
 
+        // Pass the raw chromium error through (e.g. ERR_CONNECTION_RESET) so the
+        // renderer can recognize a transport failure and show the clean network
+        // message instead of a raw code.
         win.loadURL(LOGIN_URL).catch((err) =>
-          settle({ success: false, error: err instanceof Error ? err.message : '无法打开登录页' }),
+          settle({ success: false, error: err instanceof Error ? err.message : 'ERR_FAILED loading login page' }),
         )
       })
     },

@@ -25,35 +25,51 @@ const FIXTURES = new URL('../fixtures/', import.meta.url).pathname;
 
 export async function launchSandbox(appPath: string, opts: SandboxOptions): Promise<Sandbox> {
   if (!existsSync(appPath)) throw new Error(`app not found: ${appPath} — 先 bun run electron:dist:mac`);
+
+  // M2: 先建临时目录，后续若出错则清理
   const home = mkdtempSync(join(tmpdir(), 'wa-e2e-'));
   const userData = mkdtempSync(join(tmpdir(), 'wa-e2e-ud-'));
 
-  if (opts.fixture && opts.fixture !== 'clean') {
-    const src = opts.fixture === 'seeded' ? join(FIXTURES, 'seeded-home') : opts.fixture;
-    if (existsSync(src)) cpSync(src, home, { recursive: true });
-  }
+  let child: ChildProcess;
+  try {
+    if (opts.fixture && opts.fixture !== 'clean') {
+      const src = opts.fixture === 'seeded' ? join(FIXTURES, 'seeded-home') : opts.fixture;
+      if (existsSync(src)) cpSync(src, home, { recursive: true });
+    }
 
-  const env: NodeJS.ProcessEnv = {
-    ...process.env,
-    HOME: home,
-    NO_PROXY: '127.0.0.1,localhost',
-    CRAFT_DEBUG: opts.debug ? '1' : '0',
-  };
-  const child: ChildProcess = spawn(appPath, [
-    `--remote-debugging-port=${opts.cdpPort}`,
-    '--remote-allow-origins=*',
-    `--user-data-dir=${userData}`,
-  ], { env, stdio: ['ignore', 'ignore', 'ignore'], detached: false });
+    const env: NodeJS.ProcessEnv = {
+      ...process.env,
+      HOME: home,
+      NO_PROXY: '127.0.0.1,localhost',
+      CRAFT_DEBUG: opts.debug ? '1' : '0',
+    };
+    child = spawn(appPath, [
+      `--remote-debugging-port=${opts.cdpPort}`,
+      '--remote-allow-origins=*',
+      `--user-data-dir=${userData}`,
+    ], { env, stdio: ['ignore', 'ignore', 'ignore'], detached: false });
 
-  // 等 CDP 就绪（最多 30s）
-  const deadline = Date.now() + 30_000;
-  for (;;) {
-    if (Date.now() > deadline) { try { child.kill('SIGKILL'); } catch {} throw new Error('CDP not ready within 30s'); }
-    try {
-      const r = await fetch(`http://127.0.0.1:${opts.cdpPort}/json/version`, { signal: AbortSignal.timeout(1000) } as any);
-      if (r.ok) break;
-    } catch { /* not up yet */ }
-    await new Promise((r) => setTimeout(r, 500));
+    // C1: 等待 page target 存在（而非仅 /json/version），最多 30s
+    const deadline = Date.now() + 30_000;
+    for (;;) {
+      if (Date.now() > deadline) {
+        try { child.kill('SIGKILL'); } catch {}
+        throw new Error('CDP not ready within 30s');
+      }
+      try {
+        const r = await fetch(`http://127.0.0.1:${opts.cdpPort}/json`, { signal: AbortSignal.timeout(1000) } as any);
+        if (r.ok) {
+          const targets = (await r.json()) as Array<{ type: string }>;
+          if (targets.some((t) => t.type === 'page')) break;
+        }
+      } catch { /* not up yet */ }
+      await new Promise((r) => setTimeout(r, 500));
+    }
+  } catch (err) {
+    // M2: 启动失败时清理临时目录
+    try { rmSync(home, { recursive: true, force: true }); } catch {}
+    try { rmSync(userData, { recursive: true, force: true }); } catch {}
+    throw err;
   }
 
   return {

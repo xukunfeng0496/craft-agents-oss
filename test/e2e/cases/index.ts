@@ -1,7 +1,12 @@
 import type { E2ECase } from './types.ts';
 import { provisionCase } from './provision.case.ts';
+import { releaseNotesCase } from './release-notes.case.ts';
+import { noFallbackCase } from './no-fallback.case.ts';
+import { coldStartCase } from './coldstart.case.ts';
 
 export const ALL_CASES: readonly E2ECase[] = [
+  coldStartCase,
   provisionCase,
-  // 后续 task 追加：releaseNotesCase, noFallbackCase, coldStartCase, ...
+  releaseNotesCase,
+  noFallbackCase,
 ];

@@ -222,7 +222,7 @@ export function ApiKeyInput({
   const [lastNonCustomPreset, setLastNonCustomPreset] = useState<PresetKey | null>(
     initialPreset !== 'custom' ? initialPreset : defaultPreset.key
   )
-  const [connectionDefaultModel, setConnectionDefaultModel] = useState(initialValues?.connectionDefaultModel ?? '')
+  const [connectionDefaultModel, setConnectionDefaultModel] = useState(initialValues?.connectionDefaultModel ?? (initialPreset === CVTE_GATEWAY_PRESET_KEY ? 'CVTE-AUTO' : ''))
   // CVTE gateway defaults to its Anthropic-Messages protocol; everything else to OpenAI-compatible.
   const [customApi, setCustomApi] = useState<CustomEndpointApi>(
     initialValues?.customApi ?? (initialPreset === CVTE_GATEWAY_PRESET_KEY ? 'anthropic-messages' : 'openai-completions')
@@ -331,6 +331,12 @@ export function ApiKeyInput({
       setConnectionDefaultModel('auto')
     } else if (preset.key === 'custom' || OPENAI_COMPAT_CUSTOM_URL_PRESETS.has(preset.key)) {
       setConnectionDefaultModel(providerType === 'openai' ? COMPAT_OPENAI_DEFAULTS : COMPAT_ANTHROPIC_DEFAULTS)
+    } else if (preset.key === CVTE_GATEWAY_PRESET_KEY) {
+      // CVTE gateway: CVTE-AUTO is the smart-routing entry the gateway always
+      // accepts. Use it as the connection default AND the pre-save health-check
+      // model — otherwise the check (and later chats) fall back to the official
+      // claude-opus default, which the gateway rejects ("model may not exist").
+      setConnectionDefaultModel('CVTE-AUTO')
     } else {
       setConnectionDefaultModel('')
     }

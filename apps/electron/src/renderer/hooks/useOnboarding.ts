@@ -440,8 +440,8 @@ export function useOnboarding({
         const useOpenAi = !!data.customEndpoint
         const gwTest = await window.electronAPI.testLlmConnectionSetup(
           useOpenAi
-            ? { provider: 'pi', apiKey: data.apiKey, baseUrl: data.baseUrl, customEndpoint: { api: 'openai-completions' }, piAuthProvider: 'openai', model: data.models?.[0] }
-            : { provider: 'anthropic', apiKey: data.apiKey, baseUrl: data.baseUrl, model: data.models?.[0] }
+            ? { provider: 'pi', apiKey: data.apiKey, baseUrl: data.baseUrl, customEndpoint: { api: 'openai-completions' }, piAuthProvider: 'openai', model: data.connectionDefaultModel || data.models?.[0] || 'CVTE-AUTO' }
+            : { provider: 'anthropic', apiKey: data.apiKey, baseUrl: data.baseUrl, model: data.connectionDefaultModel || data.models?.[0] || 'CVTE-AUTO' }
         )
         if (!gwTest.success) {
           setState(s => ({ ...s, credentialStatus: 'error', errorMessage: gwTest.error || 'Connection test failed' }))

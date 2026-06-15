@@ -17,7 +17,7 @@ export async function connectCdp(port: number, host = '127.0.0.1'): Promise<CdpS
   if (!page) throw new Error('no CDP page target (app not ready?)');
 
   const ws = new WebSocket(page.webSocketDebuggerUrl);
-  await new Promise<void>((res, rej) => { ws.onopen = () => res(); ws.onerror = (e) => rej(new Error('cdp ws error')); });
+  await new Promise<void>((res, rej) => { ws.onopen = () => res(); ws.onerror = () => rej(new Error('cdp ws error')); });
 
   let id = 1;
   const pending = new Map<number, (m: any) => void>();

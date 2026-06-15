@@ -28,7 +28,7 @@ import { loadPreferences, formatPreferencesForPrompt, getCoAuthorPreference } fr
 import type { FileAttachment } from '../utils/files.ts';
 import type { LLMQueryRequest, LLMQueryResult } from './llm-tool.ts';
 import { consumeLlmQueryMessages } from './claude-llm-query.ts';
-import { debug } from '../utils/debug.ts';
+import { debug, logError } from '../utils/debug.ts';
 import { guardLargeResult } from '../utils/large-response.ts';
 import { SourceActivationDrainController } from './source-activation-drain.ts';
 import {
@@ -2409,8 +2409,28 @@ This is a branched conversation. All prior messages in this conversation are par
   private async mapSDKErrorToTypedError(
     errorCode: SDKAssistantMessageError
   ): Promise<{ type: 'typed_error'; error: AgentError }> {
-    const actualError = await this.parseApiErrorFromDebugLog();
+    let actualError = await this.parseApiErrorFromDebugLog();
     const capturedApiError = this.getCapturedApiErrorForSession();
+
+    // CVTE: the Claude SDK route has NO network interceptor (capturedApiError is
+    // always null here) and parseApiErrorFromDebugLog is empty unless CRAFT_DEBUG
+    // is on — so an SDK 'unknown' assistant error otherwise reaches the user with
+    // zero detail ("Unknown Error" + "SDK error code: unknown"), undiagnosable.
+    // Fall back to the buffered SDK subprocess stderr: it carries the real HTTP
+    // status / provider message, letting classifyFailure tag it provider-vs-network
+    // and surfacing the actual cause in the error details instead of a blank box.
+    const bufferedStderr = this.lastStderrOutput.join('\n').trim();
+    if (!actualError && bufferedStderr) {
+      actualError = { errorType: 'sdk_stderr', message: bufferedStderr.slice(-1500) };
+    }
+
+    // CVTE: always persist the SDK error to the log (main.log in production too),
+    // so a packaged build is diagnosable without CRAFT_DEBUG. console.error is
+    // dropped in production and debug() is gated, so this is the only durable record.
+    logError('[SDK assistant error]', {
+      errorCode,
+      stderr: bufferedStderr.slice(-1500) || '(none)',
+    });
 
     const error = mapClaudeSdkAssistantError(errorCode, {
       actualError,

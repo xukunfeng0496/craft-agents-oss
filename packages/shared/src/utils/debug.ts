@@ -31,9 +31,9 @@ function detectEnvironment(): Environment {
 let electronLog: unknown | null = null;
 let electronLogChecked = false;
 
-function getElectronLog(): { info?: (message: string) => void } | null {
+function getElectronLog(): { info?: (message: string) => void; error?: (message: string) => void } | null {
   if (electronLogChecked) {
-    return (electronLog as { info?: (message: string) => void } | null) ?? null;
+    return (electronLog as { info?: (message: string) => void; error?: (message: string) => void } | null) ?? null;
   }
   electronLogChecked = true;
   try {
@@ -44,7 +44,7 @@ function getElectronLog(): { info?: (message: string) => void } | null {
   } catch {
     electronLog = null;
   }
-  return (electronLog as { info?: (message: string) => void } | null) ?? null;
+  return (electronLog as { info?: (message: string) => void; error?: (message: string) => void } | null) ?? null;
 }
 
 /**
@@ -138,6 +138,29 @@ function output(formatted: string): void {
 export function debug(message: string, ...args: unknown[]): void {
   if (!isDebugEnabled()) return;
   output(formatMessage(undefined, message, args));
+}
+
+/**
+ * Error logging that is ALWAYS active, independent of debug mode.
+ *
+ * Unlike debug(), this is NOT gated by CRAFT_DEBUG. It routes to electron-log
+ * (persisted to main.log even in packaged/production builds, where the console
+ * transport is disabled) and to stderr. Use for genuine failures that must be
+ * diagnosable from the field — e.g. SDK/agent errors that would otherwise be
+ * lost (console.error is dropped in production and debug() is gated off).
+ */
+export function logError(message: string, ...args: unknown[]): void {
+  const formatted = formatMessage(undefined, message, args);
+  if (detectEnvironment() === 'electron-main') {
+    getElectronLog()?.error?.(formatted.trim());
+  }
+  try {
+    if (typeof process !== 'undefined' && process.stderr) {
+      process.stderr.write(formatted);
+    }
+  } catch {
+    /* best-effort: never let logging throw */
+  }
 }
 
 /**

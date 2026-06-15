@@ -147,6 +147,21 @@ export async function ensureEnterpriseDefaultConnection(): Promise<boolean> {
         setDefaultLlmConnection(ent.slug);
       }
     }
+    // Fresh install: nothing legacy to migrate, so record the gateway→Anthropic
+    // migration (storage.ts:migrateCvteGatewayToAnthropic) as done NOW. That
+    // migration runs inside the early startup config load, which can fire before
+    // config-defaults is synced — it then bails without setting its marker, so a
+    // later deliberate OpenAI-compat switch was clobbered back to Anthropic on
+    // the next launch (B2, #35). Provisioning runs after config-defaults is
+    // available, so setting the marker here guarantees the user's protocol
+    // choice survives restarts.
+    const ANTHROPIC_DEFAULT_MARKER = 'cvte-gateway-anthropic-default-1';
+    const cfg = loadStoredConfig();
+    if (cfg && !cfg.migrationsApplied?.includes(ANTHROPIC_DEFAULT_MARKER)) {
+      cfg.migrationsApplied = [...(cfg.migrationsApplied ?? []), ANTHROPIC_DEFAULT_MARKER];
+      saveConfig(cfg);
+      changed = true;
+    }
   }
 
   // Fallback key handling for every connection pointing at the gateway host

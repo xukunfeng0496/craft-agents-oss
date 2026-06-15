@@ -104,6 +104,7 @@
     "oss:sync": "bun run scripts/oss-sync.ts",
     "fast-update:upload": "bun run scripts/upload-fast-update-release.ts",
     "test:ota": "bun run scripts/test-ota-flow.ts",
+    "e2e": "bun run test/e2e/run.ts",
     "latency:probe": "bun run scripts/latency-probe.ts",
     "prepare": "husky"
   },

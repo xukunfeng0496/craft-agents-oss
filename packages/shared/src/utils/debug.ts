@@ -144,10 +144,11 @@ export function debug(message: string, ...args: unknown[]): void {
  * Error logging that is ALWAYS active, independent of debug mode.
  *
  * Unlike debug(), this is NOT gated by CRAFT_DEBUG. It routes to electron-log
- * (persisted to main.log even in packaged/production builds, where the console
- * transport is disabled) and to stderr. Use for genuine failures that must be
- * diagnosable from the field — e.g. SDK/agent errors that would otherwise be
- * lost (console.error is dropped in production and debug() is gated off).
+ * (persisted to main.log even in packaged/production builds) AND to console.error.
+ * console.error (not process.stderr.write) is deliberate: Sentry's
+ * captureConsoleIntegration({levels:['error']}) only promotes console.error to
+ * Sentry events — using process.stderr.write would keep SDK/agent failures out of
+ * Sentry entirely. Use for genuine failures that must be diagnosable from the field.
  */
 export function logError(message: string, ...args: unknown[]): void {
   const formatted = formatMessage(undefined, message, args);
@@ -155,9 +156,9 @@ export function logError(message: string, ...args: unknown[]): void {
     getElectronLog()?.error?.(formatted.trim());
   }
   try {
-    if (typeof process !== 'undefined' && process.stderr) {
-      process.stderr.write(formatted);
-    }
+    // console.error so Sentry captureConsoleIntegration picks it up (→ main.log
+    // already covered by electron-log above; stderr still gets it via console).
+    console.error(formatted.trim());
   } catch {
     /* best-effort: never let logging throw */
   }

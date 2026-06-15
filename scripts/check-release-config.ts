@@ -14,13 +14,21 @@
  */
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { createHash } from 'node:crypto';
 
 const CONFIG_PATH = join(import.meta.dir, '..', 'apps', 'electron', 'resources', 'config-defaults.json');
 
 // Known test / placeholder values (must be replaced before a production release).
 const TEST_PORTAL_HOST = 'op-fat.cvte.com';
 const TEST_CLIENT_ID = 'e1fe00c2088543f3b7ade4d7fb7f4e5c';
-const KNOWN_LEAKED_FALLBACK_KEY = '***REMOVED-LEAKED-FALLBACK-KEY***';
+// SHA-256 of the leaked plaintext fallback key. The key itself is deliberately
+// NOT stored in source (purged) — we denylist by hash, so a stale config that
+// re-adds the plaintext is still caught at build time without keeping the secret here.
+const LEAKED_FALLBACK_KEY_SHA256 = 'b6372e6ba35904d7c4f1063d0777be6e1711864c86c08acccbd4bc4c15dd6574';
+
+function sha256Hex(value: string): string {
+  return createHash('sha256').update(value).digest('hex');
+}
 
 export interface ReleaseConfigIssue {
   field: string;
@@ -28,7 +36,10 @@ export interface ReleaseConfigIssue {
 }
 
 /** Pure check — returns the list of release-blocking config issues (empty = ok). */
-export function findReleaseConfigIssues(cfg: unknown): ReleaseConfigIssue[] {
+export function findReleaseConfigIssues(
+  cfg: unknown,
+  leakedKeyHashes: readonly string[] = [LEAKED_FALLBACK_KEY_SHA256],
+): ReleaseConfigIssue[] {
   const issues: ReleaseConfigIssue[] = [];
   const enterprise = (cfg as { enterprise?: Record<string, any> })?.enterprise;
   if (!enterprise) return issues; // non-enterprise build — nothing to gate
@@ -46,10 +57,11 @@ export function findReleaseConfigIssues(cfg: unknown): ReleaseConfigIssue[] {
     }
   }
 
-  if (enterprise.defaultLlmConnection?.fallbackApiKey === KNOWN_LEAKED_FALLBACK_KEY) {
+  const fallbackKey = enterprise.defaultLlmConnection?.fallbackApiKey;
+  if (typeof fallbackKey === 'string' && fallbackKey.length > 0 && leakedKeyHashes.includes(sha256Hex(fallbackKey))) {
     issues.push({
       field: 'enterprise.defaultLlmConnection.fallbackApiKey',
-      reason: '已入 git 历史的明文兜底 key，发布须轮换为受限/可吊销的 key',
+      reason: '已入 git 历史的明文兜底 key（按 SHA-256 比对），发布须轮换为受限/可吊销的 key',
     });
   }
 

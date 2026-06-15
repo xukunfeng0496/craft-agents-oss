@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'bun:test';
+import { createHash } from 'node:crypto';
 import { findReleaseConfigIssues } from './check-release-config.ts';
 
 const prodOk = {
@@ -26,9 +27,12 @@ describe('findReleaseConfigIssues', () => {
     }
   });
 
-  it('flags the known plaintext fallback key', () => {
-    const cfg = { enterprise: { defaultLlmConnection: { fallbackApiKey: '***REMOVED-LEAKED-FALLBACK-KEY***' } } };
-    expect(findReleaseConfigIssues(cfg).map(i => i.field)).toContain('enterprise.defaultLlmConnection.fallbackApiKey');
+  it('flags a fallbackApiKey on the leaked-key hash denylist', () => {
+    // Verify the hash-denylist mechanism without embedding any real key in source.
+    const dummyKey = 'sk-dummy-leaked-for-test';
+    const dummyHash = createHash('sha256').update(dummyKey).digest('hex');
+    const cfg = { enterprise: { defaultLlmConnection: { fallbackApiKey: dummyKey } } };
+    expect(findReleaseConfigIssues(cfg, [dummyHash]).map(i => i.field)).toContain('enterprise.defaultLlmConnection.fallbackApiKey');
   });
 
   it('a fully backfilled production config passes', () => {

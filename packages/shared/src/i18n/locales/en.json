@@ -755,7 +755,7 @@
   "settings.ai.cvteSso.failed": "CVTE login failed: {{error}}",
   "settings.ai.cvteSso.inProgress": "Signing in with CVTE Portal…",
   "settings.ai.cvteSso.menuItem": "Sign in with CVTE Portal",
-  "settings.ai.cvteSso.relayUnreachable": "Couldn't reach the intranet key service. You're on the shared default key (ready to use); to use your personal quota, connect to the corporate intranet/VPN and retry.",
+  "settings.ai.cvteSso.relayUnreachable": "Couldn't reach the intranet key service, so your personal API key wasn't fetched. Connect to the corporate intranet/VPN and retry, or enter an API key manually in settings.",
   "settings.ai.cvteSso.success": "CVTE personal key configured {{name}}",
   "settings.ai.defaultSection": "Default",
   "settings.ai.defaultSectionDesc": "Settings for new chats when no workspace override is set.",

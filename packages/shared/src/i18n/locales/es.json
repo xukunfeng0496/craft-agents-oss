@@ -755,7 +755,7 @@
   "settings.ai.cvteSso.failed": "Error al iniciar sesión en CVTE: {{error}}",
   "settings.ai.cvteSso.inProgress": "Iniciando sesión con CVTE Portal…",
   "settings.ai.cvteSso.menuItem": "Iniciar sesión con CVTE Portal",
-  "settings.ai.cvteSso.relayUnreachable": "No se pudo conectar al servicio de claves de la intranet. Estás usando la clave compartida por defecto (lista para usar); para tu cuota personal, conéctate a la intranet/VPN corporativa y reintenta.",
+  "settings.ai.cvteSso.relayUnreachable": "No se pudo conectar al servicio de claves de la intranet, por lo que no se obtuvo tu clave de API personal. Conéctate a la intranet/VPN corporativa y reinténtalo, o introduce una clave de API manualmente en los ajustes.",
   "settings.ai.cvteSso.success": "Clave personal de CVTE configurada {{name}}",
   "settings.ai.defaultSection": "Por defecto",
   "settings.ai.defaultSectionDesc": "Configuración para nuevos chats cuando no hay ninguna anulación de Workspace activa.",

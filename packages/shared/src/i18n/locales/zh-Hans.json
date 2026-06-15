@@ -755,7 +755,7 @@
   "settings.ai.cvteSso.failed": "CVTE 登录失败：{{error}}",
   "settings.ai.cvteSso.inProgress": "正在通过 CVTE 门户登录…",
   "settings.ai.cvteSso.menuItem": "CVTE 门户登录",
-  "settings.ai.cvteSso.relayUnreachable": "无法连接内网密钥服务，已使用默认共享密钥（可直接使用）；如需个人额度，请确认已接入公司内网/VPN 后重试。",
+  "settings.ai.cvteSso.relayUnreachable": "无法连接内网密钥服务，未能获取个人 API Key。请确认已接入公司内网/VPN 后重试，或在设置中手动填写 API Key。",
   "settings.ai.cvteSso.success": "已配置 CVTE 个人 API Key {{name}}",
   "settings.ai.defaultSection": "默认",
   "settings.ai.defaultSectionDesc": "未设置 Workspace 覆盖时新聊天的设置。",

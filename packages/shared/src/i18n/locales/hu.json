@@ -755,7 +755,7 @@
   "settings.ai.cvteSso.failed": "A CVTE bejelentkezés sikertelen: {{error}}",
   "settings.ai.cvteSso.inProgress": "Bejelentkezés a CVTE Portállal…",
   "settings.ai.cvteSso.menuItem": "Bejelentkezés a CVTE Portállal",
-  "settings.ai.cvteSso.relayUnreachable": "A belső kulcsszolgáltatás nem érhető el. A megosztott alapértelmezett kulcsot használod (azonnal használható); a személyes kereted eléréséhez csatlakozz a vállalati intranethez/VPN-hez, és próbáld újra.",
+  "settings.ai.cvteSso.relayUnreachable": "A belső kulcsszolgáltatás nem érhető el, ezért a személyes API-kulcsodat nem sikerült lekérni. Csatlakozz a vállalati intranethez/VPN-hez és próbáld újra, vagy add meg az API-kulcsot kézzel a beállításokban.",
   "settings.ai.cvteSso.success": "CVTE személyes kulcs beállítva {{name}}",
   "settings.ai.defaultSection": "Alapértelmezett",
   "settings.ai.defaultSectionDesc": "Beállítások az új csevegésekhez, ha nincs munkaterület-felülírás megadva.",

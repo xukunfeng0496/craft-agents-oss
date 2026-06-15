@@ -699,8 +699,9 @@ export default function AiSettingsPage() {
         toast.success(t('settings.ai.cvteSso.success', { name: who ?? '' }).trim(), { id: toastId })
         await refreshLlmConnections()
       } else if (/RELAY_UNREACHABLE|fetch failed|ECONNREFUSED|ENOTFOUND/i.test(result.error ?? '')) {
-        // Relay not reachable — the app still works on the shared fallback key; this only
-        // means the personal key wasn't fetched. Say so clearly instead of "fetch failed".
+        // Relay not reachable — there is no shared fallback key anymore, so the personal
+        // key wasn't fetched and the gateway has no credential. Tell the user to retry on
+        // the intranet/VPN or configure a key manually, instead of a raw "fetch failed".
         toast.error(t('settings.ai.cvteSso.relayUnreachable'), { id: toastId })
       } else {
         toast.error(t('settings.ai.cvteSso.failed', { error: result.error ?? '' }).trim(), { id: toastId })

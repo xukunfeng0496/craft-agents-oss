@@ -34,8 +34,7 @@
         { "id": "glm-5.1", "name": "GLM-5.1", "shortName": "GLM", "description": "速度较快 · 200K 上下文 · 纯文本", "provider": "anthropic", "contextWindow": 200000, "supportsImages": false },
         { "id": "qwen3.7-max", "name": "Qwen3.7 Max", "shortName": "Qwen-Max", "description": "旗舰，深度任务 · 991K 上下文 · 纯文本", "provider": "anthropic", "contextWindow": 991000, "supportsImages": false },
         { "id": "qwen3.7-plus", "name": "Qwen3.7 Plus", "shortName": "Qwen-Plus", "description": "均衡，速度较快 · 991K 上下文 · 支持图像", "provider": "anthropic", "contextWindow": 991000, "supportsImages": true }
-      ],
-      "fallbackApiKey": "***REMOVED-LEAKED-FALLBACK-KEY***"
+      ]
     },
     "hideOtherProviders": true,
     "sentryDsn": "https://bd3d000da0dcfa07875e722a91c97fca@sentry-ali.cvtapi.com/731",

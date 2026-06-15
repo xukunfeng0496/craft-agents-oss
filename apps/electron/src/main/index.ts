@@ -369,10 +369,13 @@ async function createInitialWindows(): Promise<void> {
     mainLog.info('Created default workspace on first run')
   }
 
-  // CVTE: provision the enterprise gateway connection + fallback key (D7/D8).
-  // Fresh installs chat immediately; installs without a key get the shared fallback.
+  // CVTE: provision the enterprise gateway connection (D7/D8). There is no shared
+  // fallback key — the connection is created without a credential. Users obtain a
+  // personal key via SSO (portal login → relay, which auto-creates one if absent)
+  // or configure a key manually; if both fail, chat fails clearly (no silent
+  // shared-key usage / cross-account billing).
   if (await ensureEnterpriseDefaultConnection()) {
-    mainLog.info('Provisioned enterprise default LLM connection / fallback key (cvte-gateway)')
+    mainLog.info('Provisioned enterprise default LLM connection (cvte-gateway)')
   }
 
   const validWorkspaceIds = workspaces.map(ws => ws.id)

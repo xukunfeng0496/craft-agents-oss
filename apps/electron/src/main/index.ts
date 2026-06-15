@@ -8,9 +8,27 @@ import { createHash, randomUUID } from 'crypto'
 import { hostname, homedir } from 'os'
 import * as Sentry from '@sentry/electron/main'
 
+// CVTE: Sentry DSN is read synchronously from the bundled config-defaults.json
+// (enterprise.sentryDsn). Sentry must init before app startup — too early for
+// loadConfigDefaults (which needs ensureConfigDir) — so we read the bundled file
+// directly. The DSN is a client-side public identifier (NOT a secret), pointing
+// at the intranet Sentry (sentry-ali.cvtapi.com). An env var still wins if set
+// (dev/CI). readFileSync/join are imported lower in this file; ES import hoisting
+// makes them available here.
+function readBundledSentryDsn(): string | undefined {
+  try {
+    const raw = readFileSync(join(__dirname, 'resources', 'config-defaults.json'), 'utf8')
+    const dsn = (JSON.parse(raw) as { enterprise?: { sentryDsn?: string } }).enterprise?.sentryDsn
+    return typeof dsn === 'string' && dsn ? dsn : undefined
+  } catch {
+    return undefined
+  }
+}
+const SENTRY_DSN = process.env.SENTRY_ELECTRON_INGEST_URL || readBundledSentryDsn()
+
 // Initialize Sentry error tracking as early as possible after app import.
-// Only enabled in production (packaged) builds to avoid noise during development.
-// DSN is baked in at build time via esbuild --define (same pattern as OAuth secrets).
+// DSN: env var (dev/CI) or bundled config-defaults.json enterprise.sentryDsn
+// (CVTE intranet Sentry). Disabled automatically when no DSN is available.
 //
 // NOTE: Source map upload is intentionally disabled. Stack traces in Sentry will show
 // bundled/minified code. To enable source map upload in the future:
@@ -18,12 +36,14 @@ import * as Sentry from '@sentry/electron/main'
 //   2. Re-enable the @sentry/vite-plugin in vite.config.ts (handles renderer maps)
 //   3. Add @sentry/esbuild-plugin to scripts/electron-build-main.ts (handles main process maps)
 Sentry.init({
-  dsn: process.env.SENTRY_ELECTRON_INGEST_URL,
+  dsn: SENTRY_DSN,
+  // CVTE: capture main-process console.error (incl. the [SDK stderr] lines) so
+  // agent/SDK failures — which are NOT thrown exceptions — still reach Sentry.
+  integrations: [Sentry.captureConsoleIntegration({ levels: ['error'] })],
   environment: app.isPackaged ? 'production' : 'development',
   release: app.getVersion(),
-  // Enabled whenever the ingest URL is available — works in both production (baked via CI)
-  // and development (injected via .env / 1Password). Filter by environment in Sentry dashboard.
-  enabled: !!process.env.SENTRY_ELECTRON_INGEST_URL,
+  // Enabled whenever a DSN is available (env var or bundled config-defaults).
+  enabled: !!SENTRY_DSN,
 
   // Scrub sensitive data before sending to Sentry.
   // Removes authorization headers, API keys/tokens, and credential-like values.

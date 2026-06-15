@@ -94,6 +94,15 @@ export interface EnterpriseDefaults {
    * still applies).
    */
   sso?: EnterpriseSsoConfig;
+  /**
+   * Sentry DSN for client crash/error reporting, pointing at the intranet Sentry
+   * (sentry-ali.cvtapi.com). A client-side public identifier — NOT a secret (same
+   * class as fallbackApiKey). Read synchronously at Sentry init (before
+   * config-defaults sync), enabling crash/exception/console.error reporting.
+   * Absent ⇒ Sentry disabled. Keep it on an intranet endpoint so transcripts /
+   * error context never egress to a public Sentry.
+   */
+  sentryDsn?: string;
 }
 
 export interface EnterpriseSsoConfig {

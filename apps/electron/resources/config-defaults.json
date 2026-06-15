@@ -41,8 +41,8 @@
     "noProxyDomains": [".cvte.com", ".gz.cvte.cn", ".seewo.com", "localhost", "127.0.0.1"],
     "promptAppendix": "你是 CVTE 的企业 AI 助手，运行于 CVTE 内网环境。\n- 默认使用简体中文回复；用户使用其他语言时跟随用户的语言。\n- 处理企业数据时保持安全意识：不要将企业内部信息发送到外部公网服务。\n- 用户的个人 API Key 可在 https://ai.cvte.com/profile/ai-account 自助获取。",
     "sso": {
-      "portalHost": "op-fat.cvte.com",
-      "clientId": "e1fe00c2088543f3b7ade4d7fb7f4e5c",
+      "portalHost": "home.cvte.com",
+      "clientId": "31748f0da0a149ff9ad803985db25e00",
       "relayUrl": "https://portal-key-relay.test.seewo.com"
     }
   }

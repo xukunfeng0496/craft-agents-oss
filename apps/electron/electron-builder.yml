@@ -2,6 +2,16 @@ appId: com.workagent.app
 productName: Work Agents
 copyright: Copyright © 2026 CVTE
 
+# Register the workagents:// deep-link scheme at the OS level (macOS Info.plist
+# CFBundleURLTypes + Windows registry). Without this, app.setAsDefaultProtocolClient()
+# is a no-op for a packaged macOS app, so the SSO callback page's deep-link
+# (workagents://settings/ai) can't focus the app and the user is stranded on the
+# browser tab. DEEPLINK_SCHEME defaults to 'workagents' (main/index.ts).
+protocols:
+  - name: Work Agents
+    schemes:
+      - workagents
+
 electronVersion: "39.2.7"
 
 # Hook to compile macOS 26+ Liquid Glass icon after packaging

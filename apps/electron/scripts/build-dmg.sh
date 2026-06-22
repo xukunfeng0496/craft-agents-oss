@@ -217,6 +217,36 @@ cd "$ELECTRON_DIR"
 # Set up environment for electron-builder
 export CSC_IDENTITY_AUTO_DISCOVERY=true
 
+# Code signing certificate setup.
+# In CI: APPLE_CERTIFICATE (base64-encoded .p12) + APPLE_CERTIFICATE_PASSWORD are
+# injected as env vars and imported into a temporary keychain here, because the
+# runner has no Developer ID certificate pre-installed. Locally: relies on the
+# existing login Keychain; set APPLE_SIGNING_IDENTITY to pick the identity.
+# NOTE: this block was lost during the upstream rebaseline, which is why CI builds
+# came out ad-hoc signed (Squirrel.Mac then refuses OTA swaps over a signed app).
+if [ -n "$APPLE_CERTIFICATE" ]; then
+    echo "Setting up code signing certificate from environment..."
+    CERT_PATH="$TEMP_DIR/certificate.p12"
+    echo "$APPLE_CERTIFICATE" | base64 --decode > "$CERT_PATH"
+
+    # Create a temporary keychain for CI
+    KEYCHAIN_PATH="$TEMP_DIR/build.keychain"
+    KEYCHAIN_PASSWORD="ci-temp-password"
+    security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+    security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+    security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+    # Import certificate into the temporary keychain
+    security import "$CERT_PATH" -P "$APPLE_CERTIFICATE_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+    security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+    # Add temp keychain to the search list so electron-builder/codesign can find it
+    security list-keychains -d user -s "$KEYCHAIN_PATH" $(security list-keychains -d user | tr -d '"' | xargs)
+
+    echo "Certificate imported successfully"
+    export CSC_KEYCHAIN="$KEYCHAIN_PATH"
+fi
+
 # Build electron-builder arguments
 BUILDER_ARGS="--mac --${ARCH}"
 
@@ -226,6 +256,11 @@ if [ -n "$APPLE_SIGNING_IDENTITY" ]; then
     CSC_NAME_CLEAN="${APPLE_SIGNING_IDENTITY#Developer ID Application: }"
     echo "Using signing identity: $CSC_NAME_CLEAN"
     export CSC_NAME="$CSC_NAME_CLEAN"
+fi
+
+# No signing material at all (local dev fallback): build ad-hoc, don't fail.
+if [ -z "$APPLE_SIGNING_IDENTITY" ] && [ -z "$APPLE_CERTIFICATE" ]; then
+    echo "Warning: no signing identity/certificate found — building ad-hoc (not OTA-capable)"
 fi
 
 # Add notarization if all credentials are available

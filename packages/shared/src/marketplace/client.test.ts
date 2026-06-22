@@ -61,3 +61,35 @@ describe('MarketplaceClient error classification', () => {
     expect(reg.skills?.[0]?.name).toBe('a');
   });
 });
+
+describe('MarketplaceClient header auth', () => {
+  function stubFetchCapture(): { calls: Array<{ url: string; headers: Record<string, string> }> } {
+    const calls: Array<{ url: string; headers: Record<string, string> }> = [];
+    globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
+      calls.push({ url: input.toString(), headers: (init?.headers ?? {}) as Record<string, string> });
+      return json({ files: [], skills: [], version: '1' });
+    }) as unknown as typeof fetch;
+    return { calls };
+  }
+
+  it('sends X-CSkills-User-Account/Email headers (not Cookie)', async () => {
+    const cap = stubFetchCapture();
+    await new MarketplaceClient({ account: 'luoxiaowei', email: 'luoxiaowei@cvte.com' }).getSkillFiles('portal-cli-login');
+    expect(cap.calls[0]!.headers['X-CSkills-User-Account']).toBe('luoxiaowei');
+    expect(cap.calls[0]!.headers['X-CSkills-User-Email']).toBe('luoxiaowei@cvte.com');
+    expect(cap.calls[0]!.headers['Cookie']).toBeUndefined();
+  });
+
+  it('omits email header when only account provided', async () => {
+    const cap = stubFetchCapture();
+    await new MarketplaceClient({ account: 'luoxiaowei' }).getRegistry();
+    expect(cap.calls[0]!.headers['X-CSkills-User-Account']).toBe('luoxiaowei');
+    expect('X-CSkills-User-Email' in cap.calls[0]!.headers).toBe(false);
+  });
+
+  it('sends no auth headers when no account (open browse)', async () => {
+    const cap = stubFetchCapture();
+    await new MarketplaceClient().getRegistry();
+    expect(cap.calls[0]!.headers['X-CSkills-User-Account']).toBeUndefined();
+  });
+});

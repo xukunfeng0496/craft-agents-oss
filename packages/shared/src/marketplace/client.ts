@@ -62,24 +62,32 @@ async function throwForStatus(res: Response, label: string): Promise<never> {
 
 export interface MarketplaceClientOptions {
   registryUrl?: string;
-  /** skills.gz.cvte.cn session cookie header ("name=value; …") from a portal
-   * login, attached to requests so downloads (which require 统一门户 SSO) work. */
-  cookie?: string;
+  /** CVTE 工号账号 — sent as X-CSkills-User-Account. Required for skill detail /
+   * install (browsing the registry is open); sourced from the persisted portal
+   * SSO identity. */
+  account?: string;
+  /** Email — sent as X-CSkills-User-Email when present (optional). */
+  email?: string;
 }
 
 export class MarketplaceClient {
   private baseUrl: string;
-  private cookie?: string;
+  private account?: string;
+  private email?: string;
 
   constructor(options?: MarketplaceClientOptions | string) {
     // Back-compat: a bare string is the legacy registryUrl argument.
     const opts = typeof options === 'string' ? { registryUrl: options } : (options ?? {});
     this.baseUrl = (opts.registryUrl || DEFAULT_REGISTRY_URL).replace(/\/$/, '');
-    this.cookie = opts.cookie || undefined;
+    this.account = opts.account || undefined;
+    this.email = opts.email || undefined;
   }
 
   private headers(): Record<string, string> | undefined {
-    return this.cookie ? { Cookie: this.cookie } : undefined;
+    if (!this.account) return undefined;
+    const h: Record<string, string> = { 'X-CSkills-User-Account': this.account };
+    if (this.email) h['X-CSkills-User-Email'] = this.email;
+    return h;
   }
 
   private rethrowMarketplaceError(error: unknown): never {

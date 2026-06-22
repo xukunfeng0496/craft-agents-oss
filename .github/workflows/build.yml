@@ -127,24 +127,35 @@ jobs:
         run: gh release delete "v$VERSION" --yes --cleanup-tag || true
 
       - name: Write release notes
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
-          cat > .release-notes.md << 'HEADER'
-
-          | 平台 | 文件 |
-          |------|------|
-          | macOS Apple Silicon | `Craft-Agents-arm64.dmg` |
-          | Windows x64 | `Craft-Agents-x64.exe` |
-
-          > **macOS 提示**：如安装时提示无法打开，请右键点击 DMG 选择「打开」，或在「系统设置 → 隐私与安全性」中允许。
-          > macOS Intel 用户请继续使用 v0.7.1（该架构已冻结，不再更新）。
-
-          ---
-
-          HEADER
-
-          if [ -f apps/electron/RELEASE_NOTES.md ]; then
-            cat apps/electron/RELEASE_NOTES.md >> .release-notes.md
-          fi
+          {
+            echo "## 安装"
+            echo ""
+            echo "| 平台 | 文件 |"
+            echo "|------|------|"
+            echo "| macOS Apple Silicon | \`Craft-Agents-arm64.dmg\` |"
+            echo "| Windows x64 | \`Craft-Agents-x64.exe\` |"
+            echo ""
+            echo "> **macOS 提示**：如安装时提示无法打开，请右键点击 DMG 选择「打开」，或在「系统设置 → 隐私与安全性」中允许。"
+            echo "> macOS Intel 用户请继续使用 v0.7.1（该架构已冻结，不再更新）。"
+            echo ""
+            echo "## 更新内容"
+            echo ""
+            # CVTE: aggregate the committed per-version notes (newest first) so the
+            # release body carries the full changelog since the last baseline.
+            # RELEASE_NOTES.md is a build artifact (gitignored) — not in the checkout.
+            shopt -s nullglob
+            notes=(apps/electron/resources/release-notes/*.md)
+            if [ ${#notes[@]} -gt 0 ]; then
+              while IFS= read -r f; do
+                cat "$f"; echo; echo
+              done < <(printf '%s\n' "${notes[@]}" | sort -rV)
+            else
+              echo "## v${VERSION}"
+            fi
+          } > .release-notes.md
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2

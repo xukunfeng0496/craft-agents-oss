@@ -68,6 +68,8 @@ export interface StoredConfig {
   colorTheme?: string;  // ID of selected preset theme (e.g., 'dracula', 'nord'). Default: 'default'
   // Auto-update
   dismissedUpdateVersion?: string;  // Version that user dismissed (skip notifications for this version)
+  // CVTE portal identity (persisted from portal SSO; reused as skills.gz marketplace auth headers; non-secret)
+  cvteIdentity?: { account: string; email?: string };
   // Input settings
   autoCapitalisation?: boolean;  // Auto-capitalize first letter when typing (default: true)
   sendMessageKey?: 'enter' | 'cmd-enter';  // Key to send messages (default: 'enter')
@@ -1520,6 +1522,27 @@ export function setDismissedUpdateVersion(version: string): void {
   const config = loadStoredConfig();
   if (!config) return;
   config.dismissedUpdateVersion = version;
+  saveConfig(config);
+}
+
+/**
+ * Get the persisted CVTE portal identity (account/email), captured during portal
+ * SSO and reused as the skills.gz.cvte.cn marketplace auth headers.
+ */
+export function getCvteIdentity(): { account: string; email?: string } | undefined {
+  return loadStoredConfig()?.cvteIdentity;
+}
+
+/**
+ * Persist the CVTE portal identity. `account` is the only required header value;
+ * `email` is stored only when present. account/email are non-secret.
+ */
+export function setCvteIdentity(identity: { account: string; email?: string }): void {
+  const config = loadStoredConfig();
+  if (!config) return;
+  config.cvteIdentity = identity.email
+    ? { account: identity.account, email: identity.email }
+    : { account: identity.account };
   saveConfig(config);
 }
 

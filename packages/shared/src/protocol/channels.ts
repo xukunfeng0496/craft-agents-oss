@@ -273,6 +273,15 @@ export const RPC_CHANNELS = {
     OPEN_FINDER: 'skills:openFinder',
     CHANGED: 'skills:changed',
   },
+  marketplace: {
+    GET_REGISTRY: 'marketplace:getRegistry',
+    INSTALL_SKILL: 'marketplace:installSkill',
+    // CVTE: skills downloads require a 统一门户 SSO session (cookie). These drive
+    // the in-app login that shares the portal session with the gateway SSO.
+    LOGIN: 'marketplace:login',
+    GET_AUTH_STATUS: 'marketplace:getAuthStatus',
+    LOGOUT: 'marketplace:logout',
+  },
   skillVars: {
     GET: 'skillVars:get',
     SET: 'skillVars:set',

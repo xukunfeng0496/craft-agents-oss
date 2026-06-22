@@ -54,8 +54,8 @@ jobs:
         with:
           name: mac-dmg
           path: |
-            apps/electron/release/Craft-Agents-arm64.dmg
-            apps/electron/release/Craft-Agents-arm64.zip
+            apps/electron/release/Work-Agent-arm64.dmg
+            apps/electron/release/Work-Agent-arm64.zip
             apps/electron/release/latest-mac.yml
             apps/electron/release/*.blockmap
 
@@ -135,8 +135,8 @@ jobs:
             echo ""
             echo "| 平台 | 文件 |"
             echo "|------|------|"
-            echo "| macOS Apple Silicon | \`Craft-Agents-arm64.dmg\` |"
-            echo "| Windows x64 | \`Craft-Agents-x64.exe\` |"
+            echo "| macOS Apple Silicon | \`Work-Agent-arm64.dmg\` |"
+            echo "| Windows x64 | \`Work-Agent-x64.exe\` |"
             echo ""
             echo "> **macOS 提示**：如安装时提示无法打开，请右键点击 DMG 选择「打开」，或在「系统设置 → 隐私与安全性」中允许。"
             echo "> macOS Intel 用户请继续使用 v0.7.1（该架构已冻结，不再更新）。"

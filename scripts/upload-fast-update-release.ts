@@ -2,10 +2,10 @@
  * Upload release artifacts to the CVTE fast-update-server.
  *
  * Artifact naming follows the v0.10.3 electron-builder config:
- *   Craft-Agents-arm64.{dmg,zip}  → darwin/arm64
- *   Craft-Agents-x64.{dmg,zip}    → darwin/x64 — SKIPPED (D4: Intel frozen at v0.7.1)
- *   Craft-Agents-x64.exe          → windows/x64
- *   Craft-Agents-{arch}.AppImage  → linux/{arch}
+ *   Work-Agent-arm64.{dmg,zip}  → darwin/arm64
+ *   Work-Agent-x64.{dmg,zip}    → darwin/x64 — SKIPPED (D4: Intel frozen at v0.7.1)
+ *   Work-Agent-x64.exe          → windows/x64
+ *   Work-Agent-{arch}.AppImage  → linux/{arch}
  *   latest*.yml                   → update manifests
  *
  * Env: AUTO_UPDATE_SERVER_URL, AUTO_UPDATE_PRODUCT_ID, AUTO_UPDATE_CHANNEL, FAST_UPDATE_TOKEN
@@ -39,7 +39,12 @@ if (!existsSync(RELEASE_DIR)) {
   throw new Error(`Release directory not found: ${RELEASE_DIR}`)
 }
 
-const { version } = JSON.parse(readFileSync(ELECTRON_PACKAGE_JSON, 'utf8')) as { version: string }
+// Version normally comes from apps/electron/package.json, but FAST_UPDATE_VERSION
+// can override it — used by the sync tool when uploading a downloaded build
+// artifact whose version may differ from the current checkout.
+const version =
+  process.env.FAST_UPDATE_VERSION?.trim() ||
+  (JSON.parse(readFileSync(ELECTRON_PACKAGE_JSON, 'utf8')) as { version: string }).version
 
 function getUploadTarget(fileName: string): UploadTarget | null {
   if (fileName === 'latest.yml' || fileName === 'latest-mac.yml' || fileName === 'latest-linux.yml') {
@@ -49,7 +54,7 @@ function getUploadTarget(fileName: string): UploadTarget | null {
   const isBlockmap = fileName.endsWith('.blockmap')
 
   // macOS arm64 — the only mac target we ship (D4: darwin-x64 frozen, never uploaded)
-  if (/^Craft-Agents-arm64\.(dmg|zip)(\.blockmap)?$/.test(fileName)) {
+  if (/^Work-Agent-arm64\.(dmg|zip)(\.blockmap)?$/.test(fileName)) {
     return {
       fileName,
       os: 'darwin',
@@ -60,13 +65,13 @@ function getUploadTarget(fileName: string): UploadTarget | null {
   }
 
   // macOS x64 artifacts may exist locally (electron-builder default targets) — skip
-  if (/^Craft-Agents-x64\.(dmg|zip)(\.blockmap)?$/.test(fileName)) {
+  if (/^Work-Agent-x64\.(dmg|zip)(\.blockmap)?$/.test(fileName)) {
     console.log(`Skipping ${fileName} (darwin-x64 frozen per D4)`)
     return null
   }
 
   // Windows x64 NSIS installer
-  if (/^Craft-Agents-x64\.exe(\.blockmap)?$/.test(fileName)) {
+  if (/^Work-Agent-x64\.exe(\.blockmap)?$/.test(fileName)) {
     return {
       fileName,
       os: 'windows',
@@ -77,7 +82,7 @@ function getUploadTarget(fileName: string): UploadTarget | null {
   }
 
   // Linux AppImage
-  const linuxMatch = fileName.match(/^Craft-Agents-(arm64|x64)\.AppImage(\.blockmap)?$/)
+  const linuxMatch = fileName.match(/^Work-Agent-(arm64|x64)\.AppImage(\.blockmap)?$/)
   if (linuxMatch) {
     return {
       fileName,

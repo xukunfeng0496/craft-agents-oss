@@ -280,8 +280,9 @@ fi
 npx electron-builder $BUILDER_ARGS
 
 # 8. Verify the DMG was built
-# electron-builder.yml uses artifactName to output: Work-Agent-${arch}.dmg
-DMG_NAME="Work-Agent-${ARCH}.dmg"
+# electron-builder.yml artifactName outputs: Work-Agent-<version>-osx-<arch>.dmg
+ELECTRON_VERSION=$(cat "$ELECTRON_DIR/package.json" | grep '"version"' | head -1 | sed 's/.*"version": *"\([^"]*\)".*/\1/')
+DMG_NAME="Work-Agent-${ELECTRON_VERSION}-osx-${ARCH}.dmg"
 DMG_PATH="$ELECTRON_DIR/release/$DMG_NAME"
 
 if [ ! -f "$DMG_PATH" ]; then

@@ -2,11 +2,11 @@
  * Upload release artifacts to the CVTE fast-update-server.
  *
  * Artifact naming follows the v0.10.3 electron-builder config:
- *   Work-Agent-arm64.{dmg,zip}  → darwin/arm64
- *   Work-Agent-x64.{dmg,zip}    → darwin/x64 — SKIPPED (D4: Intel frozen at v0.7.1)
- *   Work-Agent-x64.exe          → windows/x64
- *   Work-Agent-{arch}.AppImage  → linux/{arch}
- *   latest*.yml                   → update manifests
+ *   Work-Agent-<ver>-osx-arm64.{dmg,zip}   → darwin/arm64
+ *   Work-Agent-<ver>-osx-x64.{dmg,zip}     → darwin/x64 — SKIPPED (D4: Intel frozen at v0.7.1)
+ *   Work-Agent-<ver>-windows-x64.exe       → windows/x64
+ *   Work-Agent-<ver>-linux-<arch>.AppImage → linux/<arch>
+ *   latest*.yml                            → update manifests
  *
  * Env: AUTO_UPDATE_SERVER_URL, AUTO_UPDATE_PRODUCT_ID, AUTO_UPDATE_CHANNEL, FAST_UPDATE_TOKEN
  */
@@ -54,7 +54,7 @@ function getUploadTarget(fileName: string): UploadTarget | null {
   const isBlockmap = fileName.endsWith('.blockmap')
 
   // macOS arm64 — the only mac target we ship (D4: darwin-x64 frozen, never uploaded)
-  if (/^Work-Agent-arm64\.(dmg|zip)(\.blockmap)?$/.test(fileName)) {
+  if (/^Work-Agent-.+-osx-arm64\.(dmg|zip)(\.blockmap)?$/.test(fileName)) {
     return {
       fileName,
       os: 'darwin',
@@ -65,13 +65,13 @@ function getUploadTarget(fileName: string): UploadTarget | null {
   }
 
   // macOS x64 artifacts may exist locally (electron-builder default targets) — skip
-  if (/^Work-Agent-x64\.(dmg|zip)(\.blockmap)?$/.test(fileName)) {
+  if (/^Work-Agent-.+-osx-x64\.(dmg|zip)(\.blockmap)?$/.test(fileName)) {
     console.log(`Skipping ${fileName} (darwin-x64 frozen per D4)`)
     return null
   }
 
   // Windows x64 NSIS installer
-  if (/^Work-Agent-x64\.exe(\.blockmap)?$/.test(fileName)) {
+  if (/^Work-Agent-.+-windows-x64\.exe(\.blockmap)?$/.test(fileName)) {
     return {
       fileName,
       os: 'windows',
@@ -82,7 +82,7 @@ function getUploadTarget(fileName: string): UploadTarget | null {
   }
 
   // Linux AppImage
-  const linuxMatch = fileName.match(/^Work-Agent-(arm64|x64)\.AppImage(\.blockmap)?$/)
+  const linuxMatch = fileName.match(/^Work-Agent-.+-linux-(arm64|x64)\.AppImage(\.blockmap)?$/)
   if (linuxMatch) {
     return {
       fileName,

@@ -43,15 +43,15 @@ VERSION="$(grep -m1 '^version:' "$YML" | awk '{print $2}' | tr -d '\r')"
 echo "==> artifact version: $VERSION  → channel: $CHANNEL"
 
 echo "==> verifying arm64 zip sha512 against latest-mac.yml"
-LOCAL_SHA="$(openssl dgst -sha512 -binary "$TMP/Work-Agent-arm64.zip" | openssl base64 -A)"
-YML_SHA="$(grep -A1 'Work-Agent-arm64.zip' "$YML" | grep 'sha512:' | head -1 | sed 's/.*sha512: //' | tr -d '\r')"
+LOCAL_SHA="$(openssl dgst -sha512 -binary "$TMP/Work-Agent-${VERSION}-osx-arm64.zip" | openssl base64 -A)"
+YML_SHA="$(grep -A1 "Work-Agent-${VERSION}-osx-arm64.zip" "$YML" | grep 'sha512:' | head -1 | sed 's/.*sha512: //' | tr -d '\r')"
 [ "$LOCAL_SHA" = "$YML_SHA" ] || { echo "ERROR: sha512 mismatch (artifact corrupt)"; exit 1; }
 echo "    ✅ sha512 OK"
 
 echo "==> staging into $RELEASE_DIR"
 mkdir -p "$RELEASE_DIR"
-for f in Work-Agent-arm64.dmg Work-Agent-arm64.dmg.blockmap \
-         Work-Agent-arm64.zip Work-Agent-arm64.zip.blockmap latest-mac.yml; do
+for f in "Work-Agent-${VERSION}-osx-arm64.dmg" "Work-Agent-${VERSION}-osx-arm64.dmg.blockmap" \
+         "Work-Agent-${VERSION}-osx-arm64.zip" "Work-Agent-${VERSION}-osx-arm64.zip.blockmap" latest-mac.yml; do
   cp "$TMP/$f" "$RELEASE_DIR/"
 done
 # changelog (optional): the upload script reads apps/electron/RELEASE_NOTES.md

@@ -1724,6 +1724,13 @@ This is a branched conversation. All prior messages in this conversation are par
 
         // Defensive: emit complete if SDK didn't send result message
         if (!receivedComplete) {
+          // The stream ended without a result message, so adaptResult never ran to
+          // resolve a buffered assistant error — surface it now so a genuine failure
+          // isn't silently dropped (on a normal result it was already suppressed/shown).
+          const pendingErr = this.eventAdapter.takePendingAssistantError();
+          if (pendingErr) {
+            yield pendingErr;
+          }
           yield { type: 'complete' };
         }
       } catch (sdkError) {

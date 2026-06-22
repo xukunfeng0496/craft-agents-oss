@@ -100,6 +100,14 @@ export class ClaudeEventAdapter extends BaseEventAdapter {
   private cachedContextWindow?: number;
   private _sdkTools: string[] = [];
 
+  // CVTE: an assistant-level SDK error (notably the gateway's transient 'unknown')
+  // is buffered here instead of surfaced immediately — the turn often still ends
+  // with result.subtype='success', so showing it right away produces a false
+  // "Unknown Error". adaptResult() decides: suppress on success, surface on a
+  // failed result; takePendingAssistantError() flushes it if the stream ends
+  // without a result message (so a genuine failure is never silently dropped).
+  private pendingAssistantError: { type: 'typed_error'; error: AgentError } | null = null;
+
   private callbacks: ClaudeAdapterCallbacks;
 
   constructor(callbacks: ClaudeAdapterCallbacks) {
@@ -117,6 +125,7 @@ export class ClaudeEventAdapter extends BaseEventAdapter {
     this.activeParentTools = new Set();
     this.pendingText = null;
     this.lastAssistantUsage = null;
+    this.pendingAssistantError = null;
   }
 
   // ============================================================
@@ -197,6 +206,18 @@ export class ClaudeEventAdapter extends BaseEventAdapter {
   }
 
   /**
+   * Take any buffered assistant-level error. Called after the for-await loop exits
+   * WITHOUT a result message — adaptResult never ran to resolve it, so surface it
+   * here rather than silently dropping a genuine failure. Returns null when the
+   * turn produced a result (the error was already resolved/suppressed in adaptResult).
+   */
+  takePendingAssistantError(): { type: 'typed_error'; error: AgentError } | null {
+    const pending = this.pendingAssistantError;
+    this.pendingAssistantError = null;
+    return pending;
+  }
+
+  /**
    * Get SDK tools captured from init message.
    */
   get sdkTools(): string[] {
@@ -234,7 +255,10 @@ export class ClaudeEventAdapter extends BaseEventAdapter {
       const errorEvent = await this.callbacks.mapSDKError(
         message.error as SDKAssistantMessageError,
       );
-      events.push(errorEvent);
+      // CVTE: buffer instead of surfacing now — the SDK frequently recovers and
+      // ends the turn with result.subtype='success' (gateway transient 'unknown').
+      // adaptResult() suppresses on success and surfaces on a failed result.
+      this.pendingAssistantError = errorEvent;
       return;
     }
 
@@ -501,16 +525,31 @@ export class ClaudeEventAdapter extends BaseEventAdapter {
       contextWindow: primaryModelUsage?.contextWindow,
     };
 
+    // CVTE: resolve any buffered assistant-level error against the final outcome.
+    const pendingError = this.pendingAssistantError;
+    this.pendingAssistantError = null;
+
     if (msg.subtype === 'success') {
+      // The turn ultimately succeeded — a buffered assistant error was a transient
+      // hiccup the SDK recovered from; suppress it (was a false "Unknown Error").
+      if (pendingError && this.callbacks.onDebug) {
+        this.callbacks.onDebug(
+          `[ClaudeAdapter] suppressed transient assistant error (turn ended success): ${pendingError.error.code}`,
+        );
+      }
       events.push({ type: 'complete', usage });
     } else {
-      const errorMsg = 'errors' in msg ? msg.errors.join(', ') : 'Query failed';
-
-      const windowsError = buildWindowsSkillsDirError(errorMsg);
-      if (windowsError) {
-        events.push(windowsError);
+      if (pendingError) {
+        // Turn truly failed — surface the richer buffered assistant error.
+        events.push(pendingError);
       } else {
-        events.push({ type: 'error', message: errorMsg });
+        const errorMsg = 'errors' in msg ? msg.errors.join(', ') : 'Query failed';
+        const windowsError = buildWindowsSkillsDirError(errorMsg);
+        if (windowsError) {
+          events.push(windowsError);
+        } else {
+          events.push({ type: 'error', message: errorMsg });
+        }
       }
       events.push({ type: 'complete', usage });
     }

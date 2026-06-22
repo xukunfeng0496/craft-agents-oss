@@ -2,7 +2,8 @@
 
 /**
  * Verification script for bundled tools on Windows
- * Checks if required tools (Git, Bash, Python) are present in resources/tools/
+ * Checks that the agent toolchain (Git, Python, Node) and the uv document-tool
+ * binary are present after `tools:download`.
  */
 
 import { existsSync, statSync } from 'fs';
@@ -12,27 +13,33 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-const TOOLS_DIR = join(__dirname, '..', 'resources', 'tools');
+const RESOURCES_DIR = join(__dirname, '..', 'resources');
+const TOOLS_DIR = join(RESOURCES_DIR, 'tools');
+const BIN_DIR = join(RESOURCES_DIR, 'bin');
 
+// Each entry's rel path is resolved against its base dir. Toolchain lives under
+// resources/tools/; uv lives under resources/bin/<platform>/ (index.ts CRAFT_UV).
 const REQUIRED_FILES = [
-  'mingit/cmd/git.exe',
-  'python/python.exe'
+  { base: TOOLS_DIR, rel: 'mingit/cmd/git.exe' },
+  { base: TOOLS_DIR, rel: 'python/python.exe' },
+  { base: TOOLS_DIR, rel: 'node/node.exe' },
+  { base: BIN_DIR, rel: 'win32-x64/uv.exe' },
 ];
 
 let allFilesFound = true;
 
 console.log('Verifying bundled tools...\n');
 
-for (const file of REQUIRED_FILES) {
-  const filePath = join(TOOLS_DIR, file);
+for (const { base, rel } of REQUIRED_FILES) {
+  const filePath = join(base, rel);
   const exists = existsSync(filePath);
 
   if (exists) {
     const stats = statSync(filePath);
     const sizeMB = (stats.size / (1024 * 1024)).toFixed(2);
-    console.log(`✓ ${file} (${sizeMB} MB)`);
+    console.log(`✓ ${rel} (${sizeMB} MB)`);
   } else {
-    console.error(`✗ ${file} - NOT FOUND`);
+    console.error(`✗ ${rel} - NOT FOUND`);
     allFilesFound = false;
   }
 }

@@ -1,14 +1,18 @@
 #!/usr/bin/env node
 
 /**
- * Download and extract MinGit and Embedded Python for Windows builds
+ * Download and extract the bundled Windows toolchain for the agent subprocess.
  *
  * This script downloads:
- * - MinGit 2.44.0 (portable Git for Windows)
- * - Python 3.12.8 embedded (minimal Python runtime)
+ * - MinGit 2.44.0 (portable Git for Windows)  → resources/tools/mingit
+ * - Python 3.12.8 embedded (minimal runtime)  → resources/tools/python
+ * - Node.js 20.18.1 (win-x64)                 → resources/tools/node
+ * - uv latest (win-x64)                        → resources/bin/win32-x64/uv.exe
  *
- * Tools are extracted to apps/electron/resources/tools/
- * The script is idempotent - it skips downloads if tools already exist.
+ * resources/tools/* are bundled via win.extraResources and prepended to the agent
+ * subprocess PATH at runtime by apps/electron/src/main/index.ts (uv is resolved via
+ * CRAFT_UV + the same PATH prepend). The script is idempotent — it skips a tool when
+ * its marker binary already exists.
  */
 
 const https = require('https');
@@ -17,7 +21,17 @@ const path = require('path');
 const crypto = require('crypto');
 const AdmZip = require('adm-zip');
 
-// Tool configurations
+const RESOURCES_DIR = path.join(__dirname, '..', 'resources');
+const TOOLS_DIR = path.join(RESOURCES_DIR, 'tools');
+// uv ships under resources/bin/<platform> (resolved at runtime by index.ts), NOT
+// under tools/. The platform dir is .gitignored and populated here at build time.
+const BIN_DIR = path.join(RESOURCES_DIR, 'bin');
+
+// Tool configurations.
+//  - baseDir:     where extractTo lives (default TOOLS_DIR; uv overrides to BIN_DIR)
+//  - marker:      a key file under the extracted dir used for the idempotency skip
+//  - stripSubdir: archives that wrap everything in a versioned top dir (Node) are
+//                 flattened so the binary sits directly under extractTo
 const TOOLS = {
   mingit: {
     name: 'MinGit',
@@ -25,6 +39,7 @@ const TOOLS = {
     url: 'https://github.com/git-for-windows/git/releases/download/v2.44.0.windows.1/MinGit-2.44.0-64-bit.zip',
     filename: 'MinGit-2.44.0-64-bit.zip',
     extractTo: 'mingit',
+    marker: path.join('cmd', 'git.exe'),
     sha256: null // TODO: Add checksum for verification
   },
   python: {
@@ -33,12 +48,32 @@ const TOOLS = {
     url: 'https://www.python.org/ftp/python/3.12.8/python-3.12.8-embed-amd64.zip',
     filename: 'python-3.12.8-embed-amd64.zip',
     extractTo: 'python',
+    marker: 'python.exe',
     sha256: null // TODO: Add checksum for verification
+  },
+  node: {
+    name: 'Node.js',
+    version: '20.18.1',
+    url: 'https://nodejs.org/dist/v20.18.1/node-v20.18.1-win-x64.zip',
+    filename: 'node-v20.18.1-win-x64.zip',
+    extractTo: 'node',
+    stripSubdir: 'node-v20.18.1-win-x64', // zip wraps everything in this dir
+    marker: 'node.exe',
+    sha256: null
+  },
+  uv: {
+    name: 'uv',
+    version: 'latest',
+    // GitHub releases/latest/download avoids pinning a version that may 404 later;
+    // uv is a document-tool helper, so newest is acceptable (not user-facing).
+    url: 'https://github.com/astral-sh/uv/releases/latest/download/uv-x86_64-pc-windows-msvc.zip',
+    filename: 'uv-x86_64-pc-windows-msvc.zip',
+    baseDir: BIN_DIR,
+    extractTo: 'win32-x64', // → resources/bin/win32-x64/uv.exe (index.ts CRAFT_UV)
+    marker: 'uv.exe',
+    sha256: null
   }
 };
-
-const RESOURCES_DIR = path.join(__dirname, '..', 'resources');
-const TOOLS_DIR = path.join(RESOURCES_DIR, 'tools');
 const REQUEST_TIMEOUT = 60000; // 60 seconds
 
 /**
@@ -181,20 +216,43 @@ function extractZip(zipPath, extractTo) {
 }
 
 /**
+ * Flatten a versioned wrapper directory: move everything from
+ * `<toolDir>/<subdir>/*` up into `<toolDir>/`, then remove the empty subdir.
+ * Node's win-x64 zip wraps its contents in `node-vX.Y.Z-win-x64/`.
+ */
+async function flattenSubdir(toolDir, subdir) {
+  const inner = path.join(toolDir, subdir);
+  if (!fs.existsSync(inner)) {
+    return; // archive was already flat — nothing to do
+  }
+  for (const entry of await fs.promises.readdir(inner)) {
+    await fs.promises.rename(path.join(inner, entry), path.join(toolDir, entry));
+  }
+  await fs.promises.rmdir(inner);
+  console.log(`  Flattened ${subdir}/ → ${path.basename(toolDir)}/`);
+}
+
+/**
  * Download and extract a tool
  */
 async function downloadTool(toolKey, config) {
-  const toolDir = path.join(TOOLS_DIR, config.extractTo);
+  const baseDir = config.baseDir || TOOLS_DIR;
+  const toolDir = path.join(baseDir, config.extractTo);
+  // Skip when the key binary already exists (more robust than a bare dir check —
+  // an empty/partial dir won't falsely satisfy idempotency).
+  const markerPath = config.marker ? path.join(toolDir, config.marker) : toolDir;
 
-  // Skip if already exists
-  if (fs.existsSync(toolDir)) {
+  if (fs.existsSync(markerPath)) {
     console.log(`✓ ${config.name} ${config.version} already exists, skipping`);
     return;
   }
 
   console.log(`\n📦 Downloading ${config.name} ${config.version}...`);
 
-  const zipPath = path.join(TOOLS_DIR, config.filename);
+  if (!fs.existsSync(baseDir)) {
+    fs.mkdirSync(baseDir, { recursive: true });
+  }
+  const zipPath = path.join(baseDir, config.filename);
 
   try {
     // Download
@@ -205,6 +263,11 @@ async function downloadTool(toolKey, config) {
 
     // Extract
     await extractZip(zipPath, toolDir);
+
+    // Flatten a versioned wrapper dir if the archive has one (Node)
+    if (config.stripSubdir) {
+      await flattenSubdir(toolDir, config.stripSubdir);
+    }
 
     // Clean up zip file
     await fs.promises.unlink(zipPath);
@@ -250,8 +313,11 @@ async function main() {
 
     console.log('\n✅ All tools downloaded successfully!');
     console.log(`\nTools installed in: ${TOOLS_DIR}`);
-    console.log('  - mingit/');
-    console.log('  - python/');
+    console.log('  - mingit/   (git.exe)');
+    console.log('  - python/   (python.exe)');
+    console.log('  - node/     (node.exe, npm, npx)');
+    console.log(`uv installed in: ${BIN_DIR}`);
+    console.log('  - win32-x64/uv.exe');
   } catch (err) {
     console.error('\n❌ Error downloading tools:', err.message);
     process.exit(1);

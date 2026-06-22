@@ -206,6 +206,27 @@ if (isDebugMode) {
   // - uvPlatformDir exposes raw `uv` for direct shell usage / debugging
   process.env.PATH = `${binDir}${delimiter}${uvPlatformDir}${delimiter}${process.env.PATH}`
 
+  // CVTE: prepend the bundled Windows toolchain (MinGit + embedded Python + Node)
+  // so the agent subprocess — which inherits process.env via buildClaudeSubprocessEnv
+  // — can resolve git / python / node / npm without a system install. These live
+  // under resources/tools/ (win.extraResources). Windows-only; existsSync guards
+  // keep it a no-op when a dir is absent (other platforms, or a partial bundle).
+  if (process.platform === 'win32') {
+    const toolsDir = join(resourcesBase, 'resources', 'tools')
+    const toolchainDirs = [
+      join(toolsDir, 'mingit', 'cmd'),      // git.exe
+      join(toolsDir, 'python'),             // python.exe
+      join(toolsDir, 'python', 'Scripts'),  // pip + console scripts
+      join(toolsDir, 'node'),               // node.exe, npm, npx
+    ].filter((dir) => existsSync(dir))
+    if (toolchainDirs.length > 0) {
+      process.env.PATH = `${toolchainDirs.join(delimiter)}${delimiter}${process.env.PATH}`
+    }
+    if (isDebugMode) {
+      mainLog.info('Bundled Windows toolchain on PATH:', { toolchainDirs })
+    }
+  }
+
   if (!bundledUvExists) {
     mainLog.warn('Bundled uv binary missing, CLI document tools may fail unless uv is available on PATH.', {
       expectedUvPath: uvBinary,

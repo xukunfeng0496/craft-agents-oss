@@ -71,6 +71,20 @@ jobs:
       - name: Install dependencies
         run: bun install
 
+      # Download the bundled Windows toolchain (MinGit 2.44.0 + embedded Python
+      # 3.12.8) into apps/electron/resources/tools/{mingit,python}. electron-builder
+      # then bundles it via win.extraResources so the packaged agent has git/bash/
+      # python without a system install.
+      - name: Download bundled tools (MinGit + Python)
+        run: |
+          cd apps/electron
+          bun run tools:download
+
+      - name: Verify bundled tools
+        run: |
+          cd apps/electron
+          node scripts/verify-bundled-tools.js
+
       - name: Build Windows installer
         shell: powershell
         run: powershell -ExecutionPolicy Bypass -File apps/electron/scripts/build-win.ps1

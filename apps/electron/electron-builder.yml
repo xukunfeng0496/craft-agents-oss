@@ -192,6 +192,11 @@ win:
       to: vendor/bun/bun.exe
     - from: resources/bin/win32-x64
       to: app/resources/bin/win32-x64
+    # Bundled Windows toolchain (MinGit 2.44.0 + embedded Python 3.12.8), downloaded
+    # by the `tools:download` CI step into resources/tools/{mingit,python}. The agent's
+    # native SDK resolves git/bash/python from here (PATH injection wired in P2).
+    - from: resources/tools
+      to: app/resources/tools
     # WhatsApp worker subprocess (self-contained; Baileys bundled in).
     - from: ../../packages/messaging-whatsapp-worker/dist/worker.cjs
       to: messaging-whatsapp-worker/worker.cjs

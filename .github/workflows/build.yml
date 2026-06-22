@@ -39,6 +39,11 @@ jobs:
 
       - name: Install dependencies
         run: bun install
+        # @vscode/ripgrep's postinstall downloads the rg binary from GitHub
+        # releases; unauthenticated runner requests get rate-limited (403).
+        # Authenticate with the Actions token to lift the limit.
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       # D4: Apple Silicon only — darwin-x64 is frozen at v0.7.1 and never built
       - name: Build macOS DMG (arm64)

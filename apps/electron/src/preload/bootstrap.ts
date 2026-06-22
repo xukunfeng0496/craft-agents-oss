@@ -436,17 +436,34 @@ client.onConnectionStateChanged((state) => {
     const redirectUri = `${callbackServer.url}/callback`
 
     // 2. Ask the server to build the authorize URL + store the flow
-    const startResult: { authUrl: string; state: string; flowId: string } = await client.invoke(
-      'cvte:startOAuth',
-      { slug: connectionSlug, redirectUri },
-    )
+    const startResult: { authUrl: string; state: string; flowId: string; openedExternally?: boolean } =
+      await client.invoke('cvte:startOAuth', { slug: connectionSlug, redirectUri })
     flowId = startResult.flowId
 
-    // 3. Open the system browser for portal login
-    await shell.openExternal(startResult.authUrl)
+    // 3. Open the system browser for portal login.
+    //    Prefer the main-process open performed inside cvte:startOAuth: the preload's
+    //    shell.openExternal is gated by user activation on Windows and silently no-ops
+    //    after the async RPC round-trip above, so the browser never opens and the wait
+    //    below hangs forever. Only open here when main couldn't (headless/remote).
+    if (!startResult.openedExternally) {
+      await shell.openExternal(startResult.authUrl)
+    }
 
-    // 4. Wait for the portal to redirect to our callback server
-    const callback = await callbackServer.promise
+    // 4. Wait for the portal to redirect to our callback server. Bounded: a failed
+    //    browser-open must surface as an error, never an infinite "logging in" spinner.
+    const SSO_CALLBACK_TIMEOUT_MS = 3 * 60 * 1000
+    let timeoutHandle: ReturnType<typeof setTimeout> | undefined
+    const callback = await Promise.race([
+      callbackServer.promise,
+      new Promise<never>((_, reject) => {
+        timeoutHandle = setTimeout(
+          () => reject(new Error('Portal login timed out (the browser may not have opened). Please try again.')),
+          SSO_CALLBACK_TIMEOUT_MS,
+        )
+      }),
+    ]).finally(() => {
+      if (timeoutHandle) clearTimeout(timeoutHandle)
+    })
 
     // 5. Provider-side error?
     if (callback.query.error) {

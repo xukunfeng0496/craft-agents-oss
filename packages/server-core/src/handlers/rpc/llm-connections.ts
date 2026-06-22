@@ -901,6 +901,7 @@ export function registerLlmConnectionsHandlers(server: RpcServer, deps: HandlerD
     authUrl: string
     state: string
     flowId: string
+    openedExternally: boolean
   }> => {
     cleanupExpiredCvteFlows()
     const { redirectUri, slug } = args
@@ -922,8 +923,27 @@ export function registerLlmConnectionsHandlers(server: RpcServer, deps: HandlerD
       createdAt: Date.now(),
     })
 
-    deps.platform.logger?.info(`[CVTE SSO] Flow started for ${sso.connectionSlug} (flow=${flowId}, portal=${sso.portalHost})`)
-    return { authUrl, state, flowId }
+    // Open the portal in the system browser from the MAIN process. The renderer/
+    // preload shell.openExternal is gated by user activation on Windows and silently
+    // no-ops after the async RPC round-trip above (the click gesture is already
+    // consumed) — so the browser never opens and the loopback callback wait hangs
+    // forever. Main-process openExternal has no such gating. Headless platforms leave
+    // openExternal undefined → openedExternally stays false and the client opens it
+    // (or a remote client handles the returned authUrl).
+    let openedExternally = false
+    if (deps.platform.openExternal) {
+      try {
+        await deps.platform.openExternal(authUrl)
+        openedExternally = true
+      } catch (err) {
+        deps.platform.logger?.warn(
+          `[CVTE SSO] main-process openExternal failed, client will open: ${err instanceof Error ? err.message : String(err)}`,
+        )
+      }
+    }
+
+    deps.platform.logger?.info(`[CVTE SSO] Flow started for ${sso.connectionSlug} (flow=${flowId}, portal=${sso.portalHost}, openedExternally=${openedExternally})`)
+    return { authUrl, state, flowId, openedExternally }
   })
 
   // cvte:completeOAuth — exchange code → access_token → relay → personal key →

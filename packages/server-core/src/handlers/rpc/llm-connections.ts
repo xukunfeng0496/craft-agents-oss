@@ -871,7 +871,12 @@ export function registerLlmConnectionsHandlers(server: RpcServer, deps: HandlerD
       portalHost: sso.portalHost,
       clientId: sso.clientId,
       relayUrl: sso.relayUrl,
-      connectionSlug: slug || gateway.slug,
+      // Prefer the explicit slug (Settings reauth). When none is given (e.g. the
+      // skills marketplace login, which just needs identity), target the user's
+      // actual default connection rather than the canonical enterprise slug —
+      // the provisioned connection may use a different slug (e.g. anthropic-api-2),
+      // and createBuiltInConnection() would reject the unknown canonical slug.
+      connectionSlug: slug || getDefaultLlmConnection() || gateway.slug,
       gatewayBaseUrl: gateway.baseUrl,
     }
   }

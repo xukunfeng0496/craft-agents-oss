@@ -1,5 +1,5 @@
 import { RPC_CHANNELS, type LlmConnectionSetup } from '@craft-agent/shared/protocol'
-import { getLlmConnections, getLlmConnection, addLlmConnection, updateLlmConnection, deleteLlmConnection, getDefaultLlmConnection, setDefaultLlmConnection, touchLlmConnection, isCompatProvider, isAnthropicProvider, getDefaultModelsForConnection, getDefaultModelForConnection, getEnterpriseDefaults, enforceCvteGatewayShape, replaceLlmConnection, type LlmConnection, type LlmConnectionWithStatus, toBedrockNativeId, deriveBedrockRegionPrefix } from '@craft-agent/shared/config'
+import { getLlmConnections, getLlmConnection, addLlmConnection, updateLlmConnection, deleteLlmConnection, getDefaultLlmConnection, setDefaultLlmConnection, touchLlmConnection, isCompatProvider, isAnthropicProvider, getDefaultModelsForConnection, getDefaultModelForConnection, getEnterpriseDefaults, enforceCvteGatewayShape, setCvteIdentity, replaceLlmConnection, type LlmConnection, type LlmConnectionWithStatus, toBedrockNativeId, deriveBedrockRegionPrefix } from '@craft-agent/shared/config'
 import { getCredentialManager } from '@craft-agent/shared/credentials'
 import { setSetupDeferred } from '@craft-agent/shared/config/storage'
 import {
@@ -953,6 +953,12 @@ export function registerLlmConnectionsHandlers(server: RpcServer, deps: HandlerD
       )
       // 2) access_token → personal CCH key (relay holds the admin key server-side)
       const { apiKey, identity } = await resolvePersonalKeyViaRelay(sso.relayUrl, tokens.accessToken)
+
+      // 2b) persist the portal identity so the skills.gz marketplace can reuse it
+      // as auth headers (account/email; non-secret). Fail-soft: only when account present.
+      if (identity?.account) {
+        setCvteIdentity({ account: identity.account, email: identity.email })
+      }
 
       // 3) configure the enterprise gateway connection with the personal key.
       // The gateway invariant coerces it into the Anthropic @ token.cvte.com shape.

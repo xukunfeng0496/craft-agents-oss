@@ -103,21 +103,22 @@ export function SkillsListPanel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [remoteFetched, t])
 
-  // CVTE: complete the 统一门户 SSO login for the marketplace (shared portal
-  // session with the gateway), then re-run the original action (e.g. install).
+  // CVTE: the marketplace reuses the 统一门户 SSO identity (account/email persisted
+  // at login) as its auth headers. Trigger the same portal SSO as the gateway, then
+  // re-run the original action (e.g. install) once the identity is available.
   const handleMarketplaceLogin = useCallback(async (onDone?: () => void) => {
     const id = toast.loading(t('marketplace.loggingIn'))
     try {
-      const r = await window.electronAPI.loginMarketplace()
+      const r = await window.electronAPI.startCvtePortalOAuth()
       if (r.success) {
         toast.success(t('marketplace.loginSuccess'), { id })
         await fetchRemote(true)
         onDone?.()
-      } else if (isConnectionLevelError(r.error)) {
-        // Don't dump a raw "ERR_CONNECTION_RESET (-101)…" — show the clean network message.
+      } else if (r.error && (isConnectionLevelError(r.error) || r.error.includes('RELAY_UNREACHABLE'))) {
+        // Don't dump a raw "ERR_CONNECTION_RESET (-101)…" / relay error — show the clean network message.
         toast.error(t('marketplace.unreachable', { host: MARKETPLACE_HOST }), { id })
       } else if (r.error === 'CANCELLED') {
-        toast.dismiss(id) // user closed the window on purpose — no error noise
+        toast.dismiss(id) // user cancelled login on purpose — no error noise
       } else {
         toast.error(t('marketplace.loginFailed'), { id, description: r.error })
       }

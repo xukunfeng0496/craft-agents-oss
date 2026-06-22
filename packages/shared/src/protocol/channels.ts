@@ -276,11 +276,8 @@ export const RPC_CHANNELS = {
   marketplace: {
     GET_REGISTRY: 'marketplace:getRegistry',
     INSTALL_SKILL: 'marketplace:installSkill',
-    // CVTE: skills downloads require a 统一门户 SSO session (cookie). These drive
-    // the in-app login that shares the portal session with the gateway SSO.
-    LOGIN: 'marketplace:login',
-    GET_AUTH_STATUS: 'marketplace:getAuthStatus',
-    LOGOUT: 'marketplace:logout',
+    // CVTE: skill detail / install require an X-CSkills-User-Account header sourced
+    // from the persisted portal SSO identity; browsing the registry is open.
   },
   skillVars: {
     GET: 'skillVars:get',

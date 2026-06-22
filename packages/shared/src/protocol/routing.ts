@@ -216,16 +216,11 @@ export const LOCAL_ONLY_CHANNELS = new Set<string>([
   RPC_CHANNELS.cvte.COMPLETE_OAUTH,
   RPC_CHANNELS.cvte.CANCEL_OAUTH,
 
-  // CVTE skills marketplace — auth is a skills.gz.cvte.cn session COOKIE captured
-  // in the local Electron BrowserWindow session (PlatformServices.marketplaceAuth,
-  // Electron-only). registry/install carry that local cookie, and login/status/
-  // logout are inherently local — so the whole marketplace stays LOCAL_ONLY (a
-  // remote/headless workspace server has no cookie and would 401 on download).
+  // CVTE skills marketplace — install reads the locally-persisted portal identity
+  // (cvteIdentity in config) for the X-CSkills-User-Account header, so it stays
+  // LOCAL_ONLY (a remote/headless workspace server has no local identity).
   RPC_CHANNELS.marketplace.GET_REGISTRY,
   RPC_CHANNELS.marketplace.INSTALL_SKILL,
-  RPC_CHANNELS.marketplace.LOGIN,
-  RPC_CHANNELS.marketplace.GET_AUTH_STATUS,
-  RPC_CHANNELS.marketplace.LOGOUT,
 ])
 
 // ---------------------------------------------------------------------------

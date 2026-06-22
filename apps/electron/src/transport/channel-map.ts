@@ -239,9 +239,6 @@ export const CHANNEL_MAP = {
   // Skills Marketplace
   getMarketplaceRegistry: invoke(RPC_CHANNELS.marketplace.GET_REGISTRY),
   installMarketplaceSkill: invoke(RPC_CHANNELS.marketplace.INSTALL_SKILL),
-  loginMarketplace: invoke(RPC_CHANNELS.marketplace.LOGIN),
-  getMarketplaceAuthStatus: invoke(RPC_CHANNELS.marketplace.GET_AUTH_STATUS),
-  logoutMarketplace: invoke(RPC_CHANNELS.marketplace.LOGOUT),
 
   // Skill Variables
   getSkillVars: invoke(RPC_CHANNELS.skillVars.GET),

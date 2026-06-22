@@ -6,7 +6,6 @@
  */
 
 import type { PlatformServices } from '../runtime/platform'
-import { createMarketplaceAuth } from './marketplace-auth'
 
 export interface ElectronPlatformOptions {
   app: Electron.App
@@ -69,6 +68,5 @@ export function createElectronPlatform(opts: ElectronPlatformOptions): PlatformS
     isDebugMode: opts.isDebugMode,
     getLogFilePath: opts.getLogFilePath,
     captureError: opts.captureError,
-    marketplaceAuth: createMarketplaceAuth(logger),
   }
 }

@@ -2,12 +2,19 @@
 
 ## 用法
 ```bash
-bun run electron:dist:mac          # 先出打包 app（harness 驱动它）
+cd apps/electron && bun run dist:mac   # 先出打包 app（harness 驱动它）；见下方警告
 bun run e2e                        # 跑全部无 key 用例
 bun run e2e --tags gateway         # 按 tag
 bun run e2e --ids R-PROVISION      # 按 id
 E2E_CVTE_KEY=sk-xxx bun run e2e --with-key   # 纳入需真实网关 key 的 live 用例
 ```
+
+> ⚠️ **必须用 `apps/electron` 的 `dist:mac`**（它跑 `scripts/build-dmg.sh`）。仓库根的
+> `electron:dist:mac` / `electron:dist:dev:mac` **跳过 SDK 落盘**：`@anthropic-ai/claude-agent-sdk`
+> 在 esbuild 里是 `--external`，而 Bun 把它提升到根 `node_modules`，extraResources 够不着 →
+> 打出来的 app 一启动就 `Cannot find module '@anthropic-ai/claude-agent-sdk'`，弹原生 modal 卡住主线程，
+> 表现为所有用例 `CDP not ready within 30s`（无显示环境时截图也拿不到，只能改 `main.cjs` 挂
+> `uncaughtException` 才看得到真错）。
 
 ## 事件→永久用例纪律
 每修一个 bug：① 先在 `cases/` 加一条失败用例（红）② 修 ③ 跑绿 ④ 用例随修复一起进仓。用例 id 用 `R-<AREA>`，`origin` 写来源事件（日期+commit/issue）。

@@ -188,13 +188,29 @@ T3 协议加性冲突（`channels.ts`/`routing.ts`/`channel-map.ts`/`dto.ts` + r
 ### P5 · 门禁与分发（1–1.5 天）
 
 
-1. `bun run scripts/check-release-config.ts`（防测试门户/明文 key 漏发）
-2. CDP 沙箱 e2e：`R-PROVISION` / `R-NO-FALLBACK` / `R-LIMIT-SILENCE` / 7 例种子
-3. **mock-429 对 SDK 0.3.197 复验限额契约**（见风险表）
-4. 推 `fork` → `gh workflow run build.yml` → 签名+公证
-5. OTA **beta** 通道 → 真机验证 → 观察 → `stable`
+1. ✅ `bun run scripts/check-release-config.ts`（防测试门户/明文 key 漏发）— exit 0
+2. ✅ CDP 沙箱 e2e：**5/5 PASS**（`R-COLDSTART` / `R-PROVISION` / `R-RELEASE-NOTES` / `R-NO-FALLBACK` / `R-LIMIT-SILENCE`）
+3. ✅ **mock-429 对 SDK 0.3.197 复验限额契约**（见风险表）— 静态 + 单测 + **运行态**三重复验，无回归
+4. 🔒 推 `fork` → `gh workflow run build.yml` → 签名+公证 — **待用户授权**
+5. 🔒 OTA **beta** 通道 → 真机验证 → 观察 → `stable` — **待用户授权**
 
 **闸门**：验证清单全勾 + 真机 beta 无回归报告。
+
+#### e2e 首轮结果（打包版 `Work-Agent-0.11.201-osx-arm64`）
+
+`3/5 PASS`：`R-COLDSTART` ✅、`R-PROVISION` ✅（cvte-gateway / anthropic / CVTE-AUTO）、`R-NO-FALLBACK` ✅。两条失败各自的定性（**修复后复跑 5/5 PASS**）：
+
+| 用例 | 定性 | 处置 |
+|---|---|---|
+| `R-RELEASE-NOTES` | **真实重基线缺口**。v0.11.2 基线带进 5 份上游 release notes（`0.10.4 / 0.10.5 / 0.11.0 / 0.11.1 / 0.11.2.md`），P1 的删除清单按 v0.10.3 推导，覆盖不到这批新增 | 删除这 5 份 + 补一份 CVTE `0.11.201.md` |
+| `R-LIMIT-SILENCE` | **两层用例缺陷叠加，产品并无静默回归**。①**路线漂移**：SETUP 见到自定义 baseUrl 会把连接降到 `pi_compat` 走 Pi 子进程，**根本不经过** `event-adapter.ts:521` 的 `is_error` 裁决点，mock 从头到尾零命中——该 fixture 历史上从未真正跑过 Claude SDK 路线。②**观测窗太短**：掰回 Claude SDK 路线后独立复现（`/tmp/p5/repro-A.ts`，恒 429 + 300s 窗口）实测 **184s** 才出终局错误卡 `Rate Limit Exceeded: Too many requests...`（mock 被打 42 次），退避期间 UI 一直显示 `API error 429, retrying (n/10)...`。原用例 90s 就收工，把「还在重试」判成了「静默」 | ①补 SAVE 把连接掰回 `anthropic` 形态（`customEndpoint` 须显式传 `null`）+ 路线自检断言 + mock 命中计数，0 命中直接判「用例失效」；②窗口 90s→300s，终局文案按实测改为 `Rate Limit Exceeded`（原判据 `API Error` 大小写也不匹配真实文案 `API error`），并附带记录退避期是否有过程提示 |
+
+**结论（运行态实证）**：`event-adapter.ts:521` 的 `is_error` 裁决在 SDK 0.3.197 上**工作正常**——限额错误既有过程反馈也有终局错误卡，静默回归未复现。P5 第 3 项的运行态复验至此闭环。
+
+#### 打包链路的两个坑（已修 / 已记录）
+
+- **`afterPack.cjs` 硬编码上游 bundle 名**（`Craft Agents.app`），CVTE 出的是 `Work Agents.app` → 每次拷贝 ENOENT，macOS 26 液态玻璃图标被静默丢弃。`git ls-tree` 比对确认该 blob 在 v0.10.3 / cvte-rc / v0.11.2 三处完全相同（`331187fb…`），属**既有缺陷而非重基线回归**。已改为从 `context.packager.appInfo.productFilename` 推导（commit `d5033075`）。
+- **仓库根的 `electron:dist:mac` / `electron:dist:dev:mac` 打出的 app 一启动就崩**：`@anthropic-ai/claude-agent-sdk` 在 esbuild 里是 `--external`，Bun 又把它提升到根 `node_modules`，extraResources 够不着；只有 `apps/electron` 的 `dist:mac`（走 `scripts/build-dmg.sh`）会把 SDK 落盘到 `apps/electron/node_modules/@anthropic-ai/`。崩溃表现为 Electron 默认 `showErrorBox` 原生 modal 阻塞主线程 → 全部用例 `CDP not ready within 30s`。`test/e2e/README.md` 的构建指令已更正并加警告。
 
 ## 风险与对策（对抗性）
 
@@ -202,9 +218,10 @@ T3 协议加性冲突（`channels.ts`/`routing.ts`/`channel-map.ts`/`dto.ts` + r
 |---|---|---|
 | `SessionManager.ts` 上游 1021 行重构，CVTE 需重穿 4 个 hook 点 | 🔴 最高 | 单独 commit、单独验证、放在最后做；失败可单独回退不牵连其他层 |
 | CVTE-only 文件依赖了上游已变更的 API（未验证） | 🟡 | P1 typecheck 闸门是专门的暴露机制；耦合面已知最小的两个包已证伪 |
-| SDK 0.3.197 的 result 消息形状变化，冲掉限额修复 | 🟡 | 限额修复依赖 `msg.subtype`/`msg.is_error`；event-adapter 上游 diff 未碰这两字段（低风险），但 P5 必须 mock-429 实跑复验 |
-| Projects/Kanban 仍是 beta，规格可能再变 | 🟢 | 不主动集成 beta 特性到 CVTE 界面，仅承接代码 |
-| 重基线失败需回滚 | 🟢 | rc 分支与线上 `0.10.318` 均不动；OTA 可停留 stable 不推 beta |
+| ~~SDK 0.3.197 的 result 消息形状变化，冲掉限额修复~~ | ✅ 已证伪 | **无回归**。`sdk.d.ts` 中 `SDKResultSuccess` / `SDKResultError` 仍同时声明 `subtype` / `is_error` / `api_error_status`；`event-adapter.ts:521` 的判据 `msg.subtype !== 'success' \|\| msg.is_error === true` 原样健在；43 条 event-adapter 单测全绿 |
+| **（新）`terminal_reason` 无人消费，5 类终止可能静默** | 🟡 后续 | SDK 0.3.197 新增 `terminal_reason`，仓库内零消费者。反编译原生 `claude` 二进制可见 `is_error` **只**由最后一条 assistant 消息的 `isApiErrorMessage` 推导，而 `terminal_reason` 独立赋值 —— 因此 `blocking_limit` / `rapid_refill_breaker` / `prompt_too_long` / `image_error` / `model_error` 这 5 类终止若不伴随 api-error assistant 消息，会以 `subtype:'success', is_error:false` 收尾被吞掉。**重基线内刻意不修**（属上游新行为、非 CVTE 回归，且本地无法复现触发条件），列为后续项 |
+| **（新）非重试类 API 错误丢失服务端 message，显示为 `Unknown Error`** | 🟡 后续 | 运行态观测（`/tmp/p5/repro-B.ts`：HTTP 400 + `{error:{type:'invalid_request_error',message:'已超出本月用量限额…'}}`）：UI 几秒内出错误卡——**不静默**，但文案是 `Unknown Error: An unexpected error occurred.`，服务端给的 message 一个字都没透出来。与限额(429)路径显示 `Rate Limit Exceeded` 形成对照，说明只有被识别的错误类型有专属文案。**是否为 v0.11.2 引入尚未验证**（v0.10.318 上同样有 `Unknown Error` 报障记录，倾向既有问题）。重基线内不修，列为后续项 |
+| Projects/Kanban 仍是 beta，规格可能再变 | 🟢 | 不主动集成 beta 特性到 CVTE 界面，仅承接代码 || 重基线失败需回滚 | 🟢 | rc 分支与线上 `0.10.318` 均不动；OTA 可停留 stable 不推 beta |
 | **11 个 `cvte/main` docs commit 从未推送，仅存本机磁盘** | 🔴 | **非技术风险但后果最重**——含重基线知识库/SSO 契约/D10–D11 决策唯一事实源。需用户授权后尽快推送备份 |
 
 ## 工作量

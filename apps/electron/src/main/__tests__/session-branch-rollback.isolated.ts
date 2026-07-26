@@ -15,6 +15,7 @@ let mockedProvider: 'anthropic' | 'pi' = 'anthropic'
 // Partial-mock baseline: import real modules via file paths (avoids recursive mock imports)
 const actualSharedAgentModule = await import('../../../../../packages/shared/src/agent/index.ts')
 const actualSharedAgentBackendModule = await import('../../../../../packages/shared/src/agent/backend/index.ts')
+const actualSharedConfigModule = await import('../../../../../packages/shared/src/config/index.ts')
 
 mock.module('electron', () => ({
   app: {
@@ -56,7 +57,13 @@ mock.module('../logger', () => {
   }
 })
 
+// Partial mock: only override functions with real disk/filesystem side effects
+// (they'd otherwise touch ~/.workagent) or that need a fixed value to drive
+// assertions. Pure functions (model registry lookups, provider-type checks,
+// mid-stream defaults, path getters) fall through to the real implementation
+// via the spread below.
 mock.module('@craft-agent/shared/config', () => ({
+  ...actualSharedConfigModule,
   getWorkspaceByNameOrId: (id: string) => (id === workspace.id ? workspace : null),
   getWorkspaces: () => [workspace],
   loadConfigDefaults: () => ({
@@ -68,8 +75,6 @@ mock.module('@craft-agent/shared/config', () => ({
   getLlmConnection: () => null,
   getDefaultLlmConnection: () => null,
   resolveAuthEnvVars: () => ({}),
-  getToolIconsDir: () => '/tmp/tool-icons',
-  getMiniModel: () => 'claude-haiku-4-5-20251001',
   getDefaultThinkingLevel: () => 'medium',
   ConfigWatcher: class ConfigWatcher {
     constructor(..._args: unknown[]) {}
@@ -79,23 +84,14 @@ mock.module('@craft-agent/shared/config', () => ({
   migrateLegacyCredentials: async () => {},
   migrateLegacyLlmConnectionsConfig: async () => {},
   migrateOrphanedDefaultConnections: async () => {},
-  MODEL_REGISTRY: [],
-  // Targeted stubs: prevent SyntaxError in tests that import these from the barrel
-  DEFAULT_MODEL: 'claude-sonnet-4-20250514',
-  DEFAULT_THEME: { mode: 'system' },
-  getDefaultModelsForConnection: () => ({ default: 'claude-sonnet-4-20250514', mini: 'claude-haiku-4-5-20251001' }),
-  getDefaultModelForConnection: () => 'claude-sonnet-4-20250514',
   setGitBashPath: () => {},
   clearGitBashPath: () => {},
   setActiveWorkspace: () => {},
-  getSummarizationModel: () => 'claude-haiku-4-5-20251001',
   ensureConfigDir: () => {},
   ensureConfigDefaults: () => {},
   addWorkspace: async () => null,
   getAllSessionDrafts: () => [],
   getGitBashPath: () => null,
-  // Handler-required stubs: prevent SyntaxError in handler modules loaded by registration test
-  getPreferencesPath: () => '/tmp/preferences.json',
   getSessionDraft: () => null,
   setSessionDraft: async () => {},
   deleteSessionDraft: async () => {},
@@ -105,8 +101,6 @@ mock.module('@craft-agent/shared/config', () => ({
   deleteLlmConnection: async () => {},
   setDefaultLlmConnection: async () => {},
   touchLlmConnection: async () => {},
-  isCompatProvider: () => false,
-  isAnthropicProvider: () => true,
 }))
 
 mock.module('@craft-agent/shared/workspaces', () => ({

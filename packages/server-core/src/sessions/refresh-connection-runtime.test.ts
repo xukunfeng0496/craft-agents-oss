@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, jest } from 'bun:test'
+import { afterEach, beforeEach, describe, expect, it, jest, spyOn } from 'bun:test'
 import { mkdtempSync, rmSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
@@ -6,6 +6,38 @@ import { resolveBackendContext } from '@craft-agent/shared/agent/backend'
 import { loadWorkspaceConfig } from '@craft-agent/shared/workspaces'
 import { SessionManager, createManagedSession } from './SessionManager.ts'
 import { buildRestartRequiredSignature } from './runtime-config.ts'
+// Namespace import (not the bare `@craft-agent/shared/config` barrel) so
+// `spyOn` patches the exact module instance `factory.ts` reads
+// `getLlmConnection`/`getDefaultLlmConnection` from.
+import * as storage from '../../../shared/src/config/storage.ts'
+import type { LlmConnection } from '../../../shared/src/config/llm-connections.ts'
+import type { ModelDefinition } from '../../../shared/src/config/models.ts'
+
+// `resolveBackendContext` (via `resolveSessionConnection`) falls through to
+// `getDefaultLlmConnection()`/`getLlmConnection()`, which read the real
+// ~/.craft-agent/config.json. Left alone, this suite's outcome depends on
+// whatever happens to be on the developer's disk (e.g. it silently passed on
+// a machine with a seeded default connection and failed on one without).
+//
+// We intentionally do NOT reach for `mock.module()` here — per the existing
+// convention in token-refresh-manager.test.ts, `mock.module()` mutates the
+// shared module registry for the rest of the `bun test` process and leaks
+// into unrelated test files. `spyOn` on the imported namespace object is
+// scoped to this file (restored in afterEach) and, unlike deferring the
+// import via `await import()`, doesn't depend on being the first test file
+// to touch storage.ts/paths.ts — it patches the live binding directly,
+// regardless of when the module was first evaluated.
+const seedConnection: LlmConnection = {
+  slug: 'seed-pi',
+  name: 'Seed Pi',
+  createdAt: Date.now(),
+  providerType: 'pi_compat',
+  authType: 'api_key',
+  baseUrl: 'https://example.invalid/v1',
+  piAuthProvider: 'openai',
+  customEndpoint: { api: 'openai-completions' },
+  models: [{ id: 'seed-model', supportsImages: true, contextWindow: 128000 } as ModelDefinition],
+}
 
 // Regression coverage for the stale-Pi-subprocess bug where toggling
 // `supportsImages` on a custom-endpoint model wrote to disk but never reached
@@ -95,14 +127,22 @@ function injectSession(
 describe('refreshConnectionRuntime', () => {
   let tmpRoot: string
   let sm: SessionManager
+  let getLlmConnectionSpy: ReturnType<typeof spyOn>
+  let getDefaultLlmConnectionSpy: ReturnType<typeof spyOn>
 
   beforeEach(() => {
     tmpRoot = mkdtempSync(join(tmpdir(), 'sm-refresh-'))
     sm = new SessionManager()
+    getDefaultLlmConnectionSpy = spyOn(storage, 'getDefaultLlmConnection').mockImplementation(() => 'seed-pi')
+    getLlmConnectionSpy = spyOn(storage, 'getLlmConnection').mockImplementation((slug: string) =>
+      slug === 'seed-pi' ? seedConnection : null,
+    )
   })
 
   afterEach(() => {
     rmSync(tmpRoot, { recursive: true, force: true })
+    getLlmConnectionSpy.mockRestore()
+    getDefaultLlmConnectionSpy.mockRestore()
   })
 
   it('pushes updateRuntimeConfig to sessions on the matching connection slug', async () => {

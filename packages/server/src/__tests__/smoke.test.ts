@@ -8,14 +8,21 @@
  * - Clean shutdown on SIGTERM
  */
 
-import { describe, it, expect, afterEach } from 'bun:test'
+import { describe, it, expect, afterEach, afterAll } from 'bun:test'
 import { join } from 'node:path'
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import type { Subprocess } from 'bun'
 import WebSocket from 'ws'
 
 const SERVER_ENTRY = join(import.meta.dir, '..', 'index.ts')
 const STARTUP_TIMEOUT = 15_000
 const TEST_TIMEOUT = 30_000
+
+// Isolate each spawned server in its own config dir. Without this, the
+// subprocess falls back to the developer's real ~/.craft-agent and can
+// collide with the single-instance lock held by an actual running app.
+const testConfigDir = mkdtempSync(join(tmpdir(), 'craft-agent-smoke-'))
 
 interface SpawnedServer {
   url: string
@@ -33,6 +40,7 @@ async function spawnTestServer(extraEnv?: Record<string, string>): Promise<Spawn
     env: {
       ...parentEnv,
       ...extraEnv,
+      CRAFT_CONFIG_DIR: testConfigDir,
       CRAFT_SERVER_TOKEN: token,
       CRAFT_RPC_PORT: '0',
       CRAFT_RPC_HOST: '127.0.0.1',
@@ -134,6 +142,10 @@ describe('headless server smoke test', () => {
     }
   })
 
+  afterAll(() => {
+    rmSync(testConfigDir, { recursive: true, force: true })
+  })
+
   it('accepts valid token handshake', async () => {
     server = await spawnTestServer()
     const ws = await connectWs(server.url, server.token)
@@ -154,6 +166,7 @@ describe('headless server smoke test', () => {
     const proc = Bun.spawn(['bun', 'run', SERVER_ENTRY], {
       env: {
         ...parentEnv,
+        CRAFT_CONFIG_DIR: testConfigDir,
         CRAFT_SERVER_TOKEN: token,
         CRAFT_RPC_PORT: '0',
         CRAFT_RPC_HOST: '127.0.0.1',

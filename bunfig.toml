@@ -8,3 +8,11 @@ preload = ["./packages/shared/src/unified-network-interceptor.ts"]
 # `bun install --linker=hoisted` for the same reason.
 [install]
 linker = "hoisted"
+
+# `bun test` doesn't honor .gitignore. Without this, a local electron-builder
+# output directory (apps/electron/release/**, unpacked because
+# electron-builder.yml sets asar: false) gets scanned as if it were source,
+# picking up stale bundled copies of *.test.ts/*.isolated.ts as false failures.
+[test]
+pathIgnorePatterns = ["**/release/**", "**/dist/**"]
+

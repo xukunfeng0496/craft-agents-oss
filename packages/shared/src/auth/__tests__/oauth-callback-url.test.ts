@@ -1,13 +1,24 @@
-import { describe, it, expect, mock, beforeEach } from 'bun:test'
+import { describe, it, expect, mock, beforeAll, afterAll } from 'bun:test'
 
 /**
  * Tests that all OAuth prepare functions correctly support callbackUrl
  * as an alternative to callbackPort for WebUI deployments.
  */
 
-// Mock fetch globally to prevent real HTTP requests during metadata discovery
+// Mock fetch to prevent real HTTP requests during metadata discovery.
+// Scoped to this file's tests via beforeAll/afterAll — `bun test` loads every
+// test file into one process, so a bare top-level `globalThis.fetch = ...`
+// (never restored) would leak into every file loaded afterward.
 const mockFetch = mock(() => Promise.resolve(new Response('Not Found', { status: 404 })))
-globalThis.fetch = mockFetch as any
+const originalFetch = globalThis.fetch
+
+beforeAll(() => {
+  globalThis.fetch = mockFetch as any
+})
+
+afterAll(() => {
+  globalThis.fetch = originalFetch
+})
 
 import { prepareGoogleOAuth } from '../google-oauth'
 

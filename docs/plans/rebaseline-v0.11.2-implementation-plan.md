@@ -142,7 +142,7 @@ T3 协议加性冲突（`channels.ts`/`routing.ts`/`channel-map.ts`/`dto.ts` + r
 - `bun run test` → exit 0：主套件 4970 pass / 12 skip / 0 fail（379 文件）+ 5 个 `.isolated.ts` 全绿（36 + 70 + 2 + 3 + 3）。**这是本次重基线里 `.isolated.ts` 循环第一次真正跑完** —— 它挂在 `bun test &&` 之后，主套件此前一直有失败，等于从未执行。
 - `lint:i18n:sorted` / `parity` / `coverage` 三绿
 
-### P4 · T5 长尾
+### P4 · T5 长尾（✅ 已完成）
 
 **清单不再靠人工估算**，由脚本逐文件三方合并推导（`base=v0.10.3` / `theirs=cvte/rebase-0.10.3-rc` / `ours=当前 worktree`），合并结果 == 当前文件即视为 CVTE 定制已落地：
 
@@ -150,37 +150,43 @@ T3 协议加性冲突（`channels.ts`/`routing.ts`/`channel-map.ts`/`dto.ts` + r
 - 其中当前 worktree 仍与 cvte-rc 有差异 = 78 个
 - 78 个里 21 个已判定"定制已落地"，56 个进入下表，1 个为本计划文档自身
 
-待办按优先级（deltaLines = 三方合并相对当前文件还会新增的行数）：
+实施结果按 commit 归档：
 
-| 优先级 | 文件 | 冲突 | Δ行 | 说明 |
-|---|---|---|---|---|
-| P0 | `packages/server-core/src/handlers/rpc/llm-connections.ts` | 0 | +264 | CVTE SSO / 模型市场 / 模型获取 handler，**最大一块未落地定制** |
-| P0 | `apps/electron/src/main/index.ts` | 0 | +77 | Windows 工具链 PATH 注入（git/python/node/uv）、`CRAFT_UV`、deep-link |
-| P1 | `apps/electron/src/renderer/App.tsx` | 1 | +43 | |
-| P1 | `packages/shared/src/agent/base-agent.ts` | 0 | +28 | |
-| P1 | `apps/electron/src/renderer/event-processor/types.ts` + `processor.ts` | 0 | +15 / +5 | `latency_update` 的渲染端落点 |
-| P1 | `apps/electron/electron-builder.yml` | 0 | +19 | artifactName ×4、`win.extraResources` |
-| P1 | `apps/electron/scripts/build-dmg.sh` | 0 | +36 | 校验名与 artifactName 必须同改 |
-| P2 | `packages/shared/src/config/preferences.ts` | 0 | +10 | |
-| P2 | `apps/electron/src/main/handlers/__tests__/registration.test.ts` | 3 | +15 | |
-| P2 | `apps/electron/src/renderer/components/app-shell/SkillsListPanel.tsx` | 2 | +8 | |
-| P2 | `scripts/electron-build-main.ts` | 0 | +8 | |
-| P2 | `packages/shared/src/prompts/system.ts` (+ 其测试) | 0 | +6 / 0 | |
-| P2 | `packages/server-core/src/handlers/rpc/settings.ts` / `index.ts` | 1 / 0 | +5 / +4 | |
-| P2 | `packages/shared/src/agent/pi-agent.ts` | 1 | +5 | |
-| P2 | `apps/electron/scripts/build-win.ps1` | 0 | +3 | |
-| P2 | `apps/electron/src/main/logger.ts` | 0 | +9 | 品牌改名已做，余量待核 |
-| P3 | 7 个 locale json | 1 | +3 each | P2 已做并集；这 3 行需单独核对 |
-| P3 | 6 个 Δ行=0 的文件 | 0 | 0 | 内容有差异但行数相同：`build-linux.sh`、`handlers/workspace.ts`、`FreeFormInput.tsx`、`SidebarMenu.tsx`、`ChatPage.tsx`、`storage-startup-migration.test.ts`、`models-pi.ts` |
-| P5 | 15 个 `package.json` + `bun.lock` | 1 / 17 | +4 / +84 | 版本号方案（CVTE 用 `0.10.301` 式）与锁文件，留到 P5 统一处理 |
+| Commit | 内容 | 冲突 |
+|---|---|---|
+| `7a033de2` | `main/index.ts` —— Windows 工具链 PATH 注入、deep-link scheme、企业 no-proxy、Sentry DSN、全局技能目录迁移等 7 项 | 0，行数守恒 |
+| `eac9e663` | `rpc/llm-connections.ts` —— 4 个门户 SSO handler、D8 网关形状不变量、企业网关免改名 | 0，行数守恒 |
+| `d6dc9344` | 打包发布链：`electron-builder.yml`（protocols / publish.url / artifactName ×4 / extraResources）、`build-dmg.sh` CI 证书导入、`build-win.ps1` JSON 解析、`build-linux.sh`、`electron-build-main.ts`、`logger.ts` 生产日志 | 0 ×6 |
+| `c47b948d` | 功能三项：`latency_update` 渲染端落点（`App.tsx` + event-processor ×2）、`base-agent.ts` 技能变量替换、`rpc/index.ts` 市场/技能变量 handler 注册（含两个 registration 测试） | 1 / 3 / 0（均为相邻插入伪冲突，取并集） |
+| `038d3df2` | 品牌串 + `prompts/system.ts` 企业提示词附录 + `preferences.ts` 旧版语言迁移 + `craftagents://` ×4 | 1（`pi-agent.ts` 实参撞行，手工定谳） |
+| `10ba14a0` | `scripts/electron-dev.ts` 多实例 deep-link scheme | 1 |
+| `28cc53e9` | 15 个 `package.json` 版本统一为 `0.11.201`、electron `tools:*` 脚本 + `adm-zip`、shared `./marketplace` 导出、`bun.lock` 重新生成 | 15 × 1（纯 version 行） |
+
+**扫描器的两类误报（已逐个证伪，不是遗漏）**：
+- 7 个 locale json 的 "+3 行" 是冲突标记本身；P2 的并集合并已到位，合并结果与工作区逐字节相同。
+- `config/storage.ts`、`FreeFormInput.tsx` 等 Δ=0 项同理，定谳后与工作区一致。
 
 **已确认的假阳性**（合并结果与当前文件不同，但当前文件是刻意的更优解，不回退）：
-`auto-update.ts`（已合并并规范化日志）、`ApiKeyInput.tsx` / `useOnboarding.ts` / `AiSettingsPage.tsx`（网关常量已下沉到 `renderer/lib/cvte-gateway.ts`）。
+`auto-update.ts`（日志改走常开通道）、`ApiKeyInput.tsx` / `useOnboarding.ts` / `AiSettingsPage.tsx`（网关常量已下沉到 `renderer/lib/cvte-gateway.ts`）、`SkillsListPanel.tsx`（`t('common.unknownError')` 在任何语言包中都不存在，`shadow-sm` 违反本仓 lint 规则）。
 
-**闸门**：`typecheck:all` + `bun run test` + `lint` 全绿；且 `git grep -n 'craftagents://'` → 0 命中（当前仍有 6 处，`deep-link.ts` / `browser-pane-manager.ts` 已是 `workagents://`，cvte-rc 全量为 0）。
+**闸门（实测，非推断）**：
+
+| 检查 | 结果 |
+|---|---|
+| `bun run typecheck:all` | exit 0（8 个包） |
+| `bun run test` | exit 0 —— 主套件 4970 pass / 12 skip / 0 fail（379 文件），5 个 `.isolated.ts` 共 114 pass / 0 fail，合计 **5084 pass / 0 fail** |
+| `lint:i18n` sorted / parity / coverage | 全部 exit 0 |
+| `lint:electron` / `lint:shared` / `lint:ui` | 残留 17 error，**全部落在与 `v0.11.2` 逐字节相同的文件**（逐个用 `git diff --quiet v0.11.2 --` 核对），CVTE 侧新增 error = 0 |
+| `bun run lint` 顶层脚本 | ❌ exit 127 —— `scripts/check-raw-sends.sh` / `check-task-tool-checks.sh` 在 v0.10.3、v0.11.2、cvte-rc **三个版本中都不存在**，属上游自身缺陷，非重基线回归 |
+| `git grep 'craftagents://'` | 源码 0 命中（两个 README 仍有 12 处，与 cvte-rc 同样陈旧，另计） |
+| `bun run check:release-config` | exit 0 |
+
+**完成性证明（比"零文本冲突"更强的判据）**：
+`/tmp/p4/residual.mjs` 逐文件计算「CVTE 相对 base 新增的行」中有多少在当前 worktree 中缺失（行级、忽略顺序与注释，因而不受合并标记和刻意定谳的干扰）。结果 **43 行残差，全部有据可查**：`auto-update.ts` 14 行（`mainLog` → `autoUpdateLog` 规范化）、`ApiKeyInput.tsx` 7 行（常量下沉）、`SkillsListPanel.tsx` 3 行（坏 i18n key + lint 违规）、`bun.lock` 2 行（旧版本号 + adm-zip patch 号）、`useOnboarding.ts` / `AiSettingsPage.tsx` 各 1 行（import 路径）、15 个 `package.json` 各 1 行（版本号）。**无一条未解释的 CVTE 内容丢失。**
 
 
 ### P5 · 门禁与分发（1–1.5 天）
+
 
 1. `bun run scripts/check-release-config.ts`（防测试门户/明文 key 漏发）
 2. CDP 沙箱 e2e：`R-PROVISION` / `R-NO-FALLBACK` / `R-LIMIT-SILENCE` / 7 例种子

@@ -545,17 +545,9 @@ export class BrowserPaneManager implements IBrowserPaneManager {
     this.inFlightRequestsByWebContentsId.delete(wcId)
     this.lastNetworkActivityByWebContentsId.delete(wcId)
 
-    const runCleanup = (label: string, action: () => void): void => {
-      try {
-        action()
-      } catch (error) {
-        mainLog.warn(`[browser-pane] destroy cleanup failed id=${id} step=${label} error=${error instanceof Error ? error.message : String(error)}`)
-      }
-    }
-
-    runCleanup('closePopupsForParent', () => this.closePopupsForParent(instance.id, 'parent_destroy'))
-    runCleanup('applyAgentControlLock', () => this.applyAgentControlLock(instance, false))
-    runCleanup('updateNativeOverlayState', () => this.updateNativeOverlayState(instance))
+    this.runTeardownStep(id, 'closePopupsForParent', () => this.closePopupsForParent(instance.id, 'parent_destroy'))
+    this.runTeardownStep(id, 'applyAgentControlLock', () => this.applyAgentControlLock(instance, false))
+    this.runTeardownStep(id, 'updateNativeOverlayState', () => this.updateNativeOverlayState(instance))
 
     try {
       if (!instance.window.isDestroyed()) {
@@ -2097,16 +2089,29 @@ export class BrowserPaneManager implements IBrowserPaneManager {
     }
   }
 
+  /** Run one teardown step in isolation so a throw can't strand the rest. */
+  private runTeardownStep(id: string, label: string, action: () => void): void {
+    try {
+      action()
+    } catch (error) {
+      mainLog.warn(`[browser-pane] destroy cleanup failed id=${id} step=${label} error=${error instanceof Error ? error.message : String(error)}`)
+    }
+  }
+
   private finalizeDestroyedInstance(instance: BrowserInstance, source: 'destroy' | 'closed'): void {
     if (!this.instances.has(instance.id)) {
       return
     }
 
     this.destroyingIds.delete(instance.id)
-    this.closePopupsForParent(instance.id, 'parent_destroy')
-    this.applyAgentControlLock(instance, false)
-    this.updateNativeOverlayState(instance)
-    instance.cdp.detach()
+    // Every step is isolated. A throw here used to skip both the map removal
+    // (instance leaks and blocks re-creating the same id) and removedCallback
+    // (renderer keeps a pane that no longer exists) — the two lines below are
+    // the ones that must run no matter what.
+    this.runTeardownStep(instance.id, 'closePopupsForParent', () => this.closePopupsForParent(instance.id, 'parent_destroy'))
+    this.runTeardownStep(instance.id, 'applyAgentControlLock', () => this.applyAgentControlLock(instance, false))
+    this.runTeardownStep(instance.id, 'updateNativeOverlayState', () => this.updateNativeOverlayState(instance))
+    this.runTeardownStep(instance.id, 'cdp.detach', () => instance.cdp.detach())
     this.instances.delete(instance.id)
     this.removedCallback?.(instance.id)
     mainLog.info(`[browser-pane] Destroyed instance: ${instance.id} (${source})`)

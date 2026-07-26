@@ -55,6 +55,16 @@ export function loadPreferences(): UserPreferences {
     // back into a write. Old values were free-text ("Hungarian", "English") —
     // not language codes — so we drop them rather than migrate.
     if (raw && typeof raw === 'object' && 'language' in raw) {
+      // CVTE: legacy builds persisted locale codes here (default "zh-CN").
+      // Map them onto uiLanguage once so the UI language survives the upgrade.
+      if (!raw.uiLanguage) {
+        const legacy = String((raw as { language?: unknown }).language ?? '').toLowerCase();
+        if (legacy === 'zh-cn' || legacy === 'zh' || legacy === 'zh-hans') {
+          raw.uiLanguage = 'zh-Hans';
+        } else if (legacy === 'en' || legacy === 'en-us') {
+          raw.uiLanguage = 'en';
+        }
+      }
       delete (raw as { language?: unknown }).language;
     }
     return raw;

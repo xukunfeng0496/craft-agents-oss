@@ -93,7 +93,7 @@ export function SkillsListPanel({
         toast.error(t('marketplace.unreachable', { host: MARKETPLACE_HOST }))
       } else {
         toast.error(t('marketplace.loadFailed'), {
-          description: error instanceof Error ? error.message : t('common.unknownError'),
+          description: error instanceof Error ? error.message : t('toast.unknownError'),
         })
       }
     } finally {
@@ -189,7 +189,7 @@ export function SkillsListPanel({
         toast.error(t('marketplace.unreachable', { host: MARKETPLACE_HOST }))
       } else {
         toast.error(t('marketplace.installFailed'), {
-          description: e instanceof Error ? e.message : t('common.unknownError'),
+          description: e instanceof Error ? e.message : t('toast.unknownError'),
         })
       }
     } finally {

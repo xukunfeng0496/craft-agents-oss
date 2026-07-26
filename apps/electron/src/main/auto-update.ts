@@ -2,8 +2,9 @@
  * Auto-update module using electron-updater
  *
  * Handles checking for updates, downloading, and installing via the standard
- * electron-updater library. Updates are served from https://agents.craft.do/electron/latest
- * using the generic provider (YAML manifests + binaries on R2/S3).
+ * electron-updater library. When AUTO_UPDATE_SERVER_URL is configured, updates
+ * are fetched from fast-update-server via the generic provider; otherwise the
+ * packaged GitHub Releases provider remains as fallback.
  *
  * Platform behavior:
  * - macOS: Downloads zip, extracts and swaps app bundle atomically
@@ -20,46 +21,255 @@ import { platform } from 'os'
 import * as path from 'path'
 import * as fs from 'fs'
 import { mainLog, autoUpdateLog } from './logger'
-import { getAppVersion } from '@craft-agent/shared/version'
 import {
   getDismissedUpdateVersion,
   clearDismissedUpdateVersion,
 } from '@craft-agent/shared/config'
 import { readJsonFileSync } from '@craft-agent/shared/utils/files'
 import { RPC_CHANNELS, type UpdateInfo } from '../shared/types'
-import type { EventSink } from '@craft-agent/server-core/transport'
+import type { EventSink } from '@craft-agent/server-core/transport' 
 
 // Platform detection
 const PLATFORM = platform()
 const IS_MAC = PLATFORM === 'darwin'
 const IS_WINDOWS = PLATFORM === 'win32'
+const AUTO_UPDATE_SERVER_URL = process.env.AUTO_UPDATE_SERVER_URL?.trim() || ''
+const AUTO_UPDATE_PRODUCT_ID = process.env.AUTO_UPDATE_PRODUCT_ID?.trim() || 'work-agents'
+const AUTO_UPDATE_CHANNEL = process.env.AUTO_UPDATE_CHANNEL?.trim() || 'stable'
+const SILENT_UPDATE_MODE = process.env.AUTO_UPDATE_SILENT !== '0'
+const DEV_AUTO_UPDATE_ENABLED = process.env.AUTO_UPDATE_ENABLE_DEV === '1'
+const FAST_UPDATE_PLATFORM = `${PLATFORM}-${process.arch}`
+
+function joinUrl(base: string, ...parts: string[]): string {
+  const normalizedBase = base.replace(/\/+$/, '')
+  const normalizedParts = parts.map((part) => part.replace(/^\/+|\/+$/g, ''))
+  return [normalizedBase, ...normalizedParts].join('/')
+}
+
+const FAST_UPDATE_FEED_URL = AUTO_UPDATE_SERVER_URL
+  ? joinUrl(
+      AUTO_UPDATE_SERVER_URL,
+      'api',
+      'v1',
+      encodeURIComponent(AUTO_UPDATE_PRODUCT_ID),
+      'download',
+      encodeURIComponent(AUTO_UPDATE_CHANNEL),
+    )
+  : null
+
+const FAST_UPDATE_CHECK_URL = AUTO_UPDATE_SERVER_URL
+  ? joinUrl(
+      AUTO_UPDATE_SERVER_URL,
+      'api',
+      'v1',
+      encodeURIComponent(AUTO_UPDATE_PRODUCT_ID),
+      'check',
+      encodeURIComponent(AUTO_UPDATE_CHANNEL),
+    )
+  : null
+
+interface FastUpdateCheckResponse {
+  updateAvailable: boolean
+  version?: string
+  releaseDate?: string
+  releaseNotes?: string
+  path?: string
+  sha512?: string
+  size?: number
+  files?: Array<{
+    url?: string
+    size?: number
+    sha512?: string
+  }>
+}
+
+function isSquirrelCodeSignError(error: Error): boolean {
+  return IS_MAC && error.message.includes('SQRLCodeSignatureErrorDomain')
+}
+
+function ensureTrailingSlash(url: string): string {
+  return url.endsWith('/') ? url : `${url}/`
+}
+
+function getGitHubReleaseUrl(version: string | null): string {
+  const base = 'https://github.com/xukunfeng0496/craft-agents-oss/releases'
+  return version ? `${base}/tag/v${version}` : `${base}/latest`
+}
+
+function getManualDownloadUrl(version: string | null, relativePath?: string | null): string {
+  if (FAST_UPDATE_FEED_URL) {
+    const baseUrl = version ? getFastUpdateVersionedFeedUrl(version) : FAST_UPDATE_FEED_URL
+    if (!relativePath) {
+      return baseUrl
+    }
+
+    try {
+      return new URL(relativePath, ensureTrailingSlash(baseUrl)).toString()
+    } catch {
+      return baseUrl
+    }
+  }
+
+  return getGitHubReleaseUrl(version)
+}
+
+function getReleaseUrlFromInfo(
+  info: { version?: string; path?: string; files?: Array<{ url?: string }> } | null | undefined,
+): string | undefined {
+  if (!info) return undefined
+  const relativePath = info.files?.[0]?.url || info.path
+  return getManualDownloadUrl(info.version ?? null, relativePath)
+}
+
+function getFastUpdateVersionedFeedUrl(version: string): string {
+  if (!FAST_UPDATE_FEED_URL) {
+    throw new Error('FAST_UPDATE_FEED_URL is not configured')
+  }
+
+  return joinUrl(FAST_UPDATE_FEED_URL, encodeURIComponent(version))
+}
+
+async function fetchWithRetry(
+  url: string | URL,
+  init?: RequestInit,
+  maxRetries = 3,
+): Promise<Response> {
+  let lastError: Error | undefined
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      const response = await fetch(url, init)
+      if (response.status === 429) {
+        const retryAfter = parseInt(response.headers.get('Retry-After') || '', 10)
+        const delay = (retryAfter > 0 ? retryAfter : Math.pow(2, attempt)) * 1000
+        autoUpdateLog.warn(`Rate limited (429), retry in ${delay}ms (attempt ${attempt + 1}/${maxRetries + 1})`)
+        if (attempt < maxRetries) {
+          await new Promise(r => setTimeout(r, delay))
+          continue
+        }
+      }
+      return response
+    } catch (err) {
+      lastError = err instanceof Error ? err : new Error(String(err))
+      if (attempt < maxRetries) {
+        const delay = Math.pow(2, attempt) * 1000
+        autoUpdateLog.warn(`Network error, retry in ${delay}ms (attempt ${attempt + 1}/${maxRetries + 1}): ${lastError.message}`)
+        await new Promise(r => setTimeout(r, delay))
+      }
+    }
+  }
+  throw lastError ?? new Error('fetchWithRetry exhausted all retries')
+}
+
+async function fetchFastUpdateCheck(currentVersion: string): Promise<FastUpdateCheckResponse> {
+  if (!FAST_UPDATE_CHECK_URL) {
+    throw new Error('FAST_UPDATE_CHECK_URL is not configured')
+  }
+
+  const url = new URL(FAST_UPDATE_CHECK_URL)
+  url.searchParams.set('platform', FAST_UPDATE_PLATFORM)
+  url.searchParams.set('version', currentVersion)
+
+  const response = await fetchWithRetry(url, {
+    headers: { Accept: 'application/json' },
+  })
+
+  if (!response.ok) {
+    throw new Error(`fast-update-server check failed: ${response.status} ${response.statusText}`)
+  }
+
+  return await response.json() as FastUpdateCheckResponse
+}
 
 // Get the update cache directory path (for file watcher fallback on macOS)
 // electron-updater uses these paths:
-// - Windows: %LOCALAPPDATA%/{appName}-updater/pending
-// - macOS: ~/Library/Caches/{appName}-updater/pending
-// - Linux: ~/.cache/{appName}-updater/pending
+// - Windows: %LOCALAPPDATA%/{sanitizedAppName}-updater/pending
+// - macOS: ~/Library/Caches/{sanitizedAppName}-updater/pending
+// - Linux: ~/.cache/{sanitizedAppName}-updater/pending
+// NOTE: electron-updater uses the sanitized package name (with '/' removed), NOT app.getName()
+// For "@work-agent/electron" → "@work-agentelectron-updater"
 function getUpdateCacheDir(): string {
-  const appName = app.getName()
+  // electron-updater sanitizes the app name by removing '/' characters
+  // We need to use the package name, not the product name (app.getName() returns productName)
+  // Derive dynamically to stay in sync if the package name ever changes
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const pkgName: string = require('../../package.json').name
+  const sanitizedAppName = pkgName.replace(/\//g, '')
   if (IS_MAC) {
-    return path.join(app.getPath('home'), 'Library', 'Caches', `${appName}-updater`, 'pending')
+    return path.join(app.getPath('home'), 'Library', 'Caches', `${sanitizedAppName}-updater`, 'pending')
   } else if (IS_WINDOWS) {
     // Windows uses LOCALAPPDATA, not APPDATA (roaming)
     const localAppData = process.env.LOCALAPPDATA || path.join(app.getPath('home'), 'AppData', 'Local')
-    return path.join(localAppData, `${appName}-updater`, 'pending')
+    return path.join(localAppData, `${sanitizedAppName}-updater`, 'pending')
   } else {
     // Linux
-    return path.join(app.getPath('home'), '.cache', `${appName}-updater`, 'pending')
+    return path.join(app.getPath('home'), '.cache', `${sanitizedAppName}-updater`, 'pending')
   }
+}
+
+/**
+ * Clean up old cached update files to free disk space.
+ * Removes installer files from versions older than the current app version.
+ * Safe to call on app launch - runs asynchronously without blocking.
+ */
+export function cleanupOldUpdateCache(): void {
+  // Run asynchronously to not block app launch
+  setImmediate(() => {
+    try {
+      const cacheDir = getUpdateCacheDir()
+      if (!fs.existsSync(cacheDir)) {
+        return
+      }
+
+      const currentVersion = app.getVersion()
+      const files = fs.readdirSync(cacheDir)
+      let cleanedCount = 0
+      let cleanedBytes = 0
+
+      for (const file of files) {
+        // Skip metadata files that electron-updater manages
+        if (file === 'update-info.json' || file.endsWith('.yml')) {
+          continue
+        }
+
+        // Check if file is from an older version (filename contains version number)
+        const versionMatch = file.match(/(\d+\.\d+\.\d+)/)
+        if (versionMatch && versionMatch[1] !== currentVersion) {
+          const filePath = path.join(cacheDir, file)
+          try {
+            const stats = fs.statSync(filePath)
+            // Only clean files older than 1 day (avoid cleaning in-progress downloads)
+            const oneDayMs = 24 * 60 * 60 * 1000
+            if (Date.now() - stats.mtimeMs > oneDayMs) {
+              fs.rmSync(filePath, { force: true })
+              cleanedCount++
+              cleanedBytes += stats.size
+              autoUpdateLog.info(`Cleaned old cache: ${file}`)
+            }
+          } catch {
+            // Ignore individual file cleanup errors
+          }
+        }
+      }
+
+      if (cleanedCount > 0) {
+        const mbFreed = (cleanedBytes / (1024 * 1024)).toFixed(1)
+        autoUpdateLog.info(`Cache cleanup: removed ${cleanedCount} file(s), freed ${mbFreed} MB`)
+      }
+    } catch (error) {
+      autoUpdateLog.warn('Cache cleanup failed', error)
+    }
+  })
 }
 
 // Module state — keeps track of update info for IPC queries
 let updateInfo: UpdateInfo = {
   available: false,
-  currentVersion: getAppVersion(),
+  silentMode: SILENT_UPDATE_MODE,
+  currentVersion: app.getVersion(),
   latestVersion: null,
   downloadState: 'idle',
   downloadProgress: 0,
+  supportsProgress: true, // electron-updater v6.8.0+ supports progress on all platforms
 }
 
 let eventSink: EventSink | null = null
@@ -130,48 +340,72 @@ autoUpdater.autoDownload = true
 // Install on app quit (if update is downloaded but user hasn't clicked "Restart")
 autoUpdater.autoInstallOnAppQuit = true
 
-// Use the logger for electron-updater internal logging
+// Allow opt-in dev verification when a feed URL is configured.
+autoUpdater.forceDevUpdateConfig = DEV_AUTO_UPDATE_ENABLED
+
+// Use the logger for electron-updater internal logging.
+// CVTE: info/warn/error go to the always-on autoUpdateLog rather than mainLog —
+// electron-updater's own chatter (feed resolution, HTTP status, signature
+// verification) is where intranet OTA failures actually surface (proxy 502,
+// Squirrel code-sign fallback), and mainLog is silenced in packaged builds.
+// `debug` stays on mainLog: it fires on every check and autoUpdateLog has no
+// debug level, so promoting it would flood the rotating file.
 autoUpdater.logger = {
-  info: (msg: unknown) => mainLog.info('[electron-updater]', msg),
-  warn: (msg: unknown) => mainLog.warn('[electron-updater]', msg),
-  error: (msg: unknown) => mainLog.error('[electron-updater]', msg),
+  info: (msg: unknown) => autoUpdateLog.info('[electron-updater]', msg),
+  warn: (msg: unknown) => autoUpdateLog.warn('[electron-updater]', msg),
+  error: (msg: unknown) => autoUpdateLog.error('[electron-updater]', msg),
   debug: (msg: unknown) => mainLog.info('[electron-updater:debug]', msg),
+}
+
+if (FAST_UPDATE_FEED_URL) {
+  autoUpdateLog.info(`Using fast-update-server compatibility mode (${FAST_UPDATE_CHECK_URL})`)
+} else {
+  autoUpdateLog.info('Using packaged provider configuration')
+}
+
+if (DEV_AUTO_UPDATE_ENABLED) {
+  autoUpdateLog.info('Development update checks enabled via AUTO_UPDATE_ENABLE_DEV=1')
 }
 
 // ─── Event handlers ───────────────────────────────────────────────────────────
 
 autoUpdater.on('checking-for-update', () => {
-  mainLog.info('[auto-update] Checking for updates...')
+  autoUpdateLog.info('Checking for updates...')
 })
 
 autoUpdater.on('update-available', (info) => {
   autoUpdateLog.info(`Update available: ${updateInfo.currentVersion} → ${info.version}`)
+  const releaseUrl = getReleaseUrlFromInfo(info)
 
   // First, check electron-updater's internal state (most reliable)
   const internalState = checkElectronUpdaterState()
   if (internalState.ready) {
-    mainLog.info(`[auto-update] electron-updater reports download ready`)
+    autoUpdateLog.info(`electron-updater reports download ready`)
     updateInfo = {
       ...updateInfo,
       available: true,
       latestVersion: info.version,
       downloadState: 'ready',
       downloadProgress: 100,
+      releaseUrl,
+      error: undefined,
     }
     broadcastUpdateInfo()
     return
   }
 
   // Fallback: check if file exists in cache directory
-  const existing = checkForExistingDownload()
+  const existing = checkForExistingDownload(info.version)
   if (existing.exists) {
-    mainLog.info(`[auto-update] Update already downloaded (file check), setting state to ready`)
+    autoUpdateLog.info(`Update already downloaded (file check), setting state to ready`)
     updateInfo = {
       ...updateInfo,
       available: true,
       latestVersion: info.version,
       downloadState: 'ready',
       downloadProgress: 100,
+      releaseUrl,
+      error: undefined,
     }
     broadcastUpdateInfo()
     return
@@ -183,18 +417,23 @@ autoUpdater.on('update-available', (info) => {
     latestVersion: info.version,
     downloadState: 'downloading',
     downloadProgress: 0,
+    releaseUrl,
+    error: undefined,
   }
   broadcastUpdateInfo()
 })
 
 autoUpdater.on('update-not-available', (info) => {
-  mainLog.info(`[auto-update] Already up to date (${info.version})`)
+  autoUpdateLog.info(`Already up to date (${info.version})`)
 
   updateInfo = {
     ...updateInfo,
     available: false,
     latestVersion: info.version,
     downloadState: 'idle',
+    downloadProgress: 0,
+    releaseUrl: undefined,
+    error: undefined,
   }
   broadcastUpdateInfo()
 })
@@ -214,6 +453,8 @@ autoUpdater.on('update-downloaded', async (info) => {
     latestVersion: info.version,
     downloadState: 'ready',
     downloadProgress: 100,
+    releaseUrl: getReleaseUrlFromInfo(info),
+    error: undefined,
   }
   broadcastUpdateInfo()
 
@@ -225,10 +466,28 @@ autoUpdater.on('update-downloaded', async (info) => {
 autoUpdater.on('error', (error) => {
   autoUpdateLog.error('electron-updater error', error)
 
-  updateInfo = {
-    ...updateInfo,
-    downloadState: 'error',
-    error: error.message,
+  // If download already completed successfully, don't let post-download errors
+  // (e.g. Squirrel.Mac bundle extraction in dev mode) override the 'ready' state.
+  // The file is cached and autoInstallOnAppQuit can still use it.
+  if (updateInfo.downloadState === 'ready') {
+    autoUpdateLog.info('Ignoring post-download error (state remains ready)', error.message)
+    return
+  }
+
+  if (isSquirrelCodeSignError(error)) {
+    autoUpdateLog.info('Squirrel code signature error — switching to manual-download state')
+    updateInfo = {
+      ...updateInfo,
+      downloadState: 'manual-download',
+      releaseUrl: updateInfo.releaseUrl || getManualDownloadUrl(updateInfo.latestVersion),
+      error: error.message,
+    }
+  } else {
+    updateInfo = {
+      ...updateInfo,
+      downloadState: 'error',
+      error: error.message,
+    }
   }
   broadcastUpdateInfo()
 })
@@ -245,16 +504,16 @@ function checkElectronUpdaterState(): { ready: boolean; version?: string } {
     // @ts-expect-error - accessing internal API for reliability
     const helper = autoUpdater.downloadedUpdateHelper
     if (helper) {
-      mainLog.info(`[auto-update] downloadedUpdateHelper exists, cacheDir: ${helper.cacheDir}`)
+      autoUpdateLog.info(`downloadedUpdateHelper exists, cacheDir: ${helper.cacheDir}`)
       // @ts-expect-error - accessing internal API
       const versionInfo = helper.versionInfo
       if (versionInfo) {
-        mainLog.info(`[auto-update] electron-updater has validated download: ${JSON.stringify(versionInfo)}`)
+        autoUpdateLog.info(`electron-updater has validated download: ${JSON.stringify(versionInfo)}`)
         return { ready: true, version: versionInfo.version }
       }
     }
   } catch (error) {
-    mainLog.warn('[auto-update] Error checking electron-updater state:', error)
+    autoUpdateLog.warn('Error checking electron-updater state', error)
   }
   return { ready: false }
 }
@@ -271,51 +530,65 @@ interface CheckOptions {
  * Check if a downloaded update already exists in the cache directory.
  * This helps detect updates that were downloaded in a previous session.
  */
-function checkForExistingDownload(): { exists: boolean; version?: string } {
+function checkForExistingDownload(expectedVersion?: string): { exists: boolean; version?: string } {
   try {
     const cacheDir = getUpdateCacheDir()
-    mainLog.info(`[auto-update] Checking cache directory: ${cacheDir}`)
+    autoUpdateLog.info(`Checking cache directory: ${cacheDir}`)
 
     if (!fs.existsSync(cacheDir)) {
-      mainLog.info(`[auto-update] Cache directory does not exist`)
+      autoUpdateLog.info(`Cache directory does not exist`)
       return { exists: false }
     }
 
     const files = fs.readdirSync(cacheDir)
-    mainLog.info(`[auto-update] Files in cache: ${JSON.stringify(files)}`)
+    autoUpdateLog.info(`Files in cache: ${JSON.stringify(files)}`)
 
     // Look for update info file that electron-updater creates
     const updateInfoFile = files.find(f => f === 'update-info.json')
     if (updateInfoFile) {
       const infoPath = path.join(cacheDir, updateInfoFile)
       const info = readJsonFileSync(infoPath) as Record<string, unknown> | null
-      mainLog.info(`[auto-update] update-info.json contents: ${JSON.stringify(info)}`)
+      autoUpdateLog.info(`update-info.json contents: ${JSON.stringify(info)}`)
 
       // electron-updater uses 'fileName' (not 'path') in update-info.json
       const fileName = (info?.fileName || info?.path) as string | undefined
-      if (fileName && fs.existsSync(path.join(cacheDir, fileName))) {
-        mainLog.info(`[auto-update] Found existing download via update-info.json: ${fileName}`)
-        return { exists: true, version: info?.version as string }
+      const version = info?.version as string | undefined
+      const matchesExpectedVersion = !expectedVersion ||
+        version === expectedVersion ||
+        (typeof fileName === 'string' && fileName.includes(expectedVersion))
+
+      if (fileName && fs.existsSync(path.join(cacheDir, fileName)) && matchesExpectedVersion) {
+        autoUpdateLog.info(`Found existing download via update-info.json: ${fileName}`)
+        return { exists: true, version }
+      }
+
+      if (fileName && fs.existsSync(path.join(cacheDir, fileName)) && !matchesExpectedVersion) {
+        autoUpdateLog.info(
+          `Ignoring stale cached download via update-info.json: ${fileName} (expected ${expectedVersion ?? 'any'})`,
+        )
       }
     }
 
     // Fallback: check for any installer/zip/dmg file
     const downloadFile = files.find(f =>
+      (!expectedVersion || f.includes(expectedVersion)) &&
+      (
       f.endsWith('.zip') ||
       f.endsWith('.exe') ||
       f.endsWith('.AppImage') ||
       f.endsWith('.dmg') ||
       f.endsWith('.nupkg')
+      )
     )
     if (downloadFile) {
-      mainLog.info(`[auto-update] Found existing download file: ${downloadFile}`)
+      autoUpdateLog.info(`Found existing download file: ${downloadFile}`)
       return { exists: true }
     }
 
-    mainLog.info(`[auto-update] No existing download found in cache`)
+    autoUpdateLog.info(`No existing download found in cache`)
     return { exists: false }
   } catch (error) {
-    mainLog.warn('[auto-update] Error checking for existing download:', error)
+    autoUpdateLog.warn('Error checking for existing download', error)
     return { exists: false }
   }
 }
@@ -335,6 +608,41 @@ export async function checkForUpdates(options: CheckOptions = {}): Promise<Updat
   autoUpdater.autoDownload = autoDownload
 
   try {
+    if (FAST_UPDATE_FEED_URL && FAST_UPDATE_CHECK_URL) {
+      const remoteInfo = await fetchFastUpdateCheck(updateInfo.currentVersion)
+
+      if (!remoteInfo.updateAvailable || !remoteInfo.version) {
+        autoUpdateLog.info(`fast-update-server reports no update for ${FAST_UPDATE_PLATFORM}`)
+        updateInfo = {
+          ...updateInfo,
+          available: false,
+          latestVersion: updateInfo.currentVersion,
+          downloadState: 'idle',
+          downloadProgress: 0,
+          releaseUrl: undefined,
+          error: undefined,
+        }
+        broadcastUpdateInfo()
+        return getUpdateInfo()
+      }
+
+      const versionedFeedUrl = getFastUpdateVersionedFeedUrl(remoteInfo.version)
+      autoUpdater.setFeedURL({
+        provider: 'generic',
+        url: versionedFeedUrl,
+      })
+      autoUpdateLog.info(
+        `fast-update-server update ${remoteInfo.version} available for ${FAST_UPDATE_PLATFORM} via ${versionedFeedUrl}`,
+      )
+      updateInfo = {
+        ...updateInfo,
+        available: true,
+        latestVersion: remoteInfo.version,
+        releaseUrl: getReleaseUrlFromInfo(remoteInfo),
+        error: undefined,
+      }
+    }
+
     // Check for updates - this returns a promise that resolves with the check result
     const result = await autoUpdater.checkForUpdates()
 
@@ -346,9 +654,9 @@ export async function checkForUpdates(options: CheckOptions = {}): Promise<Updat
 
       // Double-check: if we're still showing 'downloading' but file exists, update state
       if (updateInfo.downloadState === 'downloading') {
-        const existing = checkForExistingDownload()
+        const existing = checkForExistingDownload(result.updateInfo.version)
         if (existing.exists) {
-          mainLog.info('[auto-update] Update already downloaded, updating state to ready')
+          autoUpdateLog.info('Update already downloaded, updating state to ready')
           updateInfo = {
             ...updateInfo,
             downloadState: 'ready',
@@ -360,10 +668,20 @@ export async function checkForUpdates(options: CheckOptions = {}): Promise<Updat
     }
   } catch (error) {
     autoUpdateLog.error('Update check failed', error)
-    updateInfo = {
-      ...updateInfo,
-      downloadState: 'error',
-      error: error instanceof Error ? error.message : 'Check failed',
+    const err = error instanceof Error ? error : new Error('Check failed')
+    if (isSquirrelCodeSignError(err)) {
+      updateInfo = {
+        ...updateInfo,
+        downloadState: 'manual-download',
+        releaseUrl: updateInfo.releaseUrl || getManualDownloadUrl(updateInfo.latestVersion),
+        error: err.message,
+      }
+    } else {
+      updateInfo = {
+        ...updateInfo,
+        downloadState: 'error',
+        error: err.message,
+      }
     }
   } finally {
     // Restore previous autoDownload setting
@@ -416,9 +734,9 @@ export async function installUpdate(): Promise<void> {
   }
 
   try {
-    // isSilent=false shows the installer UI on Windows if needed (fallback)
-    // isForceRunAfter=true ensures the app relaunches after install
-    autoUpdater.quitAndInstall(false, true)
+    // Silent mode keeps the Windows installer hidden. Other platforms ignore
+    // the flag and preserve the native install flow.
+    autoUpdater.quitAndInstall(SILENT_UPDATE_MODE, true)
   } catch (error) {
     __isUpdating = false
     autoUpdateLog.error('quitAndInstall failed', error)
@@ -437,13 +755,21 @@ export interface UpdateOnLaunchResult {
   version?: string | null
 }
 
+export function shouldCheckForUpdatesOnLaunch(): boolean {
+  return app.isPackaged || DEV_AUTO_UPDATE_ENABLED
+}
+
 /**
  * Check for updates on app launch.
+ * - Cleans up old cache files first
  * - Checks immediately (no delay)
  * - Respects dismissed version (skips notification but allows manual check)
  * - Auto-downloads if update available
  */
 export async function checkForUpdatesOnLaunch(): Promise<UpdateOnLaunchResult> {
+  // Clean up old cached update files from previous versions
+  cleanupOldUpdateCache()
+
   autoUpdateLog.info('Checking for updates on launch...')
 
   const info = await checkForUpdates({ autoDownload: true })
@@ -455,7 +781,7 @@ export async function checkForUpdatesOnLaunch(): Promise<UpdateOnLaunchResult> {
   // Check if this version was dismissed by user
   const dismissedVersion = getDismissedUpdateVersion()
   if (dismissedVersion === info.latestVersion) {
-    mainLog.info(`[auto-update] Update ${info.latestVersion} was dismissed, skipping notification`)
+    autoUpdateLog.info(`Update ${info.latestVersion} was dismissed, skipping notification`)
     return { action: 'skipped', reason: 'dismissed', version: info.latestVersion }
   }
 

@@ -44,15 +44,28 @@
 
 每个阶段结束必须过闸门才进下一阶段。闸门红了就地修，不累积。
 
-### P0 · 测试基线归零（0.5 天，进行中）
+### P0 · 测试基线归零（✅ 已完成，commit `8dfae802`）
 
 在 `.worktrees/rebase-0.11.2` 上修掉上述 4 类缺陷。**不修产品代码，只修测试**。
 
 **为什么必须先做**：重基线过程中会不断跑测试。如果基线本身有 16 个已知红，任何新引入的真实回归都会淹没在噪声里——无法区分"本来就红"和"我刚弄坏的"。这是整个计划的信噪比地基。
 
-**闸门**：`bun test` → **0 fail**。
+**闸门**：`bun test` → **0 个基础设施失败**。实测连续三轮稳定 **4877 pass / 1 fail**，唯一残余是下述真产品 bug。
 
-### P1 · 骨架：CVTE-only 文件 + 依赖 + scope 迁移（1 天）
+**⚠️ P0 的边界纪律**：只修**上游独有、CVTE 从未碰过**的测试文件。因为 P1-b 有 133 个文件会被 rc 版整文件覆盖，在 P1 之前修任何 P1-b 类文件都是白工——每修一个就要在 P1 的排除清单里挂一笔账。正确工序是「先把文件搬到最终形态，再在其上做修复」。实际只有 `browser-pane-manager.test.ts` 触碰了这条线，已用排除清单 + `sed` 补 CVTE 改动处理。
+
+**发现的真实产品 bug（✅ 已于 P1 后修复，commit `9391e560`）**：
+
+`apps/electron/src/main/browser-pane-manager.ts` 的 `finalizeDestroyedInstance()` 中，4 个 teardown 清理步骤（`closePopupsForParent` / `applyAgentControlLock` / `updateNativeOverlayState` / `cdp.detach`）全部无 try/catch。任一抛错都会跳过其后的
+
+```ts
+this.instances.delete(instance.id)   // 实例泄漏，该 id 无法重建
+this.removedCallback?.(instance.id)  // 渲染进程状态永不同步
+```
+
+**是疏漏而非设计**——上游作者在 `destroyInstance()` 里已建立 `runCleanup` 保护 helper 并用它包住了完全相同的三个调用，只是漏保护了 `finally` 里 `finalizeDestroyedInstance()` 内的第二次调用。修法：把 `runCleanup` 提为私有方法 `runTeardownStep`，两处复用。
+
+### P1 · 骨架：CVTE-only 文件 + 依赖 + scope 迁移（✅ 已完成，commit `dd6c7a93`）
 
 **精确分流**（本轮独立复算，`git diff --name-status v0.10.3 rc` × `git diff --name-only v0.10.3 v0.11.2`）：
 
@@ -74,15 +87,31 @@
 2. 合并 package.json 依赖 → `bun install` 重生成 `bun.lock`（保留上游 SDK 0.3.197 + Pi `@earendil-works` 0.80.6）
 3. `@mariozechner/*` → `@earendil-works/*` scope 迁移收口
 
-**闸门**：`bun run typecheck:all` → exit 0 且 `grep -r '@mariozechner'` 为空。
+**闸门（已按实测更正）**：搬迁计数吻合 + `bun install` 成功 + 两个 CVTE 独有包测试自洽（`test:packages:cvte` 16+12 全绿）+ `grep -r '@mariozechner'` 源码为空。
 
-> 这道闸门是**上表最后一行"假设"的兑现点**——CVTE-only 文件若依赖了上游已变更的 API，此处必红。红了不是意外，是设计目的。
+> **原定「`typecheck:all` exit 0」是错误的闸门设计，实测已证伪。** P1 只搬零冲突文件，而 CVTE 的**消费方**（组件、handler、测试）与它们引用的 **API 定义方**被分到了不同层——定义恰好都在 P2/P3 的冲突文件里。全绿在原理上不可达，`typecheck:all` 的正确位置是 P3 之后。
+>
+> 这也顺带兑现了上表最后一行的"假设"：23 个错误里**零个**属于「CVTE-only 文件依赖上游已变更 API」，该风险证伪。
 
-### P2 · 协议/注册 + i18n（0.5 天）
+**P1 后遗留的 23 个 typecheck 错误 —— 即 P2/P3 的验收清单**（逐包统计，绕开 `&&` 短路）：
 
-T3 协议加性冲突（`channels.ts`/`routing.ts`/`channel-map.ts`/`dto.ts` + registration 测试）；T2 七个 locale 取**并集**（上游 Projects/Kanban 键 + CVTE SSO/市场键）。
+| 缺失符号 | 定义方文件 | 消费方 | 数量 | 归属 |
+|---|---|---|---|---|
+| `takePendingAssistantError` | `shared/src/agent/event-adapter.ts` | `claude-event-adapter.test.ts` | 3 | P3 #3 |
+| `getCvteIdentity` | `shared/src/config/storage.ts` | `server-core/handlers/rpc/marketplace.ts` | 1 | P3 #1 |
+| `RPC_CHANNELS.marketplace` | 协议 `channels.ts` | 同上 | 4 | **P2** |
+| `RPC_CHANNELS.skillVars` | 协议 `channels.ts` | `server-core/handlers/rpc/skill-vars.ts` | 4 | **P2** |
+| `ElectronAPI.{getMarketplaceRegistry,installMarketplaceSkill,startCvtePortalOAuth,isCvtePortalSsoAvailable,getSkillVars,setSkillVars}` | `electron/src/preload/index.ts` | `SkillsListPanel.tsx`/`AiSettingsPage.tsx`/`SkillInfoPage.tsx` | 9 | **P2** |
+| `SkillVariable` 类型 | `electron/src/shared/types.ts` | `SkillInfoPage.tsx` | 1 | **P2** |
+| 上述缺失导致的隐式 `any` | — | 同上 | 2 | 随之消失 |
 
-**闸门**：`lint:i18n:sorted` + `lint:i18n:parity` + `lint:i18n:coverage` 三绿；协议注册测试绿。
+> 注意 **9+1 个 electron 错误落在 P2 而非 P4**：IPC 契约（`preload/index.ts` + `shared/types.ts`）与协议 channels 是同一件事的两端，必须同层完成，否则 P2 结束时 electron 仍红。
+
+### P2 · 协议/注册 + IPC 契约 + i18n（0.5 天）
+
+T3 协议加性冲突（`channels.ts`/`routing.ts`/`channel-map.ts`/`dto.ts` + registration 测试）；**IPC 契约两端**（`electron/src/preload/index.ts` 的 6 个方法 + `electron/src/shared/types.ts` 的 `SkillVariable`）；T2 七个 locale 取**并集**（上游 Projects/Kanban 键 + CVTE SSO/市场键）。
+
+**闸门**：`lint:i18n:sorted` + `lint:i18n:parity` + `lint:i18n:coverage` 三绿；协议注册测试绿；**`server-core` 与 `apps/electron` 的 typecheck 归零**（即上表 18 个 P2 错误清零，剩余 4 个 shared 错误留给 P3）。
 
 ### P3 · 6 个硬骨头（2 天，最高风险）
 
@@ -99,7 +128,7 @@ T3 协议加性冲突（`channels.ts`/`routing.ts`/`channel-map.ts`/`dto.ts` + r
 
 > 先易后难：前 5 个 CVTE 主导、上游轻改，做完能建立对新基线代码结构的手感，再啃 SessionManager 的 1021 行。
 
-**闸门**：`bun test` → 0 fail（含 `test:shared:cvte` / `test:packages:cvte`）。
+**闸门**：`bun run typecheck:all` → **exit 0**（此处才是它的正确位置，见 P1）；`bun test` → 0 fail（含 `test:shared:cvte` / `test:packages:cvte`）。
 
 ### P4 · T5 长尾（0.5 天）
 

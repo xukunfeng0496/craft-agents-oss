@@ -60,8 +60,8 @@ import type { LoadedSource, FolderSourceConfig, SourceConnectionStatus } from '@
 export type { LoadedSource, FolderSourceConfig, SourceConnectionStatus };
 
 // Skill types
-import type { LoadedSkill, SkillMetadata } from '@craft-agent/shared/skills/types';
-export type { LoadedSkill, SkillMetadata };
+import type { LoadedSkill, SkillMetadata, SkillVariable } from '@craft-agent/shared/skills/types';
+export type { LoadedSkill, SkillMetadata, SkillVariable };
 
 // Resource bundle types (cross-workspace export/import)
 import type { ExportResourcesOptions, ExportResult, ResourceImportMode, ResourceBundle, ResourceImportResult } from '@craft-agent/shared/resources';
@@ -399,7 +399,7 @@ export interface ElectronAPI {
   onMenuToggleFocusMode(callback: () => void): () => void
   onMenuToggleSidebar(callback: () => void): () => void
 
-  // Deep link navigation listener (for external craftagents:// URLs)
+  // Deep link navigation listener (for external workagents:// URLs)
   onDeepLinkNavigate(callback: (nav: DeepLinkNavigation) => void): () => void
 
   // Auth
@@ -427,6 +427,16 @@ export interface ElectronAPI {
   cancelChatGptOAuth(): Promise<{ success: boolean }>
   getChatGptAuthStatus(connectionSlug: string): Promise<{ authenticated: boolean; expiresAt?: number; hasRefreshToken?: boolean }>
   chatGptLogout(connectionSlug: string): Promise<{ success: boolean }>
+
+  // CVTE 统一门户 SSO (D8 §六): portal login → personal gateway key → auto-config.
+  // Omitting connectionSlug targets the enterprise gateway connection (default).
+  startCvtePortalOAuth(connectionSlug?: string): Promise<{
+    success: boolean
+    identity?: { account?: string; name?: string; email?: string; simUid?: string; userId?: number }
+    error?: string
+  }>
+  /** Whether this build has CVTE portal SSO configured (gates the login UI). */
+  isCvtePortalSsoAvailable(): Promise<{ available: boolean; portalHost?: string; returnDeeplink?: string }>
 
   // GitHub Copilot OAuth
   startCopilotOAuth(connectionSlug: string): Promise<{ success: boolean; error?: string }>
@@ -506,6 +516,14 @@ export interface ElectronAPI {
 
   // Skills change listener (live updates when skills are added/removed/modified)
   onSkillsChanged(callback: (workspaceId: string, skills: LoadedSkill[]) => void): () => void
+
+  // Skills Marketplace
+  getMarketplaceRegistry(): Promise<import('@craft-agent/shared/marketplace').MarketplaceRegistry>
+  installMarketplaceSkill(workspaceId: string, skillName: string): Promise<void>
+
+  // Skill Variables
+  getSkillVars(workspaceId: string, skillSlug: string, varNames: string[]): Promise<Record<string, boolean>>
+  setSkillVars(workspaceId: string, skillSlug: string, vars: Record<string, string>): Promise<void>
 
   // Statuses (workspace-scoped)
   listStatuses(workspaceId: string): Promise<import('@craft-agent/shared/statuses').StatusConfig[]>

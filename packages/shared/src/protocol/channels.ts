@@ -208,6 +208,15 @@ export const RPC_CHANNELS = {
     GET_AUTH_STATUS: 'chatgpt:getAuthStatus',
     LOGOUT: 'chatgpt:logout',
   },
+  // CVTE 统一门户 SSO (D8 §六): server-owned portal OAuth → personal CCH key →
+  // auto-config the enterprise gateway connection. Client runs the loopback
+  // callback server; server builds the auth URL and exchanges the code.
+  cvte: {
+    IS_AVAILABLE: 'cvte:isAvailable',
+    START_OAUTH: 'cvte:startOAuth',
+    COMPLETE_OAUTH: 'cvte:completeOAuth',
+    CANCEL_OAUTH: 'cvte:cancelOAuth',
+  },
   copilot: {
     START_OAUTH: 'copilot:startOAuth',
     CANCEL_OAUTH: 'copilot:cancelOAuth',
@@ -278,6 +287,16 @@ export const RPC_CHANNELS = {
     OPEN_EDITOR: 'skills:openEditor',
     OPEN_FINDER: 'skills:openFinder',
     CHANGED: 'skills:changed',
+  },
+  marketplace: {
+    GET_REGISTRY: 'marketplace:getRegistry',
+    INSTALL_SKILL: 'marketplace:installSkill',
+    // CVTE: skill detail / install require an X-CSkills-User-Account header sourced
+    // from the persisted portal SSO identity; browsing the registry is open.
+  },
+  skillVars: {
+    GET: 'skillVars:get',
+    SET: 'skillVars:set',
   },
   statuses: {
     LIST: 'statuses:list',

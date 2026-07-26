@@ -410,6 +410,93 @@ client.onConnectionStateChanged((state) => {
   }
 }
 
+// ── startCvtePortalOAuth ─────────────────────────────────────────────────
+// CVTE 统一门户 SSO (D8 §六). Same client-runs-callback shape as performOAuth:
+// loopback callback server (dynamic port) → cvte:startOAuth (server builds the
+// authorize URL) → browser → callback → cvte:completeOAuth (server exchanges the
+// code, resolves the personal key via the intranet relay, configures the gateway).
+;(api as any).startCvtePortalOAuth = async (
+  connectionSlug?: string,
+): Promise<{ success: boolean; identity?: unknown; error?: string }> => {
+  let callbackServer: Awaited<ReturnType<typeof createCallbackServer>> | null = null
+  let flowId: string | undefined
+
+  try {
+    // 0. Fetch the return deep link so the browser callback page redirects back
+    //    to (and focuses) the app on success instead of stranding the user on the
+    //    callback tab. Best-effort — the flow still works without it.
+    let returnDeeplink: string | undefined
+    try {
+      const info: { returnDeeplink?: string } = await client.invoke('cvte:isAvailable')
+      returnDeeplink = info?.returnDeeplink
+    } catch { /* leave undefined */ }
+
+    // 1. Loopback callback server on a dynamic port (op-fat accepts any loopback)
+    callbackServer = await createCallbackServer({ appType: 'electron', deeplinkUrl: returnDeeplink })
+    const redirectUri = `${callbackServer.url}/callback`
+
+    // 2. Ask the server to build the authorize URL + store the flow
+    const startResult: { authUrl: string; state: string; flowId: string; openedExternally?: boolean } =
+      await client.invoke('cvte:startOAuth', { slug: connectionSlug, redirectUri })
+    flowId = startResult.flowId
+
+    // 3. Open the system browser for portal login.
+    //    Prefer the main-process open performed inside cvte:startOAuth: the preload's
+    //    shell.openExternal is gated by user activation on Windows and silently no-ops
+    //    after the async RPC round-trip above, so the browser never opens and the wait
+    //    below hangs forever. Only open here when main couldn't (headless/remote).
+    if (!startResult.openedExternally) {
+      await shell.openExternal(startResult.authUrl)
+    }
+
+    // 4. Wait for the portal to redirect to our callback server. Bounded: a failed
+    //    browser-open must surface as an error, never an infinite "logging in" spinner.
+    const SSO_CALLBACK_TIMEOUT_MS = 3 * 60 * 1000
+    let timeoutHandle: ReturnType<typeof setTimeout> | undefined
+    const callback = await Promise.race([
+      callbackServer.promise,
+      new Promise<never>((_, reject) => {
+        timeoutHandle = setTimeout(
+          () => reject(new Error('Portal login timed out (the browser may not have opened). Please try again.')),
+          SSO_CALLBACK_TIMEOUT_MS,
+        )
+      }),
+    ]).finally(() => {
+      if (timeoutHandle) clearTimeout(timeoutHandle)
+    })
+
+    // 5. Provider-side error?
+    if (callback.query.error) {
+      const error = callback.query.error_description || callback.query.error
+      await client.invoke('cvte:cancelOAuth', { flowId })
+      return { success: false, error }
+    }
+
+    const code = callback.query.code
+    if (!code) {
+      await client.invoke('cvte:cancelOAuth', { flowId })
+      return { success: false, error: 'No authorization code received' }
+    }
+
+    // 6. Server exchanges the code + resolves the personal key + configures the gateway
+    const result: { success: boolean; identity?: unknown; error?: string } = await client.invoke(
+      'cvte:completeOAuth',
+      { flowId, code, state: callback.query.state },
+    )
+    return { success: result.success, identity: result.identity, error: result.error }
+  } catch (err) {
+    if (flowId) {
+      client.invoke('cvte:cancelOAuth', { flowId }).catch(() => {})
+    }
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : 'CVTE SSO flow failed',
+    }
+  } finally {
+    callbackServer?.close()
+  }
+}
+
 // App lifecycle — direct IPC (not WS RPC) since it restarts the server itself
 ;(api as ElectronAPI).relaunchApp = () => ipcRenderer.invoke('app:relaunch')
 ;(api as ElectronAPI).removeWorkspace = (workspaceId: string) => ipcRenderer.invoke('workspace:remove', workspaceId)

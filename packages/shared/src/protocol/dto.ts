@@ -417,6 +417,8 @@ export type SessionEvent =
   | { type: 'auth_completed'; sessionId: string; requestId: string; success: boolean; cancelled?: boolean; error?: string }
   | { type: 'source_activated'; sessionId: string; sourceSlug: string; originalMessage: string }
   | { type: 'usage_update'; sessionId: string; tokenUsage: { inputTokens: number; contextWindow?: number } }
+  // CVTE: per-turn measured latency for the model picker's "近期实测" hints
+  | { type: 'latency_update'; sessionId: string; model: string; ttftMs: number; totalMs: number; outputTokens?: number; tokensPerSec?: number }
   | { type: 'message_annotations_updated'; sessionId: string; messageId: string; annotations: AnnotationV1[] }
   | { type: 'working_directory_error'; sessionId: string; error: string }
 
@@ -722,11 +724,17 @@ export interface GitBashStatus {
 
 export interface UpdateInfo {
   available: boolean
+  /** CVTE: whether automatic updates stay silent and install on quit */
+  silentMode?: boolean
   currentVersion: string
   latestVersion: string | null
-  downloadState: 'idle' | 'downloading' | 'ready' | 'installing' | 'error'
+  downloadState: 'idle' | 'downloading' | 'ready' | 'installing' | 'error' | 'manual-download'
   downloadProgress: number
+  /** CVTE: whether this platform supports download progress events */
+  supportsProgress?: boolean
   error?: string
+  /** CVTE: direct release URL for manual fallback (downloadState 'manual-download') */
+  releaseUrl?: string
 }
 
 // ---------------------------------------------------------------------------

@@ -54,7 +54,7 @@ import { RenameDialog } from '@/components/ui/rename-dialog'
 import { useAppShellContext } from '@/context/AppShellContext'
 import { getModelShortName, type ModelDefinition } from '@config/models'
 import { getModelsForProviderType, resolveMidStreamBehavior, type CustomEndpointApi, type MidStreamBehavior } from '@config/llm-connections'
-import { isCvteGatewayUrl, CVTE_GATEWAY_PRESET_KEY } from '@/components/apisetup/ApiKeyInput'
+import { isCvteGatewayUrl, CVTE_GATEWAY_PRESET_KEY } from '@/lib/cvte-gateway'
 import { toast } from 'sonner'
 
 /**

@@ -30,6 +30,9 @@ import {
   resolvePresetStateForBaseUrlChange,
   type PresetKey,
 } from "./submit-helpers"
+import { CVTE_GATEWAY_URL, CVTE_GATEWAY_PRESET_KEY, isCvteGatewayUrl } from "@/lib/cvte-gateway"
+
+export { CVTE_GATEWAY_URL, CVTE_GATEWAY_PRESET_KEY, isCvteGatewayUrl }
 
 import type { CustomEndpointApi, CustomEndpointConfig } from '@config/llm-connections'
 
@@ -89,13 +92,6 @@ interface Preset {
   url: string
   placeholder?: string
 }
-
-// CVTE enterprise gateway — Anthropic-Messages protocol at the intranet host.
-// Exposed as a first-class provider preset (D7/D8) so token.cvte.com resolves
-// to a branded "CVTE" entry instead of falling through to "Custom"; selecting
-// it collapses the form to key-only (endpoint/protocol/models are provisioned).
-export const CVTE_GATEWAY_URL = 'https://token.cvte.com'
-export const CVTE_GATEWAY_PRESET_KEY = 'cvte-cch'
 
 // Anthropic provider presets - for Claude Code backend
 // Also used by Pi API key flow (same providers, routed via Pi SDK)
@@ -165,16 +161,6 @@ function getPresetsForProvider(providerType: 'anthropic' | 'openai' | 'pi' | 'go
   if (providerType === 'openai') return OPENAI_PRESETS
   // Anthropic mode: exclude presets that only work via Pi SDK
   return ANTHROPIC_PRESETS.filter(p => !PI_ONLY_PRESET_KEYS.has(p.key))
-}
-
-/** Both the Anthropic host (token.cvte.com) and the OpenAI host (…/v1) are the CVTE gateway. */
-export function isCvteGatewayUrl(url: string): boolean {
-  if (!url) return false
-  try {
-    return new URL(url).host === new URL(CVTE_GATEWAY_URL).host
-  } catch {
-    return url.startsWith(CVTE_GATEWAY_URL)
-  }
 }
 
 function getPresetForUrl(url: string, presets: Preset[]): PresetKey {

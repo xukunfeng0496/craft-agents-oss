@@ -18,7 +18,7 @@ import type {
 import type { ProviderChoice } from '@/components/onboarding/ProviderSelectStep'
 import type { LocalModelSubmitData } from '@/components/onboarding/LocalModelStep'
 import type { ApiKeySubmitData } from '@/components/apisetup'
-import { isCvteGatewayUrl } from '@/components/apisetup/ApiKeyInput'
+import { isCvteGatewayUrl } from '@/lib/cvte-gateway'
 import type { CustomEndpointConfig } from '@config/llm-connections'
 import type { SetupNeeds, LlmConnectionSetup, ClaudeOAuthIdentityDto } from '../../shared/types'
 

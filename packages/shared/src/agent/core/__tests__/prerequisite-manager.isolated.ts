@@ -5,19 +5,34 @@
  * until required files (like guide.md) have been read.
  */
 import { describe, it, expect, beforeEach, mock } from 'bun:test';
-import { existsSync } from 'node:fs';
+import * as realFs from 'node:fs';
 import { homedir } from 'node:os';
 import { resolve, join } from 'node:path';
 import { PrerequisiteManager } from '../prerequisite-manager.ts';
 
-// Mock existsSync to control guide.md existence
-const originalExistsSync = existsSync;
+// Mock existsSync to control guide.md existence.
+// Partial mock: everything else falls through to the real module. Replacing the
+// whole of node:fs with two functions breaks every other fs consumer in the
+// import graph — notably config/storage.ts, whose existsSync check for
+// config-defaults.json then fails and throws.
 let mockExistsPaths: Set<string> = new Set();
 
 mock.module('node:fs', () => ({
+  ...realFs,
   existsSync: (path: string) => mockExistsPaths.has(path),
-  // Re-export anything else the module needs
-  readFileSync: originalExistsSync,
+}));
+
+// getBrowserToolEnabled() reads ~/.workagent/config-defaults.json off the real
+// disk, which makes these tests depend on whether the developer has ever run
+// the app. The browser rule's *existence* is what's under test here, not the
+// user's config, so pin it.
+let browserToolEnabled = true;
+
+const actualStorage = await import('../../../config/storage.ts');
+
+mock.module('../../../config/storage.ts', () => ({
+  ...actualStorage,
+  getBrowserToolEnabled: () => browserToolEnabled,
 }));
 
 const WORKSPACE_ROOT = '/test/workspace';
@@ -37,6 +52,7 @@ describe('PrerequisiteManager', () => {
   beforeEach(() => {
     debugMessages = [];
     mockExistsPaths = new Set();
+    browserToolEnabled = true;
     manager = new PrerequisiteManager({
       workspaceRootPath: WORKSPACE_ROOT,
       onDebug: (msg) => debugMessages.push(msg),
@@ -94,13 +110,32 @@ describe('PrerequisiteManager', () => {
       expect(result.allowed).toBe(true);
     });
 
-    it('matches native browser tools and blocks until browser docs are read', () => {
+    it('matches the bare built-in browser tool and blocks until browser docs are read', () => {
       const docsPath = browserDocPath();
       mockExistsPaths.add(docsPath);
 
-      const result = manager.checkPrerequisites('browser_snapshot');
+      const result = manager.checkPrerequisites('browser_tool');
       expect(result.allowed).toBe(false);
       expect(result.blockReason).toContain(docsPath);
+    });
+
+    it('does not gate the legacy per-action browser tool names', () => {
+      // browser_open / browser_snapshot / … are no longer canonical tool names —
+      // normalizeCanonicalBrowserToolName() returns null for them (see
+      // agent/__tests__/browser-tool-names.test.ts). The rule matches only the
+      // single built-in `browser_tool` entry point.
+      mockExistsPaths.add(browserDocPath());
+
+      expect(manager.checkPrerequisites('browser_snapshot').allowed).toBe(true);
+      expect(manager.checkPrerequisites('browser_open').allowed).toBe(true);
+    });
+
+    it('skips the browser rule entirely when the built-in browser tool is disabled', () => {
+      browserToolEnabled = false;
+      mockExistsPaths.add(browserDocPath());
+
+      expect(manager.checkPrerequisites('browser_tool').allowed).toBe(true);
+      expect(manager.checkPrerequisites('mcp__session__browser_tool').allowed).toBe(true);
     });
 
     it('matches session browser tools and blocks until browser docs are read', () => {
@@ -230,7 +265,6 @@ describe('PrerequisiteManager', () => {
       mockExistsPaths.add(guideFile);
 
       // Track with tilde path that expands to the same absolute path
-      const homeDir = process.env.HOME || process.env.USERPROFILE || '/home/user';
       const tildeRelative = `~/some-file.md`;
       manager.trackReadTool({ file_path: tildeRelative });
 
@@ -298,11 +332,11 @@ describe('PrerequisiteManager', () => {
       const docsPath = browserDocPath();
       mockExistsPaths.add(docsPath);
 
-      expect(manager.checkPrerequisites('browser_open').allowed).toBe(false);
-      expect(manager.checkPrerequisites('browser_open').allowed).toBe(false);
+      expect(manager.checkPrerequisites('browser_tool').allowed).toBe(false);
+      expect(manager.checkPrerequisites('browser_tool').allowed).toBe(false);
 
       manager.trackReadTool({ file_path: docsPath });
-      expect(manager.checkPrerequisites('browser_open').allowed).toBe(true);
+      expect(manager.checkPrerequisites('browser_tool').allowed).toBe(true);
     });
   });
 

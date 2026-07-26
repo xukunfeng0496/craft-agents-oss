@@ -31,9 +31,9 @@ function detectEnvironment(): Environment {
 let electronLog: unknown | null = null;
 let electronLogChecked = false;
 
-function getElectronLog(): { info?: (message: string) => void } | null {
+function getElectronLog(): { info?: (message: string) => void; error?: (message: string) => void } | null {
   if (electronLogChecked) {
-    return (electronLog as { info?: (message: string) => void } | null) ?? null;
+    return (electronLog as { info?: (message: string) => void; error?: (message: string) => void } | null) ?? null;
   }
   electronLogChecked = true;
   try {
@@ -44,7 +44,7 @@ function getElectronLog(): { info?: (message: string) => void } | null {
   } catch {
     electronLog = null;
   }
-  return (electronLog as { info?: (message: string) => void } | null) ?? null;
+  return (electronLog as { info?: (message: string) => void; error?: (message: string) => void } | null) ?? null;
 }
 
 /**
@@ -138,6 +138,30 @@ function output(formatted: string): void {
 export function debug(message: string, ...args: unknown[]): void {
   if (!isDebugEnabled()) return;
   output(formatMessage(undefined, message, args));
+}
+
+/**
+ * Error logging that is ALWAYS active, independent of debug mode.
+ *
+ * Unlike debug(), this is NOT gated by CRAFT_DEBUG. It routes to electron-log
+ * (persisted to main.log even in packaged/production builds) AND to console.error.
+ * console.error (not process.stderr.write) is deliberate: Sentry's
+ * captureConsoleIntegration({levels:['error']}) only promotes console.error to
+ * Sentry events — using process.stderr.write would keep SDK/agent failures out of
+ * Sentry entirely. Use for genuine failures that must be diagnosable from the field.
+ */
+export function logError(message: string, ...args: unknown[]): void {
+  const formatted = formatMessage(undefined, message, args);
+  if (detectEnvironment() === 'electron-main') {
+    getElectronLog()?.error?.(formatted.trim());
+  }
+  try {
+    // console.error so Sentry captureConsoleIntegration picks it up (→ main.log
+    // already covered by electron-log above; stderr still gets it via console).
+    console.error(formatted.trim());
+  } catch {
+    /* best-effort: never let logging throw */
+  }
 }
 
 /**

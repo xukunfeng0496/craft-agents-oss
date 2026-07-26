@@ -10,6 +10,7 @@ import { app, session } from 'electron';
 import { Agent, Dispatcher, ProxyAgent, setGlobalDispatcher } from 'undici';
 import { parseNoProxyRules, shouldBypassProxy, splitCommaSeparated, type NoProxyRule } from './network-proxy-utils';
 import { getNetworkProxySettings, setNetworkProxySettings } from '@craft-agent/shared/config/storage';
+import { mergedNoProxy } from '@craft-agent/shared/config';
 import type { NetworkProxySettings } from '@craft-agent/shared/config/types';
 import { BROWSER_PANE_SESSION_PARTITION } from './browser-pane-manager';
 import log from './logger';
@@ -96,7 +97,10 @@ function configureNodeProxy(settings: NetworkProxySettings | undefined): void {
   const dispatcher = new ProtocolProxyDispatcher({
     httpProxy: settings.httpProxy,
     httpsProxy: settings.httpsProxy,
-    noProxy: settings.noProxy,
+    // CVTE: bypass the enterprise intranet domains (token.cvte.com / *.gz.cvte.cn
+    // etc.) in addition to the user's NO_PROXY — otherwise an enabled proxy resets
+    // the gateway / skills-marketplace connections.
+    noProxy: mergedNoProxy(settings.noProxy) ?? undefined,
   });
 
   setGlobalDispatcher(dispatcher);
@@ -136,11 +140,14 @@ function buildElectronProxyConfig(settings: NetworkProxySettings): Electron.Prox
     return { mode: 'direct' };
   }
 
+  // CVTE: union the enterprise intranet bypass list into the Chromium session
+  // bypass rules (same reason as the undici dispatcher above).
+  const bypass = mergedNoProxy(settings.noProxy);
   return {
     mode: 'fixed_servers',
     proxyRules: rules.join(';'),
-    proxyBypassRules: settings.noProxy
-      ? splitCommaSeparated(settings.noProxy).join(',')
+    proxyBypassRules: bypass
+      ? splitCommaSeparated(bypass).join(',')
       : undefined,
   };
 }

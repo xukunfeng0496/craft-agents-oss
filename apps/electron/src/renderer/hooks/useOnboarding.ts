@@ -18,6 +18,7 @@ import type {
 import type { ProviderChoice } from '@/components/onboarding/ProviderSelectStep'
 import type { LocalModelSubmitData } from '@/components/onboarding/LocalModelStep'
 import type { ApiKeySubmitData } from '@/components/apisetup'
+import { isCvteGatewayUrl } from '@/components/apisetup/ApiKeyInput'
 import type { CustomEndpointConfig } from '@config/llm-connections'
 import type { SetupNeeds, LlmConnectionSetup, ClaudeOAuthIdentityDto } from '../../shared/types'
 
@@ -407,8 +408,10 @@ export function useOnboarding({
         return
       }
 
-      // When editing an existing connection, API key is optional (empty = keep existing credential)
-      if (!data.apiKey.trim() && editingSlug) {
+      // When editing an existing connection, API key is optional (empty = keep existing
+      // credential). The masked placeholder ('sk-1234••••ab') counts as unchanged too —
+      // it must never be tested or saved as a literal key.
+      if ((!data.apiKey.trim() || data.apiKey.includes('••')) && editingSlug) {
         const saved = await handleSaveConfig(undefined, {
           baseUrl: data.baseUrl,
           connectionDefaultModel: data.connectionDefaultModel,
@@ -422,6 +425,37 @@ export function useOnboarding({
         } else {
           setState(s => ({ ...s, credentialStatus: 'error' }))
         }
+        return
+      }
+
+      // CVTE gateway: a provisioned endpoint that serves two protocols (Anthropic
+      // @ token.cvte.com, OpenAI-compatible @ …/v1). The generic pre-save test
+      // can't route that dual nature on its own, so build the protocol-correct
+      // test payload here (mirrors enforceCvteGatewayShape): the OpenAI shape needs
+      // provider 'pi' + customEndpoint openai-completions + piAuthProvider 'openai';
+      // the Anthropic shape uses provider 'anthropic' with no customEndpoint. This
+      // verifies the key + endpoint + protocol all actually reach the gateway before
+      // saving (bug #3: "确保配置 OK 且各方面一致").
+      if (isCvteGatewayUrl(data.baseUrl ?? '')) {
+        const useOpenAi = !!data.customEndpoint
+        const gwTest = await window.electronAPI.testLlmConnectionSetup(
+          useOpenAi
+            ? { provider: 'pi', apiKey: data.apiKey, baseUrl: data.baseUrl, customEndpoint: { api: 'openai-completions' }, piAuthProvider: 'openai', model: data.connectionDefaultModel || data.models?.[0] || 'CVTE-AUTO' }
+            : { provider: 'anthropic', apiKey: data.apiKey, baseUrl: data.baseUrl, model: data.connectionDefaultModel || data.models?.[0] || 'CVTE-AUTO' }
+        )
+        if (!gwTest.success) {
+          setState(s => ({ ...s, credentialStatus: 'error', errorMessage: gwTest.error || 'Connection test failed' }))
+          return
+        }
+        const saved = await handleSaveConfig(data.apiKey, {
+          baseUrl: data.baseUrl,
+          connectionDefaultModel: data.connectionDefaultModel,
+          models: data.models,
+          piAuthProvider: data.piAuthProvider,
+          modelSelectionMode: data.modelSelectionMode,
+          customEndpoint: data.customEndpoint,
+        })
+        setState(s => ({ ...s, credentialStatus: saved ? 'success' : 'error', ...(saved ? { step: 'complete' as const } : {}) }))
         return
       }
 

@@ -9,3 +9,9 @@ resources/bin/darwin-arm64/
 resources/bin/darwin-x64/
 resources/bin/win32-x64/
 resources/bin/linux-x64/
+
+# Bundled Windows tools (~100MB, downloaded by tools:download)
+resources/tools/
+
+# Build artifact: changelog staged by the OTA sync/upload scripts (source is resources/release-notes/*.md)
+RELEASE_NOTES.md

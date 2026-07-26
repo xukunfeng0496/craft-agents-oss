@@ -1,0 +1,17 @@
+{
+    "assets": [
+        {
+            "downloadUrl": "https://github.com/xukunfeng0496/work-agents/releases/download/v0.10.318/Work-Agent-0.10.318-osx-arm64.dmg",
+            "name": "Work-Agent-0.10.318-osx-arm64.dmg",
+            "size": 233392644
+        },
+        {
+            "downloadUrl": "https://github.com/xukunfeng0496/work-agents/releases/download/v0.10.318/Work-Agent-0.10.318-windows-x64.exe",
+            "name": "Work-Agent-0.10.318-windows-x64.exe",
+            "size": 389834303
+        }
+    ],
+    "htmlUrl": "https://github.com/xukunfeng0496/work-agents/releases/tag/v0.10.318",
+    "publishedAt": "2026-06-22T15:14:36Z",
+    "version": "0.10.318"
+}

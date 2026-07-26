@@ -253,9 +253,15 @@ export function mapClaudeSdkAssistantError(
     case 'authentication_failed':
       return {
         code: 'invalid_api_key',
-        title: 'Authentication Failed',
-        message: 'Unable to authenticate. Your API key may be invalid or expired.',
-        details: ['Check your API key in settings', 'Ensure your API key has not been revoked'],
+        title: 'API Key 无效',
+        message: 'API Key 无效或已过期，无法连接 CVTE 网关。',
+        details: [
+          // CVTE: self-service key recovery guidance. Endpoint + models are
+          // provisioned — the user only needs to supply a valid personal key.
+          '① 前往 https://ai.cvte.com/profile/ai-account 获取你的个人 API Key',
+          '② 在 设置 → AI → 连接 → 编辑 中粘贴 API Key（端点已预置为 token.cvte.com，无需填写）',
+          '③ 模型列表会自动获取，无需手动填写',
+        ],
         actions: [
           { key: 's', label: 'Settings', action: 'settings' },
           { key: 'r', label: 'Retry', action: 'retry' },
@@ -391,7 +397,11 @@ export function mapClaudeSdkAssistantError(
         message: 'An unexpected error occurred.',
         details: [
           ...apiDetails,
-          'This may be a temporary issue',
+          // CVTE: surface the raw SDK error code so an otherwise-detail-less
+          // "Unknown Error" (capturedApiError is empty on the Claude SDK route —
+          // the interceptor is Pi-only) is still diagnosable. Usually transient.
+          `SDK error code: ${errorCode}`,
+          'This may be a temporary issue (often transient — click Retry)',
           'Check your network connection',
         ],
         actions: retryAction,
@@ -408,7 +418,11 @@ export function mapClaudeSdkAssistantError(
         message: 'An unexpected error occurred.',
         details: [
           ...apiDetails,
-          'This may be a temporary issue',
+          // CVTE: surface the raw SDK error code so an otherwise-detail-less
+          // "Unknown Error" (capturedApiError is empty on the Claude SDK route —
+          // the interceptor is Pi-only) is still diagnosable. Usually transient.
+          `SDK error code: ${errorCode}`,
+          'This may be a temporary issue (often transient — click Retry)',
           'Check your network connection',
         ],
         actions: retryAction,

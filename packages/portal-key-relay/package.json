@@ -1,0 +1,23 @@
+{
+  "name": "@craft-agent/portal-key-relay",
+  "version": "0.10.301",
+  "license": "Apache-2.0",
+  "description": "CVTE intranet relay that resolves a user's personal CCH (token.cvte.com) gateway API key from a verified portal OAuth access token. Holds the admin X-Api-Key server-side so it never reaches the desktop client (§六 SSO closed-loop).",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "portal-key-relay": "./dist/index.js"
+  },
+  "scripts": {
+    "dev": "bun run src/index.ts",
+    "start": "bun run src/index.ts",
+    "build": "bun build src/index.ts --outdir=dist --target=bun",
+    "typecheck": "tsc --noEmit",
+    "test": "bun test"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.7.3"
+  }
+}

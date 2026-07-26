@@ -1,0 +1,109 @@
+---
+import DocsLayout from '../../layouts/DocsLayout.astro';
+
+export async function getStaticPaths() {
+  const docs = [
+    { slug: 'getting-started', title: '快速开始' },
+    { slug: 'installation', title: '安装配置' },
+    { slug: 'sessions', title: '会话管理' },
+    { slug: 'skills', title: '技能系统' },
+    { slug: 'sources', title: '数据源' },
+    { slug: 'files', title: '文件处理' },
+    { slug: 'permissions', title: '权限模式' },
+    { slug: 'themes', title: '主题定制' },
+    { slug: 'hooks', title: '自动化' },
+    { slug: 'faq', title: '常见问题' },
+    { slug: 'troubleshooting', title: '问题排查' },
+  ];
+
+  return docs.map((doc) => ({
+    params: { slug: doc.slug },
+    props: { title: doc.title, slug: doc.slug },
+  }));
+}
+
+const { title, slug } = Astro.props;
+---
+
+<DocsLayout title={title}>
+  <h1>{title}</h1>
+
+  {slug === 'getting-started' && (
+    <>
+      <p class="text-lg text-foreground/70 mb-8">
+        Work Agents 是一款 AI 驱动的桌面应用，让你用自然语言完成各种任务。
+      </p>
+
+      <h2>安装</h2>
+      <p>
+        前往 <a href="https://github.com/xukunfeng0496/work-agents/releases/latest">GitHub Releases</a> 下载适合你系统的安装包：
+      </p>
+      <ul>
+        <li><strong>macOS (Apple Silicon):</strong> 下载 <code>Work-Agent-*-osx-arm64.dmg</code></li>
+        <li><strong>macOS (Intel):</strong> 下载 <code>Work-Agent-*-osx-x64.dmg</code></li>
+        <li><strong>Windows:</strong> 下载 <code>Work-Agent-*-windows-x64.exe</code></li>
+        <li><strong>Linux:</strong> 下载 <code>Work-Agent-*-linux-x64.AppImage</code></li>
+      </ul>
+
+      <h2>首次使用</h2>
+      <p>安装完成后，启动应用，按照引导完成初始配置：</p>
+      <ol>
+        <li>选择你的 AI 服务商（支持 Claude、OpenAI 等）</li>
+        <li>配置 API 密钥</li>
+        <li>创建你的第一个工作区</li>
+      </ol>
+
+      <h2>下一步</h2>
+      <ul>
+        <li><a href="/docs/sessions">了解会话管理</a></li>
+        <li><a href="/docs/skills">探索技能系统</a></li>
+        <li><a href="/docs/sources">连接数据源</a></li>
+      </ul>
+    </>
+  )}
+
+  {slug === 'installation' && (
+    <>
+      <p class="text-lg text-foreground/70 mb-8">
+        详细的安装配置指南。
+      </p>
+
+      <h2>系统要求</h2>
+      <ul>
+        <li><strong>macOS:</strong> 10.15 (Catalina) 或更高版本</li>
+        <li><strong>Windows:</strong> Windows 10 或更高版本</li>
+        <li><strong>Linux:</strong> 支持 AppImage 的发行版</li>
+      </ul>
+
+      <h2>从源码构建</h2>
+      <pre><code>git clone https://github.com/xukunfeng0496/work-agents.git
+cd work-agents
+bun install
+bun run electron:start</code></pre>
+    </>
+  )}
+
+  {slug === 'faq' && (
+    <>
+      <p class="text-lg text-foreground/70 mb-8">
+        常见问题解答。
+      </p>
+
+      <h2>如何连接到 Gmail？</h2>
+      <p>直接告诉 AI "连接 Gmail"，它会引导你完成 OAuth 授权流程。</p>
+
+      <h2>支持哪些 AI 模型？</h2>
+      <p>支持 Claude（推荐）、OpenAI GPT 系列等。你可以在设置中添加多个 AI 服务商。</p>
+
+      <h2>数据存储在哪里？</h2>
+      <p>所有数据存储在本地 <code>~/.workagent/</code> 目录下，完全由你控制。</p>
+
+      <h2>如何导入 Claude Code 的技能？</h2>
+      <p>告诉 AI "从 Claude Code 导入技能"，它会自动检测并迁移你的技能配置。</p>
+    </>
+  )}
+
+  {slug !== 'getting-started' && slug !== 'installation' && slug !== 'faq' && (
+    <p class="text-foreground/60">文档编写中...</p>
+  )}
+</DocsLayout>

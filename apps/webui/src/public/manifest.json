@@ -1,6 +1,6 @@
 {
-  "name": "Craft Agents",
-  "short_name": "Craft Agents",
+  "name": "Work Agents",
+  "short_name": "Work Agents",
   "description": "AI agent interface",
   "start_url": "./",
   "display": "standalone",

@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "description": "Default configuration values for Craft Agents",
+  "description": "Default configuration values for Work Agents",
   "defaults": {
     "notificationsEnabled": true,
     "colorTheme": "default",
@@ -15,10 +15,35 @@
   },
   "workspaceDefaults": {
     "thinkingLevel": "think",
-    "permissionMode": "safe",
-    "cyclablePermissionModes": ["safe", "allow-all"],
+    "permissionMode": "ask",
+    "cyclablePermissionModes": ["ask", "safe", "allow-all"],
     "localMcpServers": {
       "enabled": true
+    }
+  },
+  "enterprise": {
+    "defaultLlmConnection": {
+      "slug": "cvte-gateway",
+      "name": "CVTE Gateway",
+      "baseUrl": "https://token.cvte.com",
+      "defaultModel": "CVTE-AUTO",
+      "models": [
+        { "id": "CVTE-AUTO", "name": "CVTE-AUTO", "shortName": "AUTO", "description": "智能路由，自动选择最优模型 · 速度取决于所路由模型 · 1M 上下文 · 支持图像", "provider": "anthropic", "contextWindow": 1000000, "supportsImages": true },
+        { "id": "deepseek-v4-flash", "name": "DeepSeek v4 Flash", "shortName": "DS-Flash", "description": "响应最快 · 1M 上下文 · 纯文本", "provider": "anthropic", "contextWindow": 1000000, "supportsImages": false },
+        { "id": "deepseek-v4-pro", "name": "DeepSeek v4 Pro", "shortName": "DS-Pro", "description": "深度推理，速度中等 · 1M 上下文 · 纯文本", "provider": "anthropic", "contextWindow": 1000000, "supportsImages": false },
+        { "id": "glm-5.1", "name": "GLM-5.1", "shortName": "GLM", "description": "速度较快 · 200K 上下文 · 纯文本", "provider": "anthropic", "contextWindow": 200000, "supportsImages": false },
+        { "id": "qwen3.7-max", "name": "Qwen3.7 Max", "shortName": "Qwen-Max", "description": "旗舰，深度任务 · 991K 上下文 · 纯文本", "provider": "anthropic", "contextWindow": 991000, "supportsImages": false },
+        { "id": "qwen3.7-plus", "name": "Qwen3.7 Plus", "shortName": "Qwen-Plus", "description": "均衡，速度较快 · 991K 上下文 · 支持图像", "provider": "anthropic", "contextWindow": 991000, "supportsImages": true }
+      ]
+    },
+    "hideOtherProviders": true,
+    "sentryDsn": "https://bd3d000da0dcfa07875e722a91c97fca@sentry-ali.cvtapi.com/731",
+    "noProxyDomains": [".cvte.com", ".gz.cvte.cn", ".seewo.com", "localhost", "127.0.0.1"],
+    "promptAppendix": "你是 CVTE 的企业 AI 助手，运行于 CVTE 内网环境。\n- 默认使用简体中文回复；用户使用其他语言时跟随用户的语言。\n- 处理企业数据时保持安全意识：不要将企业内部信息发送到外部公网服务。\n- 用户的个人 API Key 可在 https://ai.cvte.com/profile/ai-account 自助获取。",
+    "sso": {
+      "portalHost": "home.cvte.com",
+      "clientId": "31748f0da0a149ff9ad803985db25e00",
+      "relayUrl": "https://portal-key-relay.test.seewo.com"
     }
   }
 }

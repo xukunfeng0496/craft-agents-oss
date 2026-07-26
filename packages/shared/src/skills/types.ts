@@ -26,6 +26,22 @@ export interface SkillMetadata {
   icon?: string;
   /** Optional source slugs to auto-enable when this skill is invoked */
   requiredSources?: string[];
+  /** CVTE: optional variables this skill needs ({{VAR}} placeholders in content) */
+  vars?: SkillVariable[];
+}
+
+/** CVTE: a user-fillable skill variable declared in SKILL.md frontmatter */
+export interface SkillVariable {
+  /** Variable name (e.g., "JDY_API_KEY") */
+  name: string;
+  /** Human-readable description */
+  description: string;
+  /** Whether this variable is required */
+  required: boolean;
+  /** Default value if not set (only for optional variables) */
+  default?: string;
+  /** Example value to show in UI */
+  example?: string;
 }
 
 /** Source of a loaded skill */

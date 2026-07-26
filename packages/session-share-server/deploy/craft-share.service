@@ -1,0 +1,26 @@
+# Bare-VM deploy: run the backend under systemd, front it with the host's nginx
+# (deploy/nginx.conf). Install bun (https://bun.sh) and copy src/ + package.json
+# to /opt/craft-share, then `bun install --production` there.
+[Unit]
+Description=Work Agents session-share backend (CVTE)
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/craft-share
+Environment=PORT=8787
+Environment=PUBLIC_BASE=https://agents-viewer.gz.cvte.cn
+Environment=MAX_BYTES=26214400
+Environment=STORAGE=fs
+Environment=DATA_DIR=/var/lib/craft-share
+ExecStart=/usr/local/bin/bun run src/index.ts
+Restart=always
+RestartSec=2
+# Harden: read-only root except the data dir.
+StateDirectory=craft-share
+ProtectSystem=strict
+ReadWritePaths=/var/lib/craft-share
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

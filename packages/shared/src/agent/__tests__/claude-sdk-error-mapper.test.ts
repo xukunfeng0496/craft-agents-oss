@@ -280,4 +280,28 @@ describe('mapClaudeSdkAssistantError', () => {
       expect(error.title).toBe('Invalid Request');
     });
   });
+
+  // CVTE: the Claude SDK route has no network interceptor, so capturedApiError is
+  // always null and an 'unknown' error used to reach the user blank. claude-agent
+  // now injects the buffered SDK subprocess stderr as actualError — these verify
+  // that injection makes the error both classifiable and diagnosable.
+  describe('CVTE: SDK subprocess stderr fallback', () => {
+    it('classifies an otherwise-unknown error from injected stderr (provider)', () => {
+      const error = mapClaudeSdkAssistantError('unknown', {
+        ...baseContext,
+        actualError: { errorType: 'sdk_stderr', message: 'upstream error: model overloaded_error' },
+      });
+      expect(error.code).toBe('provider_error');
+      expect(error.details?.some((d) => /overloaded/i.test(d))).toBe(true);
+    });
+
+    it('surfaces raw stderr in details even when unclassifiable (no more blank Unknown Error)', () => {
+      const error = mapClaudeSdkAssistantError('unknown', {
+        ...baseContext,
+        actualError: { errorType: 'sdk_stderr', message: 'doubao gateway: malformed SSE chunk at index 3' },
+      });
+      expect(error.title).toBe('Unknown Error');
+      expect(error.details?.some((d) => d.includes('malformed SSE chunk'))).toBe(true);
+    });
+  });
 });

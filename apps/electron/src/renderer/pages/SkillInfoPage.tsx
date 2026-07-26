@@ -8,7 +8,7 @@
 
 import * as React from 'react'
 import { useTranslation } from 'react-i18next'
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { Check, X, Minus } from 'lucide-react'
 import { EditPopover, EditButton, getEditConfig } from '@/components/ui/EditPopover'
 import { toast } from 'sonner'
@@ -23,12 +23,136 @@ import {
   Info_Table,
   Info_Markdown,
 } from '@/components/info'
-import type { LoadedSkill } from '../../shared/types'
+import type { LoadedSkill, SkillVariable } from '../../shared/types'
 
 interface SkillInfoPageProps {
   skillSlug: string
   workspaceId: string
   workingDirectory?: string
+}
+
+/**
+ * SkillVarsEditor — inline editor for skill variable values.
+ * Values are password-type inputs; already-set vars show 8-dot placeholder.
+ * Empty input on save = delete that variable.
+ */
+function SkillVarsEditor({
+  workspaceId,
+  skillSlug,
+  vars,
+}: {
+  workspaceId: string
+  skillSlug: string
+  vars: SkillVariable[]
+}) {
+  const { t } = useTranslation()
+  // Track which vars are set (true = has a stored value)
+  const [setStatus, setSetStatus] = React.useState<Record<string, boolean>>({})
+  const [draft, setDraft] = React.useState<Record<string, string>>({})
+  const [saving, setSaving] = React.useState(false)
+  const loadedRef = useRef(false)
+
+  // Load set-status on mount
+  useEffect(() => {
+    if (loadedRef.current) return
+    loadedRef.current = true
+    const varNames = vars.map((v) => v.name)
+    window.electronAPI.getSkillVars(workspaceId, skillSlug, varNames)
+      .then((status) => setSetStatus(status))
+      .catch(() => { /* non-fatal — show empty state */ })
+  }, [workspaceId, skillSlug, vars])
+
+  const handleChange = useCallback((name: string, value: string) => {
+    setDraft((prev) => ({ ...prev, [name]: value }))
+  }, [])
+
+  const handleSave = useCallback(async () => {
+    setSaving(true)
+    try {
+      // Only send vars that have been typed into (non-undefined draft)
+      const toSend: Record<string, string> = {}
+      for (const v of vars) {
+        if (draft[v.name] !== undefined) {
+          toSend[v.name] = draft[v.name]
+        }
+      }
+      if (Object.keys(toSend).length > 0) {
+        await window.electronAPI.setSkillVars(workspaceId, skillSlug, toSend)
+        // Refresh set-status
+        const varNames = vars.map((vr) => vr.name)
+        const newStatus = await window.electronAPI.getSkillVars(workspaceId, skillSlug, varNames)
+        setSetStatus(newStatus)
+        // Clear draft for saved vars
+        setDraft((prev) => {
+          const next = { ...prev }
+          for (const name of Object.keys(toSend)) {
+            delete next[name]
+          }
+          return next
+        })
+      }
+      toast.success(t('skillInfo.varSaved'))
+    } catch (err) {
+      toast.error(t('skillInfo.varSaveFailed'), {
+        description: err instanceof Error ? err.message : undefined,
+      })
+    } finally {
+      setSaving(false)
+    }
+  }, [workspaceId, skillSlug, vars, draft, t])
+
+  const hasDraft = Object.keys(draft).length > 0
+
+  return (
+    <div className="space-y-3 px-4 py-3">
+      <p className="text-xs text-muted-foreground">{t('skillInfo.varsDesc')}</p>
+      <div className="space-y-2">
+        {vars.map((v) => {
+          const isSet = setStatus[v.name] === true
+          const draftValue = draft[v.name]
+          // Placeholder: 8 dots if already set and no draft typed, else example or generic
+          const placeholder =
+            draftValue === undefined && isSet
+              ? '••••••••'
+              : v.example
+                ? v.example
+                : t('skillInfo.varPlaceholder')
+          return (
+            <div key={v.name} className="grid grid-cols-[1fr_2fr] gap-3 items-start">
+              <div className="pt-2">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-sm font-mono font-medium text-foreground leading-none">{v.name}</span>
+                  {v.required && (
+                    <span className="text-[10px] text-destructive font-medium leading-none">{t('skillInfo.varRequired')}</span>
+                  )}
+                </div>
+                {v.description && (
+                  <p className="text-xs text-muted-foreground mt-1 leading-snug">{v.description}</p>
+                )}
+              </div>
+              <input
+                type="password"
+                autoComplete="off"
+                className="w-full h-8 rounded-md border border-border bg-background px-3 text-sm placeholder:text-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-ring"
+                value={draftValue ?? ''}
+                placeholder={placeholder}
+                onChange={(e) => handleChange(v.name, e.target.value)}
+              />
+            </div>
+          )
+        })}
+      </div>
+      <div className="flex justify-end pt-1">
+        <button
+          disabled={!hasDraft || saving}
+          onClick={handleSave}
+          className="inline-flex items-center gap-1.5 rounded-md bg-accent px-3 py-1.5 text-xs font-medium text-accent-foreground transition-opacity hover:opacity-80 disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          {t('skillInfo.varSave')}
+        </button>
+      </div>
+    </div>
+  )
 }
 
 export default function SkillInfoPage({ skillSlug, workspaceId, workingDirectory }: SkillInfoPageProps) {
@@ -114,7 +238,7 @@ export default function SkillInfoPage({ skillSlug, workspaceId, workingDirectory
 
   // Handle opening in new window
   const handleOpenInNewWindow = useCallback(() => {
-    window.electronAPI.openUrl(`craftagents://skills/skill/${skillSlug}?window=focused`)
+    window.electronAPI.openUrl(`workagents://skills/skill/${skillSlug}?window=focused`)
   }, [skillSlug])
 
   // Get skill name for header
@@ -251,6 +375,17 @@ export default function SkillInfoPage({ skillSlug, workspaceId, workingDirectory
                   </table>
                 </div>
               </div>
+            </Info_Section>
+          )}
+
+          {/* Variables */}
+          {skill.metadata.vars && skill.metadata.vars.length > 0 && (
+            <Info_Section title={t('skillInfo.vars')}>
+              <SkillVarsEditor
+                workspaceId={workspaceId}
+                skillSlug={skillSlug}
+                vars={skill.metadata.vars}
+              />
             </Info_Section>
           )}
 

@@ -1,0 +1,41 @@
+# Turnkey single-host deploy: nginx (static SPA + reverse proxy) + backend.
+# Prereqs:
+#   1) build the frontend: (repo root) cd apps/viewer && bun run build
+#   2) copy apps/viewer/dist next to this file as ./viewer-dist
+#   3) put TLS certs in ./certs (or terminate TLS upstream and drop the 443 bits)
+#   4) set PUBLIC_BASE to your intranet host (must equal enterprise.viewerUrl)
+services:
+  backend:
+    build: ..
+    environment:
+      PORT: "8787"
+      PUBLIC_BASE: "https://agents-viewer.gz.cvte.cn"   # <-- your host
+      MAX_BYTES: "26214400"
+      STORAGE: "fs"                                       # or "s3" (set S3_* below)
+      DATA_DIR: "/data"
+      # --- object store (uncomment for STORAGE=s3 / ephemeral pods) ---
+      # STORAGE: "s3"
+      # S3_BUCKET: "craft-share"
+      # S3_REGION: "us-east-1"
+      # S3_ENDPOINT: "http://minio.intranet:9000"
+      # S3_ACCESS_KEY_ID: "..."
+      # S3_SECRET_ACCESS_KEY: "..."
+      # S3_FORCE_PATH_STYLE: "true"
+      # S3_PREFIX: "sessions/"
+    volumes:
+      - share-data:/data        # persistent transcript store (filesystem backend)
+    restart: always
+
+  nginx:
+    image: nginx:1.27-alpine
+    depends_on: [backend]
+    ports:
+      - "443:443"
+    volumes:
+      - ./nginx.compose.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./viewer-dist:/var/www/craft-viewer/dist:ro
+      - ./certs:/etc/nginx/certs:ro
+    restart: always
+
+volumes:
+  share-data:

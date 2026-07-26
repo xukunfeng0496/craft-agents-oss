@@ -752,7 +752,7 @@ services:
       # - CRAFT_RPC_TLS_CERT=/certs/cert.pem
       # - CRAFT_RPC_TLS_KEY=/certs/key.pem
     volumes:
-      - craft-data:/root/.craft-agent
+      - craft-data:/root/.workagent
       # TLS — mount cert directory
       # - ./certs:/certs:ro
     restart: unless-stopped

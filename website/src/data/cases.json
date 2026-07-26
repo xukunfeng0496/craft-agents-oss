@@ -1,0 +1,40 @@
+{
+  "cases": [
+    {
+      "title": "自动压缩视频",
+      "icon": "🎬",
+      "description": "拖入视频文件，告诉它压缩到 50MB 以下，自动完成格式转换和压缩。",
+      "tags": ["文件处理", "自动化"]
+    },
+    {
+      "title": "批量处理邮件",
+      "icon": "📧",
+      "description": "用自然语言筛选、归档、回复邮件，连接 Gmail 后直接操作。",
+      "tags": ["Gmail", "自动化"]
+    },
+    {
+      "title": "技能一键导入",
+      "icon": "🔄",
+      "description": "从 Claude Code 一键导入所有技能，无需手动配置。",
+      "tags": ["技能", "迁移"]
+    },
+    {
+      "title": "连接 Slack",
+      "icon": "💬",
+      "description": "告诉它「连接 Slack」，自动查找 API、配置认证，几步完成。",
+      "tags": ["Slack", "数据源"]
+    },
+    {
+      "title": "数据分析报告",
+      "icon": "📊",
+      "description": "上传 Excel 或 CSV，用自然语言描述分析需求，自动生成报告。",
+      "tags": ["数据分析", "报告"]
+    },
+    {
+      "title": "代码审查",
+      "icon": "🔍",
+      "description": "粘贴代码或指向文件，让它帮你检查潜在问题和改进建议。",
+      "tags": ["代码", "审查"]
+    }
+  ]
+}

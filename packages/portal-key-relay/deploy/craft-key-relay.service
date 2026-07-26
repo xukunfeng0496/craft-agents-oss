@@ -1,0 +1,27 @@
+# Bare-VM deploy (systemd). Install bun; copy src/ + package.json to /opt/craft-key-relay.
+# Keep CCH_ADMIN_KEY out of the unit file in production — use an EnvironmentFile
+# (chmod 600) or a secrets manager. Intranet-only; no client auth.
+[Unit]
+Description=CVTE portal-key relay (resolves personal CCH key from portal token)
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/craft-key-relay
+Environment=PORT=8788
+Environment=PORTAL_HOST=home.cvte.com
+Environment=CCH_BASE=https://token.cvte.com
+Environment=AUTO_CREATE_KEY=false
+# Recommended: a revocable admin-USER API key sent as Bearer (CCH needs
+# ENABLE_API_KEY_ADMIN_ACCESS=true) instead of the raw, unrevocable ADMIN_TOKEN.
+Environment=CCH_AUTH_SCHEME=bearer
+# CCH_ADMIN_KEY: put in /etc/craft-key-relay.env (chmod 600), NOT here.
+EnvironmentFile=-/etc/craft-key-relay.env
+ExecStart=/usr/local/bin/bun run src/index.ts
+Restart=always
+RestartSec=2
+ProtectSystem=strict
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

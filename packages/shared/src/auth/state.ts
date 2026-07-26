@@ -20,6 +20,7 @@ import {
   type AuthType,
   type Workspace,
 } from '../config/storage.ts';
+import { getEnterpriseDefaults } from '../config/enterprise-defaults.ts';
 import { refreshClaudeToken, isTokenExpired } from './claude-token.ts';
 import { debug } from '../utils/debug.ts';
 
@@ -293,8 +294,11 @@ export async function getAuthState(): Promise<AuthState> {
 
     if (connection.authType === 'api_key' || connection.authType === 'api_key_with_endpoint' || connection.authType === 'bearer_token') {
       apiKey = await manager.getLlmApiKey(defaultConnectionSlug);
-      // Keyless providers (Ollama) are valid when a custom base URL is configured
-      if (!apiKey && connection.baseUrl) {
+      // Keyless providers (Ollama) are valid when a custom base URL is configured.
+      // CVTE: the enterprise gateway connection is NOT keyless — without a stored
+      // key it must surface as needs-credentials so onboarding collects one.
+      const enterpriseSlug = getEnterpriseDefaults()?.defaultLlmConnection?.slug;
+      if (!apiKey && connection.baseUrl && connection.slug !== enterpriseSlug) {
         hasCredentials = true;
       }
     } else if (connection.authType === 'oauth') {

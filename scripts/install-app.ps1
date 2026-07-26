@@ -58,7 +58,7 @@ Write-Info "Latest version: $version"
 # Parse YAML to extract sha512, url (filename), and size for our architecture
 # YAML format:
 #   files:
-#     - url: Craft-Agents-x64.exe
+#     - url: Work-Agent-x64.exe
 #       sha512: <base64>
 #       size: 123456789
 #       arch: x64
@@ -108,7 +108,7 @@ if (-not $checksum -or $checksum.Length -lt 80) {
 
 # Use default filename if not found
 if (-not $filename) {
-    $filename = "Craft-Agents-$arch.exe"
+    $filename = "Work-Agent-$arch.exe"
 }
 
 $installerUrl = "$VERSIONS_URL/latest/$filename"

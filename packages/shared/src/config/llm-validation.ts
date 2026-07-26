@@ -69,7 +69,15 @@ export async function validateAnthropicConnection(
       maxTurns: 1,
       abortController,
       systemPrompt: 'Reply with OK.',
-      tools: [] as string[], // No tools
+      // Health check is a pure connectivity/auth/model ping — it must offer the
+      // model NO tools. The prior `tools: []` was a no-op (not a valid SDK
+      // option; the SDK uses `allowedTools` + `settingSources`), so the gateway's
+      // smart-routed non-Claude models could still emit `stop_reason: tool_use`
+      // and trip maxTurns:1 with "Reached maximum number of turns (1)". An empty
+      // allowlist plus no setting sources (no user/project MCP tools) = zero
+      // tools offered, so the model returns a plain text turn. See #34.
+      allowedTools: [] as string[],
+      settingSources: [] as [],
       persistSession: false,
     };
 
@@ -78,12 +86,17 @@ export async function validateAnthropicConnection(
     // Consume the query — we just need it to succeed or fail
     for await (const msg of q) {
       if (msg.type === 'assistant') {
-        // Check if the SDK reported an error on the assistant message
-        if (msg.error) {
+        // The SDK attaches a max-turns / tool-cap outcome as an error ON the
+        // assistant message (not as a throw) — this is the actual failure mode
+        // when the gateway's smart-routed models emit a tool_use the maxTurns:1
+        // cap can't follow up on. Reaching that point still proves connectivity
+        // + auth + model, so only a NON-max-turns error is a real failure. See #34.
+        if (msg.error && !isMaxTurnsOutcome(String(msg.error))) {
           abortController.abort();
-          return { success: false, error: parseValidationError(msg.error) };
+          return { success: false, error: parseValidationError(String(msg.error)) };
         }
-        // Got a successful response — connection works, abort early
+        // Reached the model (plain text reply, or a tool_use/max-turns outcome
+        // we accept as connectivity-proven) — abort early.
         abortController.abort();
         break;
       }
@@ -93,9 +106,33 @@ export async function validateAnthropicConnection(
   } catch (error) {
     abortController.abort();
     const msg = error instanceof Error ? error.message : String(error);
+    // A "max turns" outcome still proves connectivity + auth + model access: the
+    // request reached the model and it responded (e.g. a tool_use the maxTurns:1
+    // cap can't follow up on). The health check only needs reachability, so this
+    // is success, not failure. Belt-and-suspenders with the allowedTools/[]
+    // settingSources above, since the gateway's smart-routed models are
+    // unpredictable. See #34.
+    if (isMaxTurnsOutcome(msg)) {
+      debug('[llm-validation] max-turns outcome — treating as connectivity success');
+      return { success: true };
+    }
     debug('[llm-validation] Validation failed:', msg);
     return { success: false, error: parseValidationError(msg) };
   }
+}
+
+/**
+ * True when an error/result message indicates the SDK stopped at the turn cap
+ * ("Reached maximum number of turns", or a `result.subtype === 'error_max_turns'`).
+ *
+ * Reaching the turn cap is NOT a connection failure — the request reached the
+ * model and it responded. The gateway's smart-routed (non-Claude) models emit
+ * `stop_reason: tool_use` even for trivial prompts, which the maxTurns:1 health
+ * check can't follow up on; without this the onboarding connectivity test
+ * false-negatives. Exported for direct unit testing. See #34.
+ */
+export function isMaxTurnsOutcome(msg: string): boolean {
+  return /max[_\s]?turns|maximum number of turns/i.test(msg);
 }
 
 /**

@@ -38,14 +38,10 @@ export function Header({ hasSession, sessionTitle, isDark, onToggleTheme, onClea
   const { t } = useTranslation()
   return (
     <header className="shrink-0 grid grid-cols-[auto_1fr_auto] items-center px-4 py-3">
-      {/* Logo - links to main site */}
-      <a
-        href="https://agents.craft.do"
-        className="hover:opacity-80 transition-opacity"
-        title="Craft Agent"
-      >
+      {/* Logo — CVTE intranet build: no external link to agents.craft.do. */}
+      <div title="Work Agents" className="select-none">
         <CraftAgentLogo className="w-6 h-6 text-[#9570BE]" />
-      </a>
+      </div>
 
       {/* Session title - centered */}
       <div className="flex justify-center">

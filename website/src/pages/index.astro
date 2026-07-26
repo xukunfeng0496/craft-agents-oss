@@ -1,0 +1,159 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Navbar from '../components/Navbar.astro';
+import DownloadButton from '../components/DownloadButton.astro';
+import FeatureCard from '../components/FeatureCard.astro';
+import CaseCard from '../components/CaseCard.astro';
+import Footer from '../components/Footer.astro';
+import cases from '../data/cases.json';
+
+// 从构建时生成的文件读取版本信息
+let version = '0.10.318';
+let assets: { name: string; downloadUrl: string; size: number }[] = [];
+try {
+  const releaseData = await import('../data/release.json');
+  version = releaseData.default?.version || version;
+  assets = releaseData.default?.assets || [];
+} catch {
+  // 使用默认版本
+}
+
+const features = [
+  {
+    icon: '🎯',
+    title: '开箱即用',
+    description: '无需配置文件，告诉它你要连什么服务，它自动搞定一切。',
+  },
+  {
+    icon: '🔗',
+    title: '万物互联',
+    description: '连接 Gmail、Slack、Notion、Linear... 或任何 API，粘贴文档就能配置。',
+  },
+  {
+    icon: '💬',
+    title: '像聊天一样工作',
+    description: '不用学命令行，用自然语言描述需求，它理解并执行。',
+  },
+  {
+    icon: '📁',
+    title: '文档为中心',
+    description: '不只是代码编辑器，整理文档、写报告、处理表格都行。',
+  },
+];
+---
+
+<BaseLayout title="Work Agents - 让 AI 为你工作">
+  <Navbar />
+
+  <!-- Hero Section -->
+  <section class="pt-32 pb-20 px-6">
+    <div class="max-w-4xl mx-auto text-center">
+      <h1 class="text-5xl md:text-6xl font-bold mb-6 leading-tight">
+        让 AI 为你工作
+      </h1>
+      <p class="text-xl text-foreground/70 mb-10 max-w-2xl mx-auto">
+        像对话一样告诉它你要什么，它会帮你写代码、整理文档、连接各种工具。
+      </p>
+
+      <div class="flex flex-col items-center gap-4 mb-8">
+        <DownloadButton version={version} assets={assets} />
+        <div class="text-sm text-muted">
+          v{version} · 也在 <a href="https://github.com/xukunfeng0496/work-agents" class="underline">GitHub</a> 上查看
+        </div>
+      </div>
+
+      <!-- 产品截图 -->
+      <div class="mt-16 rounded-xl overflow-hidden shadow-lg border border-foreground/5">
+        <img
+          src="/screenshot.png"
+          alt="Work Agents 截图"
+          class="w-full"
+        />
+      </div>
+    </div>
+  </section>
+
+  <!-- Features Section -->
+  <section class="py-20 px-6 bg-white/30">
+    <div class="max-w-6xl mx-auto">
+      <h2 class="text-3xl font-bold text-center mb-12">
+        为什么选择 Work Agents
+      </h2>
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        {features.map((feature) => (
+          <FeatureCard {...feature} />
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <!-- Cases Section -->
+  <section id="cases" class="py-20 px-6">
+    <div class="max-w-6xl mx-auto">
+      <h2 class="text-3xl font-bold text-center mb-4">
+        他们这样用 Work Agents
+      </h2>
+      <p class="text-center text-foreground/60 mb-12">
+        看看别人是怎么用 Work Agents 提升效率的
+      </p>
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {cases.cases.map((c) => (
+          <CaseCard {...c} />
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <!-- How it Works Section -->
+  <section class="py-20 px-6 bg-white/30">
+    <div class="max-w-4xl mx-auto">
+      <h2 class="text-3xl font-bold text-center mb-12">
+        它是如何工作的
+      </h2>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+        <div class="text-center">
+          <div class="w-12 h-12 rounded-full bg-brand/10 text-brand flex items-center justify-center text-xl font-bold mx-auto mb-4">
+            1
+          </div>
+          <h3 class="font-semibold mb-2">描述你的需求</h3>
+          <p class="text-sm text-foreground/60">
+            用自然语言告诉它你想做什么，比如"帮我整理这份文档"
+          </p>
+        </div>
+        <div class="text-center">
+          <div class="w-12 h-12 rounded-full bg-brand/10 text-brand flex items-center justify-center text-xl font-bold mx-auto mb-4">
+            2
+          </div>
+          <h3 class="font-semibold mb-2">AI 理解并执行</h3>
+          <p class="text-sm text-foreground/60">
+            它会理解你的意图，调用合适的工具，一步步完成任务
+          </p>
+        </div>
+        <div class="text-center">
+          <div class="w-12 h-12 rounded-full bg-brand/10 text-brand flex items-center justify-center text-xl font-bold mx-auto mb-4">
+            3
+          </div>
+          <h3 class="font-semibold mb-2">审阅并确认</h3>
+          <p class="text-sm text-foreground/60">
+            对于重要操作，你可以先预览再确认，确保结果符合预期
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA Section -->
+  <section class="py-20 px-6">
+    <div class="max-w-3xl mx-auto text-center">
+      <h2 class="text-3xl font-bold mb-4">
+        准备好开始了吗？
+      </h2>
+      <p class="text-foreground/60 mb-8">
+        下载 Work Agents，让 AI 成为你最得力的助手。
+      </p>
+      <DownloadButton version={version} assets={assets} />
+    </div>
+  </section>
+
+  <Footer />
+</BaseLayout>

@@ -15,6 +15,7 @@ type BrowserPaneKeys = `browserPane.${FunctionKeys<ElectronAPI['browserPane']>}`
 type ApiToChannelMapKeys = Exclude<
   FunctionKeys<ElectronAPI>,
   | 'performOAuth'
+  | 'startCvtePortalOAuth' // CVTE SSO — client orchestrates loopback callback across 3 RPCs, no single channel
   | 'getTransportConnectionState'
   | 'getRuntimeEnvironment'
   | 'onTransportConnectionStateChanged'

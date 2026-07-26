@@ -6,7 +6,6 @@
  */
 import { describe, it, expect, beforeEach } from 'bun:test';
 import { ClaudeEventAdapter, buildWindowsSkillsDirError, type ClaudeAdapterCallbacks } from '../backend/claude/event-adapter.ts';
-import type { AgentEvent } from '@craft-agent/core/types';
 
 // Helper: create default callbacks
 function createCallbacks(overrides?: Partial<ClaudeAdapterCallbacks>): ClaudeAdapterCallbacks {
@@ -228,7 +227,9 @@ describe('ClaudeEventAdapter', () => {
       expect(usageEvent).toBeUndefined();
     });
 
-    it('should handle SDK errors via callback', async () => {
+    it('should BUFFER an SDK assistant error (not surface it immediately)', async () => {
+      // CVTE: an assistant-level error is buffered, not emitted right away — the
+      // turn frequently still ends success (gateway transient 'unknown').
       const events = await adapter.adapt({
         type: 'assistant',
         error: 'rate_limit',
@@ -237,12 +238,110 @@ describe('ClaudeEventAdapter', () => {
         session_id: 'sess-1',
       } as any);
 
-      expect(events).toHaveLength(1);
-      expect(events[0]).toMatchObject({
+      expect(events.find(e => e.type === 'typed_error')).toBeUndefined();
+    });
+
+    it('SUPPRESSES a buffered assistant error when the turn ends success', async () => {
+      await adapter.adapt({
+        type: 'assistant', error: 'unknown', message: { content: [], usage: {} },
+        parent_tool_use_id: null, session_id: 'sess-1',
+      } as any);
+      const events = await adapter.adapt({
+        type: 'result', subtype: 'success',
+        usage: { input_tokens: 10, output_tokens: 5, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 },
+        total_cost_usd: 0, modelUsage: {}, session_id: 'sess-1',
+      } as any);
+
+      expect(events.find(e => e.type === 'typed_error')).toBeUndefined();
+      expect(events.find(e => e.type === 'complete')).toBeDefined();
+      expect(adapter.takePendingAssistantError()).toBeNull();
+    });
+
+    it('SURFACES a buffered assistant error when the turn ends in error', async () => {
+      await adapter.adapt({
+        type: 'assistant', error: 'rate_limit', message: { content: [], usage: {} },
+        parent_tool_use_id: null, session_id: 'sess-1',
+      } as any);
+      const events = await adapter.adapt({
+        type: 'result', subtype: 'error', errors: ['boom'],
+        usage: { input_tokens: 10, output_tokens: 0, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 },
+        total_cost_usd: 0, modelUsage: {}, session_id: 'sess-1',
+      } as any);
+
+      expect(events.find(e => e.type === 'typed_error')).toMatchObject({
         type: 'typed_error',
-        error: {
-          message: 'Mock error for rate_limit',
-        },
+        error: { message: 'Mock error for rate_limit' },
+      });
+      expect(events.find(e => e.type === 'complete')).toBeDefined();
+    });
+
+    it('takePendingAssistantError flushes the buffered error when no result arrives', async () => {
+      await adapter.adapt({
+        type: 'assistant', error: 'unknown', message: { content: [], usage: {} },
+        parent_tool_use_id: null, session_id: 'sess-1',
+      } as any);
+
+      expect(adapter.takePendingAssistantError()).toMatchObject({
+        type: 'typed_error',
+        error: { message: 'Mock error for unknown' },
+      });
+      // idempotent — cleared after take
+      expect(adapter.takePendingAssistantError()).toBeNull();
+    });
+
+    it('SURFACES a buffered assistant error when result is subtype=success but is_error=true (hard 429 quota)', async () => {
+      // Regression: the SDK reports API-failure turns as subtype='success' with
+      // is_error:true — real captured sequence for a hard quota/rate limit.
+      // Judging by subtype alone swallowed the error → no error, no reply.
+      const quotaText = 'API Error: Request rejected (429) · 已超出本月用量限额 (quota exceeded for this month)';
+      await adapter.adapt({
+        type: 'assistant', error: 'rate_limit', message: { content: [], usage: {} },
+        parent_tool_use_id: null, session_id: 'sess-1',
+      } as any);
+      const events = await adapter.adapt({
+        type: 'result', subtype: 'success', is_error: true, api_error_status: 429,
+        result: quotaText,
+        usage: { input_tokens: 0, output_tokens: 0, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 },
+        total_cost_usd: 0, modelUsage: {}, session_id: 'sess-1',
+      } as any);
+
+      const typedError = events.find(e => e.type === 'typed_error') as any;
+      expect(typedError).toMatchObject({
+        type: 'typed_error',
+        error: { message: 'Mock error for rate_limit' },
+      });
+      // The provider's own error text is surfaced in details (more specific than mapped copy)
+      expect(typedError.error.details).toContain(quotaText);
+      expect(events.find(e => e.type === 'complete')).toBeDefined();
+    });
+
+    it('emits a plain error from msg.result when is_error=true with no buffered error', async () => {
+      const events = await adapter.adapt({
+        type: 'result', subtype: 'success', is_error: true,
+        result: 'API Error: Request rejected (429)',
+        usage: { input_tokens: 0, output_tokens: 0, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 },
+        total_cost_usd: 0, modelUsage: {}, session_id: 'sess-1',
+      } as any);
+
+      expect(events.find(e => e.type === 'error')).toMatchObject({
+        type: 'error',
+        message: 'API Error: Request rejected (429)',
+      });
+      expect(events.find(e => e.type === 'complete')).toBeDefined();
+    });
+  });
+
+  describe('system message: api_retry', () => {
+    it('emits an ephemeral status so retry backoff windows are not silent', async () => {
+      const events = await adapter.adapt({
+        type: 'system', subtype: 'api_retry',
+        attempt: 1, max_retries: 10, retry_delay_ms: 1000, error_status: 429, error: 'rate_limit',
+        session_id: 'sess-1',
+      } as any);
+
+      expect(events.find(e => e.type === 'status')).toMatchObject({
+        type: 'status',
+        message: 'API error 429, retrying (1/10)...',
       });
     });
   });

@@ -16,7 +16,7 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { Button } from '@/components/ui/button'
 import { HeaderMenu } from '@/components/ui/HeaderMenu'
 import { routes } from '@/lib/navigate'
-import { X, MoreHorizontal, Pencil, Trash2, Star, ChevronDown, ChevronRight, CheckCircle2, AlertTriangle, RefreshCcw, Settings2, MessageSquareMore, Zap, Clock, Check } from 'lucide-react'
+import { X, MoreHorizontal, Pencil, Trash2, Star, ChevronDown, ChevronRight, CheckCircle2, AlertTriangle, RefreshCcw, Settings2, MessageSquareMore, Zap, Clock, Check, LogIn } from 'lucide-react'
 import type { CredentialHealthStatus, CredentialHealthIssue } from '../../../shared/types'
 import { Spinner, FullscreenOverlayBase, Tooltip, TooltipTrigger, TooltipContent } from '@craft-agent/ui'
 import { useSetAtom } from 'jotai'
@@ -54,6 +54,7 @@ import { RenameDialog } from '@/components/ui/rename-dialog'
 import { useAppShellContext } from '@/context/AppShellContext'
 import { getModelShortName, type ModelDefinition } from '@config/models'
 import { getModelsForProviderType, resolveMidStreamBehavior, type CustomEndpointApi, type MidStreamBehavior } from '@config/llm-connections'
+import { isCvteGatewayUrl, CVTE_GATEWAY_PRESET_KEY } from '@/components/apisetup/ApiKeyInput'
 import { toast } from 'sonner'
 
 /**
@@ -198,9 +199,12 @@ interface ConnectionRowProps {
   validationError?: string
   /** True when another OAuth connection resolves to the same Anthropic account (issue #838) */
   isDuplicateAccount?: boolean
+  /** CVTE gateway + portal SSO configured → show the "CVTE 门户登录" menu item */
+  showCvteLogin?: boolean
+  onCvteLogin?: () => void
 }
 
-function ConnectionRow({ connection, isLastConnection, onRenameClick, onDelete, onSetDefault, onValidate, onReauthenticate, onEdit, onSetMidStreamBehavior, validationState, validationError, isDuplicateAccount }: ConnectionRowProps) {
+function ConnectionRow({ connection, isLastConnection, onRenameClick, onDelete, onSetDefault, onValidate, onReauthenticate, onEdit, onSetMidStreamBehavior, validationState, validationError, isDuplicateAccount, showCvteLogin, onCvteLogin }: ConnectionRowProps) {
   const { t } = useTranslation()
   const [menuOpen, setMenuOpen] = useState(false)
   const [piBaseUrl, setPiBaseUrl] = useState<string | undefined>(undefined)
@@ -243,13 +247,13 @@ function ConnectionRow({ connection, isLastConnection, onRenameClick, onDelete, 
         const piLabel = !isSubscription && connection.piAuthProvider
           ? PI_AUTH_PROVIDER_LABELS[connection.piAuthProvider]
           : null
-        parts.push(piLabel ?? 'Craft Agents Backend')
+        parts.push(piLabel ?? 'Work Agents Backend')
         break
       }
       case 'pi_compat':
         parts.push(connection.baseUrl?.toLowerCase().includes('manifest.build')
           ? 'Manifest'
-          : 'Craft Agents Backend Compatible')
+          : 'Work Agents Backend Compatible')
         break
       default: parts.push(provider || 'Unknown')
     }
@@ -347,6 +351,12 @@ function ConnectionRow({ connection, isLastConnection, onRenameClick, onDelete, 
             <StyledDropdownMenuItem onClick={() => runAfterMenuClose(onEdit)}>
               <Settings2 className="h-3.5 w-3.5" />
               <span>{t("common.edit")}</span>
+            </StyledDropdownMenuItem>
+          )}
+          {showCvteLogin && onCvteLogin && (
+            <StyledDropdownMenuItem onClick={() => runAfterMenuClose(onCvteLogin)}>
+              <LogIn className="h-3.5 w-3.5" />
+              <span>{t("settings.ai.cvteSso.menuItem")}</span>
             </StyledDropdownMenuItem>
           )}
           <StyledDropdownMenuItem
@@ -569,7 +579,7 @@ function WorkspaceOverrideCard({ workspace, llmConnections, onSettingsChange }: 
                     value: conn.slug,
                     label: conn.name,
                     description: conn.providerType === 'anthropic' ? 'Anthropic' :
-                                 conn.providerType === 'pi' ? 'Craft Agents Backend' :
+                                 conn.providerType === 'pi' ? 'Work Agents Backend' :
                                  conn.providerType || 'Unknown',
                   })),
                 ]}
@@ -614,6 +624,12 @@ function WorkspaceOverrideCard({ workspace, llmConnections, onSettingsChange }: 
 
 /** Map a connection's provider type to the corresponding API key setup method. */
 function getApiKeyMethodForConnection(conn: LlmConnectionWithStatus): ApiSetupMethod {
+  // CVTE gateway always edits in the Anthropic-API-Key flow (its native D8 route),
+  // regardless of the current Anthropic/OpenAI protocol shape. This keeps the
+  // form on the CVTE preset + protocol toggle and avoids the Pi-flow setup-test
+  // guard ("custom endpoint requires a provider preset") — the server-side
+  // gateway invariant derives providerType/piAuthProvider on save.
+  if (isCvteGatewayUrl(conn.baseUrl ?? '')) return 'anthropic_api_key'
   const provider = conn.providerType || conn.type
   if (provider === 'pi' || provider === 'pi_compat') return 'pi_api_key'
   return 'anthropic_api_key'
@@ -661,6 +677,39 @@ export default function AiSettingsPage() {
 
   // Credential health state (for startup warning banner)
   const [credentialHealthIssues, setCredentialHealthIssues] = useState<CredentialHealthIssue[]>([])
+
+  // CVTE 统一门户 SSO availability (gates the "CVTE 门户登录" entry on the gateway row)
+  const [cvteSsoAvailable, setCvteSsoAvailable] = useState(false)
+  useEffect(() => {
+    let cancelled = false
+    window.electronAPI.isCvtePortalSsoAvailable()
+      .then(r => { if (!cancelled) setCvteSsoAvailable(!!r.available) })
+      .catch(() => { /* non-enterprise build — leave hidden */ })
+    return () => { cancelled = true }
+  }, [])
+
+  // CVTE SSO login from the gateway connection row: portal login → personal key →
+  // gateway re-configured (replaces the shared fallback key). Refreshes on success.
+  const handleCvteLogin = useCallback(async (connection: LlmConnectionWithStatus) => {
+    const toastId = toast.loading(t('settings.ai.cvteSso.inProgress'))
+    try {
+      const result = await window.electronAPI.startCvtePortalOAuth(connection.slug)
+      if (result.success) {
+        const who = result.identity?.name || result.identity?.account || result.identity?.email
+        toast.success(t('settings.ai.cvteSso.success', { name: who ?? '' }).trim(), { id: toastId })
+        await refreshLlmConnections()
+      } else if (/RELAY_UNREACHABLE|fetch failed|ECONNREFUSED|ENOTFOUND/i.test(result.error ?? '')) {
+        // Relay not reachable — there is no shared fallback key anymore, so the personal
+        // key wasn't fetched and the gateway has no credential. Tell the user to retry on
+        // the intranet/VPN or configure a key manually, instead of a raw "fetch failed".
+        toast.error(t('settings.ai.cvteSso.relayUnreachable'), { id: toastId })
+      } else {
+        toast.error(t('settings.ai.cvteSso.failed', { error: result.error ?? '' }).trim(), { id: toastId })
+      }
+    } catch (error) {
+      toast.error(t('settings.ai.cvteSso.failed', { error: error instanceof Error ? error.message : '' }).trim(), { id: toastId })
+    }
+  }, [refreshLlmConnections, t])
 
   // Rename dialog state
   const [renameDialogOpen, setRenameDialogOpen] = useState(false)
@@ -836,13 +885,25 @@ export default function AiSettingsPage() {
 
     const isCustomEndpointConnection = !!connection.customEndpoint && !!connection.baseUrl?.trim()
 
+    // CVTE gateway (either protocol shape) → the branded CVTE preset, NOT 'custom',
+    // so the edit form renders the key-only CVTE layout. Host match covers both
+    // token.cvte.com (Anthropic) and token.cvte.com/v1 (OpenAI). The protocol toggle
+    // is seeded from the connection's customEndpoint.
+    const isGateway = isCvteGatewayUrl(connection.baseUrl ?? '')
+    const activePreset = isGateway
+      ? CVTE_GATEWAY_PRESET_KEY
+      : (isCustomEndpointConnection ? 'custom' : (connection.piAuthProvider || undefined))
+    const customApi: CustomEndpointApi | undefined = isGateway
+      ? (connection.customEndpoint?.api === 'openai-completions' ? 'openai-completions' : 'anthropic-messages')
+      : connection.customEndpoint?.api
+
     setEditInitialValues({
       apiKey,
       baseUrl: connection.baseUrl,
       connectionDefaultModel: modelStr,
-      activePreset: isCustomEndpointConnection ? 'custom' : (connection.piAuthProvider || undefined),
+      activePreset,
       models: modelIds,
-      customApi: connection.customEndpoint?.api,
+      customApi,
     })
 
     // Open overlay and jump directly to credentials step (no reset — jumpToCredentials sets state)
@@ -1062,8 +1123,8 @@ export default function AiSettingsPage() {
                       value: conn.slug,
                       label: conn.name,
                       description: conn.providerType === 'anthropic' ? 'Anthropic API' :
-                                   conn.providerType === 'pi' ? 'Craft Agents Backend' :
-                                   conn.providerType === 'pi_compat' ? (conn.baseUrl?.toLowerCase().includes('manifest.build') ? 'Manifest' : 'Craft Agents Backend Compatible') :
+                                   conn.providerType === 'pi' ? 'Work Agents Backend' :
+                                   conn.providerType === 'pi_compat' ? (conn.baseUrl?.toLowerCase().includes('manifest.build') ? 'Manifest' : 'Work Agents Backend Compatible') :
                                    conn.providerType || 'Unknown',
                     }))}
                   />
@@ -1136,6 +1197,8 @@ export default function AiSettingsPage() {
                         validationState={validationStates[conn.slug]?.state || 'idle'}
                         validationError={validationStates[conn.slug]?.error}
                         isDuplicateAccount={!!conn.oauthAccountUuid && duplicateAccountUuids.has(conn.oauthAccountUuid)}
+                        showCvteLogin={cvteSsoAvailable && isCvteGatewayUrl(conn.baseUrl ?? '')}
+                        onCvteLogin={() => handleCvteLogin(conn)}
                       />
                     ))
                   )}

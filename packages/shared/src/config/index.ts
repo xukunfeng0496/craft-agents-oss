@@ -1,5 +1,6 @@
 export * from './types.ts';
 export * from './llm-connections.ts';
+export * from './proxy-env.ts';
 export * from './llm-validation.ts';
 export * from './models.ts';
 export * from './models-pi.ts';
@@ -14,3 +15,5 @@ export {
   createConfigWatcher,
   type ConfigWatcherCallbacks,
 } from './watcher.ts';
+export * from './enterprise-defaults.ts';
+export * from './cvte-gateway-invariant.ts';

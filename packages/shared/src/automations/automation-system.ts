@@ -18,6 +18,7 @@
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { resolveAutomationsConfigPath, generateShortId } from './resolve-config-path.ts';
+import { migrateLegacyHooksConfig } from './migrate-hooks.ts';
 import { compactAutomationHistorySync } from './history-store.ts';
 import { createLogger } from '../utils/debug.ts';
 import { WorkspaceEventBus, type EventPayloadMap } from './event-bus.ts';
@@ -115,9 +116,18 @@ export class AutomationSystem implements AutomationsConfigProvider {
     const configPath = resolveAutomationsConfigPath(this.options.workspaceRootPath);
 
     if (!existsSync(configPath)) {
-      log.debug(`[AutomationSystem] No automations config found at ${configPath}`);
-      this.config = { automations: {} };
-      return;
+      // CVTE: one-shot conversion of legacy hooks.json (pre-v0.5.1) — upstream
+      // dropped it without migration, silently killing scheduled prompts.
+      const migration = migrateLegacyHooksConfig(this.options.workspaceRootPath, configPath);
+      if (migration.migrated) {
+        log.info(
+          `[AutomationSystem] Migrated legacy hooks.json → automations.json: ${migration.automationCount} automation(s), ${migration.droppedCommandHooks} command hook(s) dropped`,
+        );
+      } else {
+        log.debug(`[AutomationSystem] No automations config found at ${configPath}`);
+        this.config = { automations: {} };
+        return;
+      }
     }
 
     try {

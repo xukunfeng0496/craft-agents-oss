@@ -1,7 +1,7 @@
 /**
  * Release Notes Utilities
  *
- * Loads release notes from bundled assets and syncs them to ~/.craft-agent/release-notes/.
+ * Loads release notes from bundled assets and syncs them to ~/.workagent/release-notes/.
  * Follows the same pattern as docs/index.ts.
  *
  * Source content lives in apps/electron/resources/release-notes/*.md.
@@ -9,11 +9,11 @@
 
 import { join } from 'path';
 import { homedir } from 'os';
-import { existsSync, mkdirSync, writeFileSync, readdirSync, readFileSync } from 'fs';
+import { existsSync, mkdirSync, writeFileSync, readdirSync, readFileSync, rmSync } from 'fs';
 import { getBundledAssetsDir } from '../utils/paths.ts';
 import { debug } from '../utils/debug.ts';
 
-const CONFIG_DIR = join(homedir(), '.craft-agent');
+const CONFIG_DIR = join(homedir(), '.workagent');
 const RELEASE_NOTES_DIR = join(CONFIG_DIR, 'release-notes');
 
 let releaseNotesInitialized = false;
@@ -31,7 +31,7 @@ function loadBundledReleaseNotes(): Record<string, string> {
   const assetsDir = getAssetsDir();
   const notes: Record<string, string> = {};
 
-  // Try bundled assets first, fall back to ~/.craft-agent/release-notes/
+  // Try bundled assets first, fall back to ~/.workagent/release-notes/
   // (Docker/remote server may not have CRAFT_BUNDLED_ASSETS_ROOT set,
   // but initializeReleaseNotes() copies files to the config dir at startup)
   let dir = assetsDir;
@@ -78,6 +78,15 @@ export function initializeReleaseNotes(): void {
 
   if (!existsSync(RELEASE_NOTES_DIR)) {
     mkdirSync(RELEASE_NOTES_DIR, { recursive: true });
+  } else {
+    // Remove stale notes (e.g. upstream changelogs synced by an older build) so the
+    // config-dir copy exactly mirrors the bundled (CVTE) set — otherwise "最新动态"
+    // could still surface leftover upstream release notes.
+    try {
+      for (const f of readdirSync(RELEASE_NOTES_DIR)) {
+        if (f.endsWith('.md')) rmSync(join(RELEASE_NOTES_DIR, f), { force: true });
+      }
+    } catch { /* best-effort cleanup */ }
   }
 
   const bundledNotes = getBundledReleaseNotes();

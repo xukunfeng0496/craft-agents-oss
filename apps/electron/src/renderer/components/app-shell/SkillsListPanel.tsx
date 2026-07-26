@@ -319,7 +319,7 @@ export function SkillsListPanel({
               className={cn(
                 'flex-1 text-[11px] font-medium py-1 rounded-[5px] transition-colors',
                 filter === tab.key
-                  ? 'bg-background shadow-sm text-foreground'
+                  ? 'bg-background shadow-xs text-foreground'
                   : 'text-muted-foreground hover:text-foreground/70'
               )}
             >

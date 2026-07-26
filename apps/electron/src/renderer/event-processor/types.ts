@@ -512,6 +512,20 @@ export interface UsageUpdateEvent {
 }
 
 /**
+ * CVTE: per-turn measured latency relayed from the agent backend.
+ * Consumed by the model picker's "近期实测" hints; no session state change.
+ */
+export interface LatencyUpdateEvent {
+  type: 'latency_update'
+  sessionId: string
+  model: string
+  ttftMs: number
+  totalMs: number
+  outputTokens?: number
+  tokensPerSec?: number
+}
+
+/**
  * Union of all agent events
  */
 export type AgentEvent =
@@ -559,6 +573,7 @@ export type AgentEvent =
   | AuthCompletedEvent
   | SourceActivatedEvent
   | UsageUpdateEvent
+  | LatencyUpdateEvent
 
 /**
  * Side effects that need to be handled outside the pure processor

@@ -66,6 +66,8 @@ import { buildTitlePrompt, buildRegenerateTitlePrompt, validateTitle } from '../
 // Skill extraction for Codex/Copilot backends (Claude uses native SDK Skill tool)
 import { parseMentions, resolveSkillMentions, resolveSourceMentions, resolveFileMentions } from '../mentions/index.ts';
 import { loadAllSkills } from '../skills/storage.ts';
+import type { LoadedSkill } from '../skills/types.ts';
+import { prepareSubstitutedSkillCopy } from '../skills/vars-runtime.ts';
 
 // ============================================================
 // Mini Agent Configuration
@@ -931,6 +933,8 @@ ${formattedMessages}
    */
   protected extractSkillPaths(message: string): {
     skillPaths: Map<string, string>;
+    /** CVTE: matched skill objects (for vars substitution) */
+    matchedSkills: Map<string, LoadedSkill>;
     cleanMessage: string;
     missingSkills: string[];
   } {
@@ -949,12 +953,14 @@ ${formattedMessages}
 
     // Resolve SKILL.md paths for matched skills
     const skillPaths = new Map<string, string>();
+    const matchedSkills = new Map<string, LoadedSkill>();
     for (const slug of parsed.skills) {
       const skill = skills.find(s => s.slug === slug);
       if (skill) {
         const skillMdPath = join(skill.path, 'SKILL.md');
         if (existsSync(skillMdPath)) {
           skillPaths.set(slug, skillMdPath);
+          matchedSkills.set(slug, skill);
           this.debug(`[extractSkillPaths] Resolved skill ${slug} → ${skillMdPath}`);
         } else {
           this.debug(`[extractSkillPaths] SKILL.md not found: ${skillMdPath}`);
@@ -980,9 +986,28 @@ ${formattedMessages}
 
     return {
       skillPaths,
+      matchedSkills,
       cleanMessage,
       missingSkills: parsed.invalidSkills || []
     };
+  }
+
+  /**
+   * CVTE: for skills declaring `vars`, swap the SKILL.md path in-place for a
+   * substituted temp copy so the model reads resolved {{VAR}} content.
+   * No-op for skills without vars; falls back to originals on any error.
+   */
+  protected async applySkillVarSubstitution(
+    skillPaths: Map<string, string>,
+    matchedSkills: Map<string, LoadedSkill>,
+  ): Promise<void> {
+    const workspaceId = this.config.workspace.id;
+    for (const [slug, skill] of matchedSkills) {
+      if (!skill.metadata.vars?.length) continue;
+      const substitutedPath = await prepareSubstitutedSkillCopy(skill, workspaceId);
+      skillPaths.set(slug, substitutedPath);
+      this.debug(`[skill-vars] ${slug} → substituted copy at ${substitutedPath}`);
+    }
   }
 
   /**
@@ -1012,7 +1037,7 @@ ${formattedMessages}
     attachments?: FileAttachment[],
     options?: ChatOptions
   ): AsyncGenerator<AgentEvent> {
-    const { skillPaths, cleanMessage, missingSkills } = this.extractSkillPaths(message);
+    const { skillPaths, matchedSkills, cleanMessage, missingSkills } = this.extractSkillPaths(message);
     if (missingSkills.length > 0) {
       yield { type: 'error', message: `Skill(s) not found: ${missingSkills.join(', ')}` };
       yield { type: 'complete' };
@@ -1021,6 +1046,9 @@ ${formattedMessages}
 
     // Register skill prerequisites — blocks all tools until SKILL.md files are read.
     if (skillPaths.size > 0) {
+      // CVTE: vars-bearing skills get a substituted temp copy; the directive
+      // and prerequisites point at the copy so the model reads resolved values.
+      await this.applySkillVarSubstitution(skillPaths, matchedSkills);
       this.prerequisiteManager.registerSkillPrerequisites([...skillPaths.values()]);
     }
 

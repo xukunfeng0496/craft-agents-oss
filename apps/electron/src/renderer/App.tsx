@@ -13,6 +13,7 @@ import type { AgentEvent, Effect } from './event-processor'
 import { AppShell } from '@/components/app-shell/AppShell'
 import type { AppShellContextType } from '@/context/AppShellContext'
 import { OnboardingWizard, ReauthScreen } from '@/components/onboarding'
+import { CVTE_GATEWAY_PRESET_KEY } from '@/components/apisetup/ApiKeyInput'
 import { WorkspacePicker } from '@/components/workspace'
 import { ResetConfirmationDialog } from '@/components/ResetConfirmationDialog'
 import { SplashScreen } from '@/components/SplashScreen'
@@ -61,6 +62,7 @@ import {
 } from '@/atoms/background-finished'
 import { visibleSessionIdsAtom } from '@/atoms/panel-stack'
 import { getSessionTitle } from '@/utils/session'
+import { recordModelLatencyAtom } from '@/atoms/model-latency'
 import { extractBadges } from '@/lib/mentions'
 import { getDefaultStore } from 'jotai'
 import {
@@ -297,6 +299,7 @@ export default function App() {
   // - sessionMetaMapAtom for lightweight listing
   // - sessionAtomFamily(id) for individual session data
   const initializeSessions = useSetAtom(initializeSessionsAtom)
+  const recordModelLatency = useSetAtom(recordModelLatencyAtom)
   const addSession = useSetAtom(addSessionAtom)
   const removeSession = useSetAtom(removeSessionAtom)
   const updateSessionDirect = useSetAtom(updateSessionAtom)
@@ -681,13 +684,33 @@ export default function App() {
     setAppState('ready')
   }, [])
 
+  // CVTE zero-config: a provisioned-but-uncredentialed enterprise gateway connection
+  // collapses onboarding to the API-key step with endpoint/model prefilled (D7/D8).
+  const enterpriseSetupConnection = useMemo(() => {
+    if (llmConnections.length !== 1) return null
+    const c = llmConnections[0]
+    if (!c) return null
+    const isPendingGateway = c.providerType === 'anthropic' && c.authType === 'api_key' && !!c.baseUrl && !c.isAuthenticated
+    return isPendingGateway ? c : null
+  }, [llmConnections])
+
   // Onboarding hook — onConfigSaved fires immediately when billing is saved,
   // ensuring connection state updates before the wizard closes.
   const onboarding = useOnboarding({
     onComplete: handleOnboardingComplete,
     onConfigSaved: refreshLlmConnections,
     initialSetupNeeds: setupNeeds || undefined,
+    editingSlug: enterpriseSetupConnection?.slug ?? null,
   })
+
+  // Jump straight to the credentials step when the enterprise shortcut applies
+  const { step: onboardingStep } = onboarding.state
+  const { jumpToCredentials } = onboarding
+  useEffect(() => {
+    if (appState === 'onboarding' && enterpriseSetupConnection && onboardingStep === 'provider-select') {
+      jumpToCredentials('anthropic_api_key')
+    }
+  }, [appState, enterpriseSetupConnection, onboardingStep, jumpToCredentials])
 
   // Reauth login handler - placeholder (reauth is not currently used)
   const handleReauthLogin = useCallback(async () => {
@@ -939,6 +962,12 @@ export default function App() {
       const sessionId = event.sessionId
       const workspaceId = windowWorkspaceId ?? ''
 
+      // CVTE: stat-only latency telemetry — record for the model picker hints
+      if (event.type === 'latency_update') {
+        recordModelLatency({ model: event.model, ttftMs: event.ttftMs, tokensPerSec: event.tokensPerSec })
+        return
+      }
+
       // Session lifecycle events are handled explicitly (not by the agent event processor).
       if (event.type === 'session_created') {
         window.electronAPI.getSessionMessages(sessionId)
@@ -1075,6 +1104,7 @@ export default function App() {
   }, [
     processAgentEvent,
     trackSessionActivity,
+    recordModelLatency,
     windowWorkspaceId,
     store,
     updateSessionDirect,
@@ -2011,6 +2041,16 @@ export default function App() {
             onUseGitBashPath={onboarding.handleUseGitBashPath}
             onRecheckGitBash={onboarding.handleRecheckGitBash}
             onClearError={onboarding.handleClearError}
+            editInitialValues={enterpriseSetupConnection ? {
+              baseUrl: enterpriseSetupConnection.baseUrl,
+              connectionDefaultModel: enterpriseSetupConnection.defaultModel,
+              models: enterpriseSetupConnection.models?.filter((m): m is string => typeof m === 'string'),
+              // CVTE: pin the branded preset + Anthropic-Messages protocol explicitly so the
+              // onboarding form's protocol toggle matches the "默认 Anthropic" helper text
+              // (don't rely on getPresetForUrl inference, which a /v1 variant could miss).
+              activePreset: CVTE_GATEWAY_PRESET_KEY,
+              customApi: 'anthropic-messages',
+            } : undefined}
           />
         </ModalProvider>
       </DismissibleLayerProvider>

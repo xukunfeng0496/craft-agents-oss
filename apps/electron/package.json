@@ -1,6 +1,6 @@
 {
   "name": "@craft-agent/electron",
-  "version": "0.11.2",
+  "version": "0.11.201",
   "description": "Electron desktop app for Craft Agents",
   "main": "dist/main.cjs",
   "private": true,
@@ -33,7 +33,14 @@
     "dist:mac:x64": "bash scripts/build-dmg.sh x64",
     "dist:win": "powershell -ExecutionPolicy Bypass -File scripts/build-win.ps1",
     "lint": "eslint src/",
-    "lint:fix": "eslint src/ --fix"
+    "lint:fix": "eslint src/ --fix",
+    "tools:download": "node scripts/download-tools.cjs",
+    "tools:clean": "rm -rf resources/tools",
+    "tools:prepare-host": "node scripts/prepare-windows-tools.cjs",
+    "tools:setup-pip": "node scripts/setup-embedded-pip.cjs",
+    "tools:configure-pip-mirror": "node scripts/configure-pip-mirror.cjs",
+    "tools:preinstall-packages": "node scripts/preinstall-packages.cjs",
+    "prebuild:win": "bun run tools:download"
   },
   "dependencies": {
     "@craft-agent/core": "workspace:*",
@@ -53,6 +60,7 @@
     "@radix-ui/react-popover": "^1.1.15",
     "@radix-ui/react-switch": "^1.2.6",
     "@tanstack/react-table": "^8.21.3",
+    "adm-zip": "^0.5.10",
     "chrono-node": "^2.9.0",
     "cmdk": "^1.1.1",
     "electron-log": "^5.4.3",

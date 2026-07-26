@@ -107,34 +107,78 @@ this.removedCallback?.(instance.id)  // 渲染进程状态永不同步
 
 > 注意 **9+1 个 electron 错误落在 P2 而非 P4**：IPC 契约（`preload/index.ts` + `shared/types.ts`）与协议 channels 是同一件事的两端，必须同层完成，否则 P2 结束时 electron 仍红。
 
-### P2 · 协议/注册 + IPC 契约 + i18n（0.5 天）
+### P2 · 协议/注册 + IPC 契约 + i18n（✅ 已完成）
 
 T3 协议加性冲突（`channels.ts`/`routing.ts`/`channel-map.ts`/`dto.ts` + registration 测试）；**IPC 契约两端**（`electron/src/preload/index.ts` 的 6 个方法 + `electron/src/shared/types.ts` 的 `SkillVariable`）；T2 七个 locale 取**并集**（上游 Projects/Kanban 键 + CVTE SSO/市场键）。
 
 **闸门**：`lint:i18n:sorted` + `lint:i18n:parity` + `lint:i18n:coverage` 三绿；协议注册测试绿；**`server-core` 与 `apps/electron` 的 typecheck 归零**（即上表 18 个 P2 错误清零，剩余 4 个 shared 错误留给 P3）。
 
-### P3 · 6 个硬骨头（2 天，最高风险）
+实际提交：
+- `d401e28a` 协议与 IPC 契约叠加
+- `b555210d` 语言包并集合并
+- `7af809e7` 补回缺失的 i18n coverage 校验脚本 + 修市场两处裸 key
+
+### P3 · 6 个硬骨头（✅ 已完成）
 
 按此顺序，**每个文件单独一个 commit**：
 
-| 顺序 | 文件 | 策略 | 单文件闸门 |
+| 顺序 | 文件 | 结果 | commit |
 |---|---|---|---|
-| 1 | `storage.ts` | 取上游 39 行，叠回 `normalizeCvteGatewayRoute`/`migrateCvteGateway*`/`cvteIdentity` | `storage-startup-migration.test` |
-| 2 | `llm-connections.ts` | 以上游 13 行为底，叠回 CVTE 全部 handler（SSO/市场/模型获取） | routing / registration-profiles 测试 |
-| 3 | `event-adapter.ts` | 重放限额修复（`81cfd6dc`）；上游只挪了 `task_notification` 类型声明 | 限额相关单测 |
-| 4 | `claude-agent.ts` | 把 CVTE 错误上抛缝进上游新的 keep-alive 收尾块 | agent 单测 |
-| 5 | `auto-update.ts` | CVTE 版为底，**嫁接**上游 v0.10.4 常驻诊断日志 | 手工核对 + `check-release-config.ts` |
-| 6 | **`SessionManager.ts`** | 上游新版为底，逐个 hook 点重插 CVTE 的 `refreshConnectionRuntime`/mid-stream 分支/`reinitializeAuth`/模型刷新 | `test:*:cvte` 全绿 |
+| 1 | `config/storage.ts` | 上游备份机制与 CVTE 配置项共存 | `8fd8b8fd` |
+| 2 | `config/llm-connections.ts` | **实测为 no-op**：上游未改该文件，P1 已带入 CVTE 版 | — |
+| 3 | `event-adapter.ts` + `claude-agent.ts` | 缓冲错误上抛 + `latency_update` 事件；行数守恒精确 | `9b28214b` |
+| 4 | （同上，合并为一个提交） | — | — |
+| 5 | `auto-update.ts` | 上游本文件唯一改动是 `mainLog`→`autoUpdateLog`；顺带修 33 处打包版被静默丢弃的日志 | `5211a18b` |
+| 6 | **`SessionManager.ts`** | 0 文本冲突；D11 分享气隙用计数法证明未破；CVTE 定制面实测为 5 项（旧计划写的"4 个 hook 点"未经核验，已更正） | `890bbce0` |
 
-> 先易后难：前 5 个 CVTE 主导、上游轻改，做完能建立对新基线代码结构的手感，再啃 SessionManager 的 1021 行。
+配套修复（非计划内、由闸门逼出来）：
+- `b1273ae1` 隔离测试改局部 mock，去掉 13 个会对被测代码说谎的假桩
+- `3f075390` 补回被 P1 冲掉的 `~/.craft-agent` → `~/.workagent` 数据目录改名（11 处，其中 5 处是运行时真实路径）
+- `b4337d9e` CVTE 网关常量下沉为叶子模块，解开 `useOnboarding` → React 组件的分层倒置
+- `76dc0e5d` PrerequisiteManager 隔离测试两处失真（老基线遗留，21 fail → 0）
 
-**闸门**：`bun run typecheck:all` → **exit 0**（此处才是它的正确位置，见 P1）；`bun test` → 0 fail（含 `test:shared:cvte` / `test:packages:cvte`）。
+**闸门（已达成）**：
+- `bun run typecheck:all` → exit 0（8 个包）
+- `bun run test` → exit 0：主套件 4970 pass / 12 skip / 0 fail（379 文件）+ 5 个 `.isolated.ts` 全绿（36 + 70 + 2 + 3 + 3）。**这是本次重基线里 `.isolated.ts` 循环第一次真正跑完** —— 它挂在 `bun test &&` 之后，主套件此前一直有失败，等于从未执行。
+- `lint:i18n:sorted` / `parity` / `coverage` 三绿
 
-### P4 · T5 长尾（0.5 天）
+### P4 · T5 长尾
 
-约 15 个上游主导文件（`FreeFormInput.tsx`、`AppearanceSettingsPage`、`App.tsx`、`prompts/system.ts` 等）：吃上游 + 补 CVTE 小改。构建定制（`electron-builder.yml`、`build-dmg.sh`、`preload/bootstrap.ts`）直接叠回。
+**清单不再靠人工估算**，由脚本逐文件三方合并推导（`base=v0.10.3` / `theirs=cvte/rebase-0.10.3-rc` / `ours=当前 worktree`），合并结果 == 当前文件即视为 CVTE 定制已落地：
 
-**闸门**：`typecheck:all` + `bun test` + `lint` 全绿。
+- CVTE 定制面 = 388 个文件（v0.10.3 → cvte-rc）
+- 其中当前 worktree 仍与 cvte-rc 有差异 = 78 个
+- 78 个里 21 个已判定"定制已落地"，56 个进入下表，1 个为本计划文档自身
+
+待办按优先级（deltaLines = 三方合并相对当前文件还会新增的行数）：
+
+| 优先级 | 文件 | 冲突 | Δ行 | 说明 |
+|---|---|---|---|---|
+| P0 | `packages/server-core/src/handlers/rpc/llm-connections.ts` | 0 | +264 | CVTE SSO / 模型市场 / 模型获取 handler，**最大一块未落地定制** |
+| P0 | `apps/electron/src/main/index.ts` | 0 | +77 | Windows 工具链 PATH 注入（git/python/node/uv）、`CRAFT_UV`、deep-link |
+| P1 | `apps/electron/src/renderer/App.tsx` | 1 | +43 | |
+| P1 | `packages/shared/src/agent/base-agent.ts` | 0 | +28 | |
+| P1 | `apps/electron/src/renderer/event-processor/types.ts` + `processor.ts` | 0 | +15 / +5 | `latency_update` 的渲染端落点 |
+| P1 | `apps/electron/electron-builder.yml` | 0 | +19 | artifactName ×4、`win.extraResources` |
+| P1 | `apps/electron/scripts/build-dmg.sh` | 0 | +36 | 校验名与 artifactName 必须同改 |
+| P2 | `packages/shared/src/config/preferences.ts` | 0 | +10 | |
+| P2 | `apps/electron/src/main/handlers/__tests__/registration.test.ts` | 3 | +15 | |
+| P2 | `apps/electron/src/renderer/components/app-shell/SkillsListPanel.tsx` | 2 | +8 | |
+| P2 | `scripts/electron-build-main.ts` | 0 | +8 | |
+| P2 | `packages/shared/src/prompts/system.ts` (+ 其测试) | 0 | +6 / 0 | |
+| P2 | `packages/server-core/src/handlers/rpc/settings.ts` / `index.ts` | 1 / 0 | +5 / +4 | |
+| P2 | `packages/shared/src/agent/pi-agent.ts` | 1 | +5 | |
+| P2 | `apps/electron/scripts/build-win.ps1` | 0 | +3 | |
+| P2 | `apps/electron/src/main/logger.ts` | 0 | +9 | 品牌改名已做，余量待核 |
+| P3 | 7 个 locale json | 1 | +3 each | P2 已做并集；这 3 行需单独核对 |
+| P3 | 6 个 Δ行=0 的文件 | 0 | 0 | 内容有差异但行数相同：`build-linux.sh`、`handlers/workspace.ts`、`FreeFormInput.tsx`、`SidebarMenu.tsx`、`ChatPage.tsx`、`storage-startup-migration.test.ts`、`models-pi.ts` |
+| P5 | 15 个 `package.json` + `bun.lock` | 1 / 17 | +4 / +84 | 版本号方案（CVTE 用 `0.10.301` 式）与锁文件，留到 P5 统一处理 |
+
+**已确认的假阳性**（合并结果与当前文件不同，但当前文件是刻意的更优解，不回退）：
+`auto-update.ts`（已合并并规范化日志）、`ApiKeyInput.tsx` / `useOnboarding.ts` / `AiSettingsPage.tsx`（网关常量已下沉到 `renderer/lib/cvte-gateway.ts`）。
+
+**闸门**：`typecheck:all` + `bun run test` + `lint` 全绿；且 `git grep -n 'craftagents://'` → 0 命中（当前仍有 6 处，`deep-link.ts` / `browser-pane-manager.ts` 已是 `workagents://`，cvte-rc 全量为 0）。
+
 
 ### P5 · 门禁与分发（1–1.5 天）
 

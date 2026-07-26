@@ -1,5 +1,5 @@
 import { RPC_CHANNELS, type LlmConnectionSetup } from '@craft-agent/shared/protocol'
-import { getLlmConnections, getLlmConnection, addLlmConnection, updateLlmConnection, deleteLlmConnection, getDefaultLlmConnection, setDefaultLlmConnection, touchLlmConnection, isCompatProvider, isAnthropicProvider, getDefaultModelsForConnection, getDefaultModelForConnection, type LlmConnection, type LlmConnectionWithStatus, toBedrockNativeId, deriveBedrockRegionPrefix } from '@craft-agent/shared/config'
+import { getLlmConnections, getLlmConnection, addLlmConnection, updateLlmConnection, deleteLlmConnection, getDefaultLlmConnection, setDefaultLlmConnection, touchLlmConnection, isCompatProvider, isAnthropicProvider, getDefaultModelsForConnection, getDefaultModelForConnection, getEnterpriseDefaults, enforceCvteGatewayShape, setCvteIdentity, replaceLlmConnection, type LlmConnection, type LlmConnectionWithStatus, toBedrockNativeId, deriveBedrockRegionPrefix } from '@craft-agent/shared/config'
 import { getCredentialManager } from '@craft-agent/shared/credentials'
 import { setSetupDeferred } from '@craft-agent/shared/config/storage'
 import {
@@ -34,6 +34,10 @@ export const HANDLED_CHANNELS = [
   RPC_CHANNELS.chatgpt.CANCEL_OAUTH,
   RPC_CHANNELS.chatgpt.GET_AUTH_STATUS,
   RPC_CHANNELS.chatgpt.LOGOUT,
+  RPC_CHANNELS.cvte.IS_AVAILABLE,
+  RPC_CHANNELS.cvte.START_OAUTH,
+  RPC_CHANNELS.cvte.COMPLETE_OAUTH,
+  RPC_CHANNELS.cvte.CANCEL_OAUTH,
   RPC_CHANNELS.copilot.START_OAUTH,
   RPC_CHANNELS.copilot.CANCEL_OAUTH,
   RPC_CHANNELS.copilot.GET_AUTH_STATUS,
@@ -48,8 +52,11 @@ export const HANDLED_CHANNELS = [
 export function registerLlmConnectionsHandlers(server: RpcServer, deps: HandlerDeps): void {
   const { sessionManager } = deps
 
-  // Unified handler for LLM connection setup
-  server.handle(RPC_CHANNELS.settings.SETUP_LLM_CONNECTION, async (_ctx, setup: LlmConnectionSetup): Promise<{ success: boolean; error?: string }> => {
+  // Core LLM-connection setup logic. Shared by the SETUP_LLM_CONNECTION RPC and
+  // the CVTE portal SSO flow (cvte:completeOAuth) so both materialize the
+  // connection, enforce the gateway invariant, persist the credential, refresh
+  // models and reinitialize auth through one tested path.
+  async function applyLlmConnectionSetup(setup: LlmConnectionSetup): Promise<{ success: boolean; error?: string }> {
     try {
       const manager = getCredentialManager()
 
@@ -71,12 +78,26 @@ export function registerLlmConnectionsHandlers(server: RpcServer, deps: HandlerD
 
       const updates: Partial<LlmConnection> = {}
       const hasConfiguredBaseUrl = !!setup.baseUrl?.trim()
+
+      // CVTE D8: any connection pointing at the enterprise gateway host (not just
+      // the provisioned slug — migrated legacy connections keep their own slug)
+      // stays on the Claude Agent SDK route instead of pi_compat. Used by both
+      // the baseUrl branch and the customEndpoint branch below.
+      const entConn = getEnterpriseDefaults()?.defaultLlmConnection
+      const hostOf = (u?: string): string | null => { try { return u ? new URL(u).host : null } catch { return null } }
+      const effectiveHost = hostOf(setup.baseUrl ?? connection.baseUrl)
+      const isEnterpriseGateway = !!entConn && (connection.slug === entConn.slug || (!!effectiveHost && effectiveHost === hostOf(entConn.baseUrl)))
+
       if (setup.baseUrl !== undefined) {
         updates.baseUrl = setup.baseUrl?.trim() || undefined
 
         // Only mutate providerType for API key connections (not OAuth connections)
         if (isAnthropicProvider(connection.providerType) && connection.authType !== 'oauth') {
-          if (hasConfiguredBaseUrl) {
+          if (hasConfiguredBaseUrl && isEnterpriseGateway) {
+            // The enterprise gateway serves the full Anthropic Messages protocol.
+            updates.providerType = 'anthropic'
+            updates.authType = 'api_key'
+          } else if (hasConfiguredBaseUrl) {
             updates.providerType = 'pi_compat'
             updates.authType = 'api_key_with_endpoint'
             updates.customEndpoint = { api: 'anthropic-messages' }
@@ -103,7 +124,12 @@ export function registerLlmConnectionsHandlers(server: RpcServer, deps: HandlerD
         updates.modelSelectionMode = setup.modelSelectionMode
       }
 
-      const customEndpoint = hasConfiguredBaseUrl ? setup.customEndpoint : undefined
+      // CVTE D8: the edit form's Protocol toggle submits customEndpoint for any
+      // custom-baseUrl connection — for the enterprise gateway (Anthropic Messages)
+      // this must NOT flip the connection onto the Pi route. Drop it here.
+      const customEndpoint = hasConfiguredBaseUrl && !(isEnterpriseGateway && setup.customEndpoint?.api === 'anthropic-messages')
+        ? setup.customEndpoint
+        : undefined
       const isCustomEndpointCompat = !!customEndpoint
       if (customEndpoint) {
         updates.customEndpoint = customEndpoint
@@ -128,8 +154,16 @@ export function registerLlmConnectionsHandlers(server: RpcServer, deps: HandlerD
         // providerType from createBuiltInConnection().
         updates.customEndpoint = undefined
         if (connection.providerType === 'pi_compat' && connection.authType !== 'oauth' && !isNewConnection) {
-          updates.providerType = 'pi'
-          updates.authType = 'api_key'
+          if (isEnterpriseGateway && connection.customEndpoint?.api !== 'openai-completions') {
+            // CVTE D8: repair previously flipped gateway connections back onto
+            // the Claude Agent SDK route instead of downgrading to plain Pi.
+            // Deliberate OpenAI-protocol gateway connections are left alone.
+            updates.providerType = 'anthropic'
+            updates.authType = 'api_key'
+          } else {
+            updates.providerType = 'pi'
+            updates.authType = 'api_key'
+          }
         }
       }
 
@@ -137,10 +171,13 @@ export function registerLlmConnectionsHandlers(server: RpcServer, deps: HandlerD
       // Skip when custom endpoint protocol is driving routing.
       if (setup.piAuthProvider && !isCustomEndpointCompat) {
         updates.piAuthProvider = setup.piAuthProvider
-        // Update connection name to show the actual provider (e.g. "Craft Agents Backend (Google AI Studio)")
+        // Update connection name to show the actual provider (e.g. "Work Agents Backend (Google AI Studio)").
+        // CVTE: never rename the enterprise gateway — it keeps its config-defaults name
+        // ("CVTE Gateway") regardless of protocol, so it can't end up mislabeled
+        // "Work Agents Backend (Anthropic)" while actually on the OpenAI shape.
         const providerName = piAuthProviderDisplayName(setup.piAuthProvider)
-        if (providerName) {
-          updates.name = `Craft Agents Backend (${providerName})`
+        if (providerName && !isEnterpriseGateway) {
+          updates.name = `Work Agents Backend (${providerName})`
         }
         // Only set default models when using standard Pi provider AND user didn't pick explicit models
         if (!hasConfiguredBaseUrl && !setup.models?.length) {
@@ -198,6 +235,26 @@ export function registerLlmConnectionsHandlers(server: RpcServer, deps: HandlerD
         ...updates,
       }
 
+      // CVTE gateway invariant (D8): coerce a gateway connection into one of its
+      // two legal shapes (Anthropic @ token.cvte.com, or OpenAI @ …/v1) as a
+      // final override of whatever the branches above set. Closes the `pi`
+      // downgrade hole and enforces the mandatory `/v1` for the OpenAI shape
+      // (a bare host silently breaks chat). No-op for non-gateway connections.
+      // Persisted via replaceLlmConnection below (the update allowlist can't
+      // drop customEndpoint/piAuthProvider on the OpenAI→Anthropic transition).
+      const gatewayShapeEnforced = isEnterpriseGateway && enforceCvteGatewayShape(pendingConnection)
+      if (gatewayShapeEnforced) {
+        // Mirror the canonical fields into `updates` so the downstream model
+        // validation sees the corrected state (persist still uses pendingConnection).
+        updates.providerType = pendingConnection.providerType
+        updates.authType = pendingConnection.authType
+        updates.baseUrl = pendingConnection.baseUrl
+        updates.customEndpoint = pendingConnection.customEndpoint
+        updates.models = pendingConnection.models
+        updates.defaultModel = pendingConnection.defaultModel
+        updates.modelSelectionMode = pendingConnection.modelSelectionMode
+      }
+
       if (pendingConnection.providerType === 'pi') {
         const modelIds = (pendingConnection.models ?? []).map(m => typeof m === 'string' ? m : m.id)
         deps.platform.logger?.info('Pi setup pending connection snapshot', {
@@ -242,6 +299,15 @@ export function registerLlmConnectionsHandlers(server: RpcServer, deps: HandlerD
           return { success: false, error: 'Failed to save connection. Check server logs for details.' }
         }
         deps.platform.logger?.info(`Created LLM connection: ${setup.slug}`)
+      } else if (gatewayShapeEnforced) {
+        // Full replace so the invariant's cleared fields (customEndpoint /
+        // piAuthProvider) actually drop — the update allowlist keeps them on undefined.
+        const replaced = replaceLlmConnection(pendingConnection)
+        if (!replaced) {
+          deps.platform.logger?.error(`Failed to persist CVTE gateway connection: ${setup.slug}`)
+          return { success: false, error: 'Failed to update connection. Check server logs for details.' }
+        }
+        deps.platform.logger?.info(`Updated CVTE gateway connection (shape enforced): ${setup.slug}`)
       } else if (Object.keys(updates).length > 0) {
         const updated = updateLlmConnection(setup.slug, updates)
         if (!updated) {
@@ -309,13 +375,25 @@ export function registerLlmConnectionsHandlers(server: RpcServer, deps: HandlerD
       deps.platform.logger?.error('Failed to setup LLM connection:', message)
       return { success: false, error: message }
     }
-  })
+  }
+
+  // Unified handler for LLM connection setup (thin wrapper over the shared logic)
+  server.handle(
+    RPC_CHANNELS.settings.SETUP_LLM_CONNECTION,
+    async (_ctx, setup: LlmConnectionSetup): Promise<{ success: boolean; error?: string }> =>
+      applyLlmConnectionSetup(setup),
+  )
 
   // Unified connection test — uses the agent factory to spawn a real agent subprocess
   // and validate credentials via runMiniCompletion(). Same code path as actual chat.
   server.handle(RPC_CHANNELS.settings.TEST_LLM_CONNECTION_SETUP, async (_ctx, params: import('@craft-agent/shared/protocol').TestLlmConnectionParams): Promise<import('@craft-agent/shared/protocol').TestLlmConnectionResult> => {
     const { provider, apiKey, baseUrl, model, piAuthProvider, customEndpoint } = params
     const trimmedKey = apiKey?.trim() ?? ''
+    // CVTE: the masked placeholder from GET_API_KEY ('sk-1234••••ab') must never
+    // reach fetch headers — '•' (U+2022) is not a valid ByteString character.
+    if (trimmedKey.includes('••')) {
+      return { success: false, error: 'API key field still shows the masked placeholder. Leave it empty to keep the saved key, or paste a new one.' }
+    }
     const allowEmptyApiKey = !setupTestRequiresApiKey(baseUrl)
 
     if (!trimmedKey && !allowEmptyApiKey) {
@@ -751,6 +829,192 @@ export function registerLlmConnectionsHandlers(server: RpcServer, deps: HandlerD
       deps.platform.logger?.error('Failed to clear ChatGPT credentials:', error)
       return { success: false }
     }
+  })
+
+  // ============================================================
+  // CVTE 统一门户 SSO (D8 §六)
+  // Server-owned portal OAuth → personal CCH key (via intranet relay) →
+  // auto-configure the enterprise gateway connection. Browser + loopback
+  // callback run on the client; build + exchange + relay + setup run here.
+  // ============================================================
+
+  interface PendingCvteFlow {
+    flowId: string
+    state: string
+    redirectUri: string
+    connectionSlug: string
+    ownerClientId: string
+    createdAt: number
+  }
+  const pendingCvteFlows = new Map<string, PendingCvteFlow>()
+  const CVTE_FLOW_TTL_MS = 5 * 60 * 1000
+
+  function cleanupExpiredCvteFlows() {
+    const now = Date.now()
+    for (const [id, flow] of pendingCvteFlows) {
+      if (now - flow.createdAt > CVTE_FLOW_TTL_MS) pendingCvteFlows.delete(id)
+    }
+  }
+
+  // Resolve the SSO config + target gateway connection from enterprise defaults.
+  function resolveCvteSsoContext(slug?: string) {
+    const ent = getEnterpriseDefaults()
+    const sso = ent?.sso
+    const gateway = ent?.defaultLlmConnection
+    if (!sso?.portalHost || !sso?.clientId || !sso?.relayUrl) {
+      throw new Error('CVTE SSO is not configured (enterprise.sso.portalHost/clientId/relayUrl missing).')
+    }
+    if (!gateway?.slug || !gateway?.baseUrl) {
+      throw new Error('CVTE gateway connection is not configured (enterprise.defaultLlmConnection missing).')
+    }
+    return {
+      portalHost: sso.portalHost,
+      clientId: sso.clientId,
+      relayUrl: sso.relayUrl,
+      // Prefer the explicit slug (Settings reauth). When none is given (e.g. the
+      // skills marketplace login, which just needs identity), target the user's
+      // actual default connection rather than the canonical enterprise slug —
+      // the provisioned connection may use a different slug (e.g. anthropic-api-2),
+      // and createBuiltInConnection() would reject the unknown canonical slug.
+      connectionSlug: slug || getDefaultLlmConnection() || gateway.slug,
+      gatewayBaseUrl: gateway.baseUrl,
+    }
+  }
+
+  // cvte:isAvailable — does this build have portal SSO configured? Drives whether
+  // the renderer shows the "CVTE 门户登录" entry points. Also returns the deep link
+  // the browser callback page redirects to on success, so login auto-returns to
+  // (and focuses) the app instead of leaving the user on the callback tab.
+  server.handle(RPC_CHANNELS.cvte.IS_AVAILABLE, async (): Promise<{ available: boolean; portalHost?: string; returnDeeplink?: string }> => {
+    const sso = getEnterpriseDefaults()?.sso
+    const gateway = getEnterpriseDefaults()?.defaultLlmConnection
+    const available = !!sso?.portalHost && !!sso?.clientId && !!sso?.relayUrl && !!gateway?.slug && !!gateway?.baseUrl
+    if (!available) return { available: false }
+    const scheme = process.env.CRAFT_DEEPLINK_SCHEME || 'workagents'
+    return { available: true, portalHost: sso!.portalHost, returnDeeplink: `${scheme}://settings/ai` }
+  })
+
+  // cvte:startOAuth — build the portal authorize URL, store the flow keyed by a
+  // server-generated flowId (the strong anti-CSRF binding; state is defense in
+  // depth). The client passed its loopback redirectUri so the port can be dynamic.
+  server.handle(RPC_CHANNELS.cvte.START_OAUTH, async (ctx, args: { slug?: string; redirectUri: string }): Promise<{
+    authUrl: string
+    state: string
+    flowId: string
+    openedExternally: boolean
+  }> => {
+    cleanupExpiredCvteFlows()
+    const { redirectUri, slug } = args
+    if (!redirectUri) throw new Error('redirectUri is required to start CVTE SSO')
+
+    const sso = resolveCvteSsoContext(slug)
+    const { buildPortalAuthorizeUrl, generatePortalState } = await import('@craft-agent/shared/auth')
+
+    const state = generatePortalState()
+    const flowId = randomUUID()
+    const authUrl = buildPortalAuthorizeUrl({ portalHost: sso.portalHost, clientId: sso.clientId }, redirectUri, state)
+
+    pendingCvteFlows.set(flowId, {
+      flowId,
+      state,
+      redirectUri,
+      connectionSlug: sso.connectionSlug,
+      ownerClientId: ctx.clientId,
+      createdAt: Date.now(),
+    })
+
+    // Open the portal in the system browser from the MAIN process. The renderer/
+    // preload shell.openExternal is gated by user activation on Windows and silently
+    // no-ops after the async RPC round-trip above (the click gesture is already
+    // consumed) — so the browser never opens and the loopback callback wait hangs
+    // forever. Main-process openExternal has no such gating. Headless platforms leave
+    // openExternal undefined → openedExternally stays false and the client opens it
+    // (or a remote client handles the returned authUrl).
+    let openedExternally = false
+    if (deps.platform.openExternal) {
+      try {
+        await deps.platform.openExternal(authUrl)
+        openedExternally = true
+      } catch (err) {
+        deps.platform.logger?.warn(
+          `[CVTE SSO] main-process openExternal failed, client will open: ${err instanceof Error ? err.message : String(err)}`,
+        )
+      }
+    }
+
+    deps.platform.logger?.info(`[CVTE SSO] Flow started for ${sso.connectionSlug} (flow=${flowId}, portal=${sso.portalHost}, openedExternally=${openedExternally})`)
+    return { authUrl, state, flowId, openedExternally }
+  })
+
+  // cvte:completeOAuth — exchange code → access_token → relay → personal key →
+  // configure the gateway connection. Returns the resolved identity for the UI.
+  server.handle(RPC_CHANNELS.cvte.COMPLETE_OAUTH, async (ctx, args: {
+    flowId: string
+    code: string
+    state?: string
+  }): Promise<{ success: boolean; identity?: import('@craft-agent/shared/auth').CvtePortalIdentity; error?: string }> => {
+    const { flowId, code, state } = args
+    const flow = pendingCvteFlows.get(flowId)
+
+    if (!flow) throw new Error('Unknown or expired CVTE SSO flow')
+    if (flow.ownerClientId !== ctx.clientId) throw new Error('OAuth flow owned by different client')
+    // CSRF: state is mandatory (RFC 6749 §4.1.2 requires the AS to echo it). The
+    // flowId binding is the primary defense; strict state is defense-in-depth.
+    if (!state || flow.state !== state) throw new Error('OAuth state mismatch')
+    if (Date.now() - flow.createdAt > CVTE_FLOW_TTL_MS) {
+      pendingCvteFlows.delete(flowId)
+      throw new Error('CVTE SSO flow expired')
+    }
+
+    try {
+      const sso = resolveCvteSsoContext(flow.connectionSlug)
+      const { exchangePortalToken, resolvePersonalKeyViaRelay } = await import('@craft-agent/shared/auth')
+
+      // 1) code → portal access_token (public client, no secret/PKCE)
+      const tokens = await exchangePortalToken(
+        { portalHost: sso.portalHost, clientId: sso.clientId },
+        code,
+        flow.redirectUri,
+      )
+      // 2) access_token → personal CCH key (relay holds the admin key server-side)
+      const { apiKey, identity } = await resolvePersonalKeyViaRelay(sso.relayUrl, tokens.accessToken)
+
+      // 2b) persist the portal identity so the skills.gz marketplace can reuse it
+      // as auth headers (account/email; non-secret). Fail-soft: only when account present.
+      if (identity?.account) {
+        setCvteIdentity({ account: identity.account, email: identity.email })
+      }
+
+      // 3) configure the enterprise gateway connection with the personal key.
+      // The gateway invariant coerces it into the Anthropic @ token.cvte.com shape.
+      const result = await applyLlmConnectionSetup({
+        slug: flow.connectionSlug,
+        baseUrl: sso.gatewayBaseUrl,
+        credential: apiKey,
+      })
+
+      pendingCvteFlows.delete(flowId)
+      if (!result.success) return { success: false, error: result.error }
+      deps.platform.logger?.info(`[CVTE SSO] Flow complete for ${flow.connectionSlug} (user=${identity.account ?? identity.userId ?? '?'})`)
+      return { success: true, identity }
+    } catch (error) {
+      pendingCvteFlows.delete(flowId)
+      const message = error instanceof Error ? error.message : 'CVTE SSO failed'
+      deps.platform.logger?.error('[CVTE SSO] Flow failed:', message)
+      return { success: false, error: message }
+    }
+  })
+
+  // cvte:cancelOAuth — drop a pending flow (browser closed / user aborted)
+  server.handle(RPC_CHANNELS.cvte.CANCEL_OAUTH, async (ctx, args?: { flowId?: string }): Promise<{ success: boolean }> => {
+    if (args?.flowId) {
+      const flow = pendingCvteFlows.get(args.flowId)
+      if (flow && flow.ownerClientId === ctx.clientId) {
+        pendingCvteFlows.delete(args.flowId)
+        deps.platform.logger?.info(`[CVTE SSO] Flow cancelled for ${flow.connectionSlug}`)
+      }
+    }
+    return { success: true }
   })
 
   // ============================================================

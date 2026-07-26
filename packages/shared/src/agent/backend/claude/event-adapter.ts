@@ -82,6 +82,16 @@ export class ClaudeEventAdapter extends BaseEventAdapter {
   private cachedContextWindow?: number;
   private _sdkTools: string[] = [];
 
+  // CVTE: an assistant-level SDK error (notably the gateway's transient 'unknown')
+  // is buffered here instead of surfaced immediately — the turn often still ends
+  // with result.subtype='success', so showing it right away produces a false
+  // "Unknown Error". adaptResult() decides: suppress only when the result is a
+  // real success (subtype='success' AND is_error!==true — the SDK marks API-failure
+  // turns like hard 429s as subtype='success' + is_error:true); surface otherwise.
+  // takePendingAssistantError() flushes it if the stream ends without a result
+  // message (so a genuine failure is never silently dropped).
+  private pendingAssistantError: { type: 'typed_error'; error: AgentError } | null = null;
+
   private callbacks: ClaudeAdapterCallbacks;
 
   constructor(callbacks: ClaudeAdapterCallbacks) {
@@ -99,6 +109,7 @@ export class ClaudeEventAdapter extends BaseEventAdapter {
     this.activeParentTools = new Set();
     this.pendingText = null;
     this.lastAssistantUsage = null;
+    this.pendingAssistantError = null;
   }
 
   // ============================================================
@@ -179,6 +190,18 @@ export class ClaudeEventAdapter extends BaseEventAdapter {
   }
 
   /**
+   * Take any buffered assistant-level error. Called after the for-await loop exits
+   * WITHOUT a result message — adaptResult never ran to resolve it, so surface it
+   * here rather than silently dropping a genuine failure. Returns null when the
+   * turn produced a result (the error was already resolved/suppressed in adaptResult).
+   */
+  takePendingAssistantError(): { type: 'typed_error'; error: AgentError } | null {
+    const pending = this.pendingAssistantError;
+    this.pendingAssistantError = null;
+    return pending;
+  }
+
+  /**
    * Get SDK tools captured from init message.
    */
   get sdkTools(): string[] {
@@ -216,7 +239,10 @@ export class ClaudeEventAdapter extends BaseEventAdapter {
       const errorEvent = await this.callbacks.mapSDKError(
         message.error as SDKAssistantMessageError,
       );
-      events.push(errorEvent);
+      // CVTE: buffer instead of surfacing now — the SDK frequently recovers and
+      // ends the turn with result.subtype='success' (gateway transient 'unknown').
+      // adaptResult() suppresses on success and surfaces on a failed result.
+      this.pendingAssistantError = errorEvent;
       return;
     }
 
@@ -483,16 +509,46 @@ export class ClaudeEventAdapter extends BaseEventAdapter {
       contextWindow: primaryModelUsage?.contextWindow,
     };
 
-    if (msg.subtype === 'success') {
+    // CVTE: resolve any buffered assistant-level error against the final outcome.
+    // NOTE: the SDK reports API-failure turns as subtype='success' with
+    // `is_error: true` (e.g. a hard 429 quota/rate limit: assistant error
+    // 'rate_limit' followed by result{subtype:'success', is_error:true,
+    // result:'API Error: …'}). Judging by subtype alone swallowed those errors
+    // entirely — no error, no reply. Only suppress when the SDK itself says the
+    // turn was NOT an error.
+    const pendingError = this.pendingAssistantError;
+    this.pendingAssistantError = null;
+    const turnFailed = msg.subtype !== 'success' || msg.is_error === true;
+
+    if (!turnFailed) {
+      // The turn ultimately succeeded — a buffered assistant error was a transient
+      // hiccup the SDK recovered from; suppress it (was a false "Unknown Error").
+      if (pendingError && this.callbacks.onDebug) {
+        this.callbacks.onDebug(
+          `[ClaudeAdapter] suppressed transient assistant error (turn ended success): ${pendingError.error.code}`,
+        );
+      }
       events.push({ type: 'complete', usage });
     } else {
-      const errorMsg = 'errors' in msg ? msg.errors.join(', ') : 'Query failed';
-
-      const windowsError = buildWindowsSkillsDirError(errorMsg);
-      if (windowsError) {
-        events.push(windowsError);
+      // The provider's own error text (msg.result, e.g. the gateway's quota
+      // message) is more specific than our mapped copy — surface it in details.
+      const resultText = typeof msg.result === 'string' && msg.result.trim() ? msg.result.trim() : null;
+      if (pendingError) {
+        // Turn truly failed — surface the richer buffered assistant error.
+        if (resultText && !(pendingError.error.details ?? []).includes(resultText)) {
+          pendingError.error.details = [resultText, ...(pendingError.error.details ?? [])];
+        }
+        events.push(pendingError);
       } else {
-        events.push({ type: 'error', message: errorMsg });
+        const errorMsg = ('errors' in msg && Array.isArray(msg.errors) && msg.errors.length > 0)
+          ? msg.errors.join(', ')
+          : (resultText ?? 'Query failed');
+        const windowsError = buildWindowsSkillsDirError(errorMsg);
+        if (windowsError) {
+          events.push(windowsError);
+        } else {
+          events.push({ type: 'error', message: errorMsg });
+        }
       }
       events.push({ type: 'complete', usage });
     }
@@ -514,6 +570,15 @@ export class ClaudeEventAdapter extends BaseEventAdapter {
       });
     } else if (msg.subtype === 'status' && msg.status === 'compacting') {
       events.push({ type: 'status', message: 'Compacting conversation...' });
+    } else if (msg.subtype === 'api_retry') {
+      // CVTE: the SDK retries API errors (429 etc.) with backoff — that window can
+      // last minutes with zero feedback. Surface it as an ephemeral status so the
+      // user sees why nothing is happening yet.
+      const attempt = typeof msg.attempt === 'number' ? msg.attempt : undefined;
+      const max = typeof msg.max_retries === 'number' ? msg.max_retries : undefined;
+      const statusCode = msg.error_status ? ` ${msg.error_status}` : '';
+      const progress = attempt && max ? ` (${attempt}/${max})` : '';
+      events.push({ type: 'status', message: `API error${statusCode}, retrying${progress}...` });
     } else if (msg.subtype === 'task_notification') {
       const classification = classifyClaudeTaskNotification(message);
       if (classification.kind === 'missing-task-id') {

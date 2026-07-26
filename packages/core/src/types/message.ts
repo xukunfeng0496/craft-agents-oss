@@ -582,6 +582,8 @@ export type AgentEvent =
   | { type: 'shell_killed'; shellId: string; turnId?: string }
   | { type: 'source_activated'; sourceSlug: string; originalMessage: string }
   | { type: 'usage_update'; usage: Pick<AgentEventUsage, 'inputTokens' | 'contextWindow'> }
+  // CVTE: per-turn measured latency for the model picker's "近期实测" hints
+  | { type: 'latency_update'; model: string; ttftMs: number; totalMs: number; outputTokens?: number; tokensPerSec?: number }
   | { type: 'steer_undelivered'; message: string };
 
 /**

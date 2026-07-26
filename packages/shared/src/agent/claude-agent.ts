@@ -29,7 +29,7 @@ import { loadPreferences, formatPreferencesForPrompt, getCoAuthorPreference } fr
 import type { FileAttachment } from '../utils/files.ts';
 import type { LLMQueryRequest, LLMQueryResult } from './llm-tool.ts';
 import { consumeLlmQueryMessages } from './claude-llm-query.ts';
-import { debug } from '../utils/debug.ts';
+import { debug, logError } from '../utils/debug.ts';
 import { guardLargeResult } from '../utils/large-response.ts';
 import { SourceActivationDrainController } from './source-activation-drain.ts';
 import { resolveKeepBackgroundTasksAlive, createPushableInputStream, type PushableInputStream } from './backend/claude/persistent-input.ts';
@@ -110,7 +110,7 @@ export {
   PERMISSION_MODE_ORDER,
   PERMISSION_MODE_CONFIG,
 } from './mode-manager.ts';
-// Documentation is served via local files at ~/.craft-agent/docs/
+// Documentation is served via local files at ~/.workagent/docs/
 
 // Import and re-export AgentEvent from core (single source of truth)
 import type { AgentEvent } from '@craft-agent/core/types';
@@ -1092,7 +1092,7 @@ export class ClaudeAgent extends BaseAgent {
       const fullMcpServers: Options['mcpServers'] = {
         // Session-scoped tools (SubmitPlan, source_test, update_user_preferences, transform_data, etc.)
         session: getSessionScopedTools(sessionId, this.workspaceRootPath),
-        // Craft Agents documentation - always available for searching setup guides
+        // Work Agents documentation - always available for searching setup guides
         // This is a public Mintlify MCP server, no auth needed
         'craft-agents-docs': {
           type: 'http',
@@ -1159,7 +1159,7 @@ export class ClaudeAgent extends BaseAgent {
       // without an explicit opt-in. The betas header only works for API key users;
       // for OAuth the [1m] model suffix is the way. Use the suffix unconditionally
       // since it works for both auth paths. See: anthropics/claude-agent-sdk-typescript#238
-      // Gated by enable1MContext in global config (~/.craft-agent/config.json).
+      // Gated by enable1MContext in global config (~/.workagent/config.json).
       // The interceptor also reads this to strip the SDK-injected beta header.
       const use1M = this.config.enable1MContext !== false;
       const effectiveModel = use1M && getModelContextWindow(model) === 1_000_000
@@ -1706,6 +1706,9 @@ This is a branched conversation. All prior messages in this conversation are par
       // `source_activated` + `forceAbort` — otherwise the session journal
       // ends up with orphan `tool_use` IDs that block subsequent sends.
       const sourceActivationDrain = new SourceActivationDrainController('batch-boundary');
+      // CVTE latency telemetry: per-turn TTFT / throughput for the model picker hints
+      const latencyT0 = Date.now();
+      let latencyFirstAt = 0;
       try {
         // Flag-OFF: `turnMessageSource === this.currentQuery` (unchanged). Flag-ON:
         // it's the per-turn channel, so breaking/ending here never closes the query.
@@ -1723,6 +1726,24 @@ This is a branched conversation. All prior messages in this conversation are par
             if (event.type === 'content_block_delta' || event.type === 'message_start') {
               receivedAssistantContent = true;
             }
+          }
+
+          // CVTE: stamp first visible content; emit measured latency on turn result
+          if (!latencyFirstAt && receivedAssistantContent) latencyFirstAt = Date.now();
+          if ('type' in message && message.type === 'result') {
+            const totalMs = Date.now() - latencyT0;
+            const ttftMs = latencyFirstAt ? latencyFirstAt - latencyT0 : totalMs;
+            const resultUsage = (message as { usage?: { output_tokens?: number } }).usage;
+            const outputTokens = resultUsage?.output_tokens;
+            const genMs = Math.max(totalMs - ttftMs, 1);
+            yield {
+              type: 'latency_update' as const,
+              model: this._model,
+              ttftMs,
+              totalMs,
+              outputTokens,
+              tokensPerSec: outputTokens ? Math.round((outputTokens / (genMs / 1000)) * 10) / 10 : undefined,
+            };
           }
 
           // Capture session ID for conversation continuity (only when it changes)
@@ -1959,6 +1980,13 @@ This is a branched conversation. All prior messages in this conversation are par
 
         // Defensive: emit complete if SDK didn't send result message
         if (!receivedComplete) {
+          // The stream ended without a result message, so adaptResult never ran to
+          // resolve a buffered assistant error — surface it now so a genuine failure
+          // isn't silently dropped (on a normal result it was already suppressed/shown).
+          const pendingErr = this.eventAdapter.takePendingAssistantError();
+          if (pendingErr) {
+            yield pendingErr;
+          }
           yield { type: 'complete' };
         }
       } catch (sdkError) {
@@ -2234,7 +2262,7 @@ This is a branched conversation. All prior messages in this conversation are par
               message:
                 'The Claude Agent SDK binary expected on disk is not present. ' +
                 'This usually means the app bundle is incomplete (interrupted download, partial update, ' +
-                'or a security tool removed it). Reinstalling Craft Agents typically fixes this.',
+                'or a security tool removed it). Reinstalling Work Agents typically fixes this.',
               details: [
                 probedBinary ? `Expected binary: ${probedBinary}` : 'Binary path: unknown',
                 probedCwd ? `Subprocess cwd: ${probedCwd} (${cwdExists ? 'exists' : 'missing'})` : '',
@@ -2659,8 +2687,28 @@ This is a branched conversation. All prior messages in this conversation are par
   private async mapSDKErrorToTypedError(
     errorCode: SDKAssistantMessageError
   ): Promise<{ type: 'typed_error'; error: AgentError }> {
-    const actualError = await this.parseApiErrorFromDebugLog();
+    let actualError = await this.parseApiErrorFromDebugLog();
     const capturedApiError = this.getCapturedApiErrorForSession();
+
+    // CVTE: the Claude SDK route has NO network interceptor (capturedApiError is
+    // always null here) and parseApiErrorFromDebugLog is empty unless CRAFT_DEBUG
+    // is on — so an SDK 'unknown' assistant error otherwise reaches the user with
+    // zero detail ("Unknown Error" + "SDK error code: unknown"), undiagnosable.
+    // Fall back to the buffered SDK subprocess stderr: it carries the real HTTP
+    // status / provider message, letting classifyFailure tag it provider-vs-network
+    // and surfacing the actual cause in the error details instead of a blank box.
+    const bufferedStderr = this.lastStderrOutput.join('\n').trim();
+    if (!actualError && bufferedStderr) {
+      actualError = { errorType: 'sdk_stderr', message: bufferedStderr.slice(-1500) };
+    }
+
+    // CVTE: always persist the SDK error to the log (main.log in production too),
+    // so a packaged build is diagnosable without CRAFT_DEBUG. console.error is
+    // dropped in production and debug() is gated, so this is the only durable record.
+    logError('[SDK assistant error]', {
+      errorCode,
+      stderr: bufferedStderr.slice(-1500) || '(none)',
+    });
 
     const error = mapClaudeSdkAssistantError(errorCode, {
       actualError,

@@ -37,7 +37,7 @@ export const SESSION_PERSISTENT_FIELDS = [
   // Model/Connection
   'model', 'llmConnection', 'connectionLocked', 'thinkingLevel',
   // Sharing
-  'sharedUrl', 'sharedId',
+  'sharedUrl', 'sharedId', 'sharedEditToken',
   // Plan execution
   'pendingPlanExecution',
   // Archive
@@ -148,6 +148,8 @@ export interface SessionConfig {
   sharedUrl?: string;
   /** Shared session ID in viewer (for revoke) */
   sharedId?: string;
+  /** Per-share write token (HMAC) for authenticated update/revoke. */
+  sharedEditToken?: string;
   /** Model to use for this session (overrides global config if set) */
   model?: string;
   /** LLM connection slug for this session (locked after first message) */
@@ -244,7 +246,7 @@ export interface SessionHeader {
   id: string;
   /** SDK session ID (captured after first message) */
   sdkSessionId?: string;
-  /** Workspace root path (stored as portable path, e.g., ~/.craft-agent/...) */
+  /** Workspace root path (stored as portable path, e.g., ~/.workagent/...) */
   workspaceRootPath: string;
   /** Optional user-defined name */
   name?: string;
@@ -280,6 +282,8 @@ export interface SessionHeader {
   sharedUrl?: string;
   /** Shared session ID in viewer (for revoke) */
   sharedId?: string;
+  /** Per-share write token (HMAC) for authenticated update/revoke. */
+  sharedEditToken?: string;
   /** Model to use for this session (overrides global config if set) */
   model?: string;
   /** LLM connection slug for this session (locked after first message) */
@@ -377,6 +381,8 @@ export interface SessionMetadata {
   sharedUrl?: string;
   /** Shared session ID in viewer (for revoke) */
   sharedId?: string;
+  /** Per-share write token (HMAC) for authenticated update/revoke. */
+  sharedEditToken?: string;
   /** Working directory for this session */
   workingDirectory?: string;
   /** SDK cwd for session storage - set once at creation, never changes */

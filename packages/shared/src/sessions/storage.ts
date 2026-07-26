@@ -549,6 +549,7 @@ export async function updateSessionMetadata(
     | 'permissionMode'
     | 'sharedUrl'
     | 'sharedId'
+    | 'sharedEditToken'
     | 'model'
     | 'llmConnection'
     | 'isArchived'
@@ -571,6 +572,7 @@ export async function updateSessionMetadata(
   if ('hasUnread' in updates) session.hasUnread = updates.hasUnread;
   if ('sharedUrl' in updates) session.sharedUrl = updates.sharedUrl;
   if ('sharedId' in updates) session.sharedId = updates.sharedId;
+  if ('sharedEditToken' in updates) session.sharedEditToken = updates.sharedEditToken;
   if (updates.model !== undefined) session.model = updates.model;
   if (updates.llmConnection !== undefined) session.llmConnection = updates.llmConnection;
   if (updates.isArchived !== undefined) session.isArchived = updates.isArchived;

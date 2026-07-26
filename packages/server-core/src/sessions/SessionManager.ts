@@ -35,6 +35,7 @@ import {
   migrateLegacyLlmConnectionsConfig,
   migrateOrphanedDefaultConnections,
   MODEL_REGISTRY,
+  resolveViewerUrl,
   type Workspace,
   type WorkspaceInfo,
 } from '@craft-agent/shared/config'
@@ -560,7 +561,7 @@ async function getBrowserToolIconDataUrl(): Promise<string | undefined> {
   try {
     const iconCandidates = [
       join(getToolIconsDir(), BROWSER_TOOL_ICON_FILENAME),
-      // Dev fallback (before sync to ~/.craft-agent/tool-icons)
+      // Dev fallback (before sync to ~/.workagent/tool-icons)
       join(process.cwd(), 'apps', 'electron', 'resources', 'tool-icons', BROWSER_TOOL_ICON_FILENAME),
       // Packaged fallback (app resources)
       join(process.resourcesPath, 'tool-icons', BROWSER_TOOL_ICON_FILENAME),
@@ -694,7 +695,7 @@ async function resolveToolDisplayMeta(
 
   // CLI tool icon resolution for Bash commands
   // Parses the command string to detect known tools (git, npm, docker, etc.)
-  // and resolves their brand icon from ~/.craft-agent/tool-icons/
+  // and resolves their brand icon from ~/.workagent/tool-icons/
   if (toolName === 'Bash' && toolInput?.command) {
     try {
       const toolIconsDir = getToolIconsDir()
@@ -881,6 +882,8 @@ interface ManagedSession {
   sharedUrl?: string
   // Shared session ID in viewer (for revoke)
   sharedId?: string
+  // Per-share write token (HMAC) authorizing update/revoke when the viewer has write-auth on
+  sharedEditToken?: string
   // Model to use for this session (overrides global config if set)
   model?: string
   // LLM connection slug for this session (locked after first message)
@@ -2068,6 +2071,7 @@ export class SessionManager implements ISessionManager {
       if (managed.hasUnread === undefined) managed.hasUnread = stored.hasUnread
       if (managed.sharedUrl === undefined) managed.sharedUrl = stored.sharedUrl
       if (managed.sharedId === undefined) managed.sharedId = stored.sharedId
+      if (managed.sharedEditToken === undefined) managed.sharedEditToken = stored.sharedEditToken
       if (managed.transferredSessionSummary === undefined) managed.transferredSessionSummary = stored.transferredSessionSummary
       if (managed.transferredSessionSummaryApplied === undefined) managed.transferredSessionSummaryApplied = stored.transferredSessionSummaryApplied
 
@@ -2537,6 +2541,7 @@ export class SessionManager implements ISessionManager {
       managed.enabledSourceSlugs = storedSession.enabledSourceSlugs
       managed.sharedUrl = storedSession.sharedUrl
       managed.sharedId = storedSession.sharedId
+      managed.sharedEditToken = storedSession.sharedEditToken
       // Sync name from disk - ensures title persistence across lazy loading
       managed.name = storedSession.name
       // Restore LLM connection state - ensures correct provider on resume
@@ -4856,8 +4861,14 @@ export class SessionManager implements ISessionManager {
         return { success: false, error: 'Session file not found' }
       }
 
-      const { VIEWER_URL } = await import('@craft-agent/shared/branding')
-      const response = await fetch(`${VIEWER_URL}/s/api`, {
+      // CVTE D11: enterprise builds upload only to the configured intranet
+      // viewer; absent that, sharing is disabled so the transcript never
+      // egresses to the public Craft viewer.
+      const viewerUrl = resolveViewerUrl()
+      if (!viewerUrl) {
+        return { success: false, error: 'Session sharing is not configured for this deployment (no intranet viewer). Contact your administrator.' }
+      }
+      const response = await fetch(`${viewerUrl}/s/api`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(storedSession)
@@ -4871,15 +4882,18 @@ export class SessionManager implements ISessionManager {
         return { success: false, error: 'Failed to upload session' }
       }
 
-      const data = await response.json() as { id: string; url: string }
+      const data = await response.json() as { id: string; url: string; editToken?: string }
 
-      // Store shared info in session
+      // Store shared info in session (editToken authorizes later update/revoke
+      // when the viewer has write-auth enabled — absent otherwise, harmless).
       managed.sharedUrl = data.url
       managed.sharedId = data.id
+      managed.sharedEditToken = data.editToken
       const workspaceRootPath = managed.workspace.rootPath
       await updateSessionMetadata(workspaceRootPath, sessionId, {
         sharedUrl: data.url,
         sharedId: data.id,
+        sharedEditToken: data.editToken,
       })
 
       sessionLog.info(`Session ${sessionId} shared at ${data.url}`)
@@ -4920,10 +4934,17 @@ export class SessionManager implements ISessionManager {
         return { success: false, error: 'Session file not found' }
       }
 
-      const { VIEWER_URL } = await import('@craft-agent/shared/branding')
-      const response = await fetch(`${VIEWER_URL}/s/api/${managed.sharedId}`, {
+      // CVTE D11: same intranet-only guard as shareToViewer.
+      const viewerUrl = resolveViewerUrl()
+      if (!viewerUrl) {
+        return { success: false, error: 'Session sharing is not configured for this deployment (no intranet viewer). Contact your administrator.' }
+      }
+      const response = await fetch(`${viewerUrl}/s/api/${managed.sharedId}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(managed.sharedEditToken ? { 'x-edit-token': managed.sharedEditToken } : {}),
+        },
         body: JSON.stringify(storedSession)
       })
 
@@ -4965,24 +4986,33 @@ export class SessionManager implements ISessionManager {
     this.sendEvent({ type: 'async_operation', sessionId, isOngoing: true }, managed.workspace.id)
 
     try {
-      const { VIEWER_URL } = await import('@craft-agent/shared/branding')
-      const response = await fetch(
-        `${VIEWER_URL}/s/api/${managed.sharedId}`,
-        { method: 'DELETE' }
-      )
+      // CVTE D11: when no viewer is configured (enterprise build, sharing
+      // disabled) there is nothing to revoke remotely — just clear local state.
+      const viewerUrl = resolveViewerUrl()
+      if (viewerUrl) {
+        const response = await fetch(
+          `${viewerUrl}/s/api/${managed.sharedId}`,
+          {
+            method: 'DELETE',
+            headers: managed.sharedEditToken ? { 'x-edit-token': managed.sharedEditToken } : undefined,
+          }
+        )
 
-      if (!response.ok) {
-        sessionLog.error(`Revoke failed with status ${response.status}`)
-        return { success: false, error: 'Failed to revoke share' }
+        if (!response.ok) {
+          sessionLog.error(`Revoke failed with status ${response.status}`)
+          return { success: false, error: 'Failed to revoke share' }
+        }
       }
 
       // Clear shared info
       delete managed.sharedUrl
       delete managed.sharedId
+      delete managed.sharedEditToken
       const workspaceRootPath = managed.workspace.rootPath
       await updateSessionMetadata(workspaceRootPath, sessionId, {
         sharedUrl: undefined,
         sharedId: undefined,
+        sharedEditToken: undefined,
       })
 
       sessionLog.info(`Session ${sessionId} share revoked`)
@@ -5662,21 +5692,24 @@ export class SessionManager implements ISessionManager {
       await new Promise(resolve => setTimeout(resolve, 100))
     }
 
-    // Revoke share if session was shared (prevent orphaned viewer copies)
+    // Revoke share if session was shared (prevent orphaned viewer copies).
+    // CVTE D11: skip when no viewer is configured (sharing disabled).
     if (managed.sharedId) {
-      try {
-        const { VIEWER_URL } = await import('@craft-agent/shared/branding')
-        const response = await fetch(
-          `${VIEWER_URL}/s/api/${managed.sharedId}`,
-          { method: 'DELETE', signal: AbortSignal.timeout(5000) }
-        )
-        if (!response.ok) {
-          sessionLog.warn(`Failed to revoke share for ${sessionId}: HTTP ${response.status}`)
-        } else {
-          sessionLog.info(`Revoked share for deleted session ${sessionId}`)
+      const viewerUrl = resolveViewerUrl()
+      if (viewerUrl) {
+        try {
+          const response = await fetch(
+            `${viewerUrl}/s/api/${managed.sharedId}`,
+            { method: 'DELETE', signal: AbortSignal.timeout(5000) }
+          )
+          if (!response.ok) {
+            sessionLog.warn(`Failed to revoke share for ${sessionId}: HTTP ${response.status}`)
+          } else {
+            sessionLog.info(`Revoked share for deleted session ${sessionId}`)
+          }
+        } catch (error) {
+          sessionLog.warn(`Failed to revoke share for ${sessionId}:`, error)
         }
-      } catch (error) {
-        sessionLog.warn(`Failed to revoke share for ${sessionId}:`, error)
       }
     }
 
@@ -8367,6 +8400,20 @@ export class SessionManager implements ISessionManager {
             },
           }, workspaceId)
         }
+        break
+
+      case 'latency_update':
+        // CVTE: per-turn measured latency — relay to renderer for the model
+        // picker's "近期实测" hints (no session state to update here)
+        this.sendEvent({
+          type: 'latency_update',
+          sessionId: managed.id,
+          model: event.model,
+          ttftMs: event.ttftMs,
+          totalMs: event.totalMs,
+          outputTokens: event.outputTokens,
+          tokensPerSec: event.tokensPerSec,
+        }, workspaceId)
         break
 
       case 'steer_undelivered':

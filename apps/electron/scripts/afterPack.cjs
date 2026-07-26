@@ -26,7 +26,10 @@ module.exports = async function afterPack(context) {
   }
 
   const appPath = context.appOutDir;
-  const resourcesDir = path.join(appPath, 'Craft Agents.app', 'Contents', 'Resources');
+  // Derive the bundle name from productName instead of hardcoding it — CVTE
+  // ships as "Work Agents.app", so a literal "Craft Agents.app" made every
+  // copy below fail with ENOENT and silently drop the Liquid Glass icon.
+  const resourcesDir = path.join(appPath, `${context.packager.appInfo.productFilename}.app`, 'Contents', 'Resources');
   const precompiledAssets = path.join(context.packager.projectDir, 'resources', 'Assets.car');
 
   console.log(`afterPack: projectDir=${context.packager.projectDir}`);

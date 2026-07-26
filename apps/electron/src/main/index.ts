@@ -8,9 +8,27 @@ import { createHash, randomUUID } from 'crypto'
 import { hostname, homedir } from 'os'
 import * as Sentry from '@sentry/electron/main'
 
+// CVTE: Sentry DSN is read synchronously from the bundled config-defaults.json
+// (enterprise.sentryDsn). Sentry must init before app startup — too early for
+// loadConfigDefaults (which needs ensureConfigDir) — so we read the bundled file
+// directly. The DSN is a client-side public identifier (NOT a secret), pointing
+// at the intranet Sentry (sentry-ali.cvtapi.com). An env var still wins if set
+// (dev/CI). readFileSync/join are imported lower in this file; ES import hoisting
+// makes them available here.
+function readBundledSentryDsn(): string | undefined {
+  try {
+    const raw = readFileSync(join(__dirname, 'resources', 'config-defaults.json'), 'utf8')
+    const dsn = (JSON.parse(raw) as { enterprise?: { sentryDsn?: string } }).enterprise?.sentryDsn
+    return typeof dsn === 'string' && dsn ? dsn : undefined
+  } catch {
+    return undefined
+  }
+}
+const SENTRY_DSN = process.env.SENTRY_ELECTRON_INGEST_URL || readBundledSentryDsn()
+
 // Initialize Sentry error tracking as early as possible after app import.
-// Only enabled in production (packaged) builds to avoid noise during development.
-// DSN is baked in at build time via esbuild --define (same pattern as OAuth secrets).
+// DSN: env var (dev/CI) or bundled config-defaults.json enterprise.sentryDsn
+// (CVTE intranet Sentry). Disabled automatically when no DSN is available.
 //
 // NOTE: Source map upload is intentionally disabled. Stack traces in Sentry will show
 // bundled/minified code. To enable source map upload in the future:
@@ -18,12 +36,14 @@ import * as Sentry from '@sentry/electron/main'
 //   2. Re-enable the @sentry/vite-plugin in vite.config.ts (handles renderer maps)
 //   3. Add @sentry/esbuild-plugin to scripts/electron-build-main.ts (handles main process maps)
 Sentry.init({
-  dsn: process.env.SENTRY_ELECTRON_INGEST_URL,
+  dsn: SENTRY_DSN,
+  // CVTE: capture main-process console.error (incl. the [SDK stderr] lines) so
+  // agent/SDK failures — which are NOT thrown exceptions — still reach Sentry.
+  integrations: [Sentry.captureConsoleIntegration({ levels: ['error'] })],
   environment: app.isPackaged ? 'production' : 'development',
   release: app.getVersion(),
-  // Enabled whenever the ingest URL is available — works in both production (baked via CI)
-  // and development (injected via .env / 1Password). Filter by environment in Sentry dashboard.
-  enabled: !!process.env.SENTRY_ELECTRON_INGEST_URL,
+  // Enabled whenever a DSN is available (env var or bundled config-defaults).
+  enabled: !!SENTRY_DSN,
 
   // Scrub sensitive data before sending to Sentry.
   // Removes authorization headers, API keys/tokens, and credential-like values.
@@ -98,12 +118,13 @@ import { setSearchPlatform, setImageProcessor } from '@craft-agent/server-core/s
 import { createApplicationMenu } from './menu'
 import { WindowManager } from './window-manager'
 import { loadWindowState, saveWindowState } from './window-state'
-import { getWorkspaces, getWorkspaceByNameOrId, loadStoredConfig, addWorkspace, saveConfig } from '@craft-agent/shared/config'
+import { getWorkspaces, getWorkspaceByNameOrId, loadStoredConfig, addWorkspace, saveConfig, ensureEnterpriseDefaultConnection } from '@craft-agent/shared/config'
 import { getDefaultWorkspacesDir } from '@craft-agent/shared/workspaces'
 import { initializeDocs } from '@craft-agent/shared/docs'
 import { initializeReleaseNotes } from '@craft-agent/shared/release-notes'
 import { ensureDefaultPermissions } from '@craft-agent/shared/agent/permissions-config'
 import { ensureToolIcons, ensurePresetThemes } from '@craft-agent/shared/config'
+import { migrateLegacyGlobalSkills } from '@craft-agent/shared/skills'
 import { setBundledAssetsRoot } from '@craft-agent/shared/utils'
 import { initializeBackendHostRuntime } from '@craft-agent/shared/agent/backend'
 import { setPowerShellValidatorRoot } from '@craft-agent/shared/agent'
@@ -185,6 +206,27 @@ if (isDebugMode) {
   // - uvPlatformDir exposes raw `uv` for direct shell usage / debugging
   process.env.PATH = `${binDir}${delimiter}${uvPlatformDir}${delimiter}${process.env.PATH}`
 
+  // CVTE: prepend the bundled Windows toolchain (MinGit + embedded Python + Node)
+  // so the agent subprocess — which inherits process.env via buildClaudeSubprocessEnv
+  // — can resolve git / python / node / npm without a system install. These live
+  // under resources/tools/ (win.extraResources). Windows-only; existsSync guards
+  // keep it a no-op when a dir is absent (other platforms, or a partial bundle).
+  if (process.platform === 'win32') {
+    const toolsDir = join(resourcesBase, 'resources', 'tools')
+    const toolchainDirs = [
+      join(toolsDir, 'mingit', 'cmd'),      // git.exe
+      join(toolsDir, 'python'),             // python.exe
+      join(toolsDir, 'python', 'Scripts'),  // pip + console scripts
+      join(toolsDir, 'node'),               // node.exe, npm, npx
+    ].filter((dir) => existsSync(dir))
+    if (toolchainDirs.length > 0) {
+      process.env.PATH = `${toolchainDirs.join(delimiter)}${delimiter}${process.env.PATH}`
+    }
+    if (isDebugMode) {
+      mainLog.info('Bundled Windows toolchain on PATH:', { toolchainDirs })
+    }
+  }
+
   if (!bundledUvExists) {
     mainLog.warn('Bundled uv binary missing, CLI document tools may fail unless uv is available on PATH.', {
       expectedUvPath: uvBinary,
@@ -203,9 +245,9 @@ registerPiModelResolver((piAuthProvider) =>
   piAuthProvider ? getPiModelsForAuthProvider(piAuthProvider) : getAllPiModels()
 )
 
-// Custom URL scheme for deeplinks (e.g., craftagents://auth-complete)
-// Supports multi-instance dev: CRAFT_DEEPLINK_SCHEME env var (craftagents1, craftagents2, etc.)
-const DEEPLINK_SCHEME = process.env.CRAFT_DEEPLINK_SCHEME || 'craftagents'
+// Custom URL scheme for deeplinks (e.g., workagents://auth-complete)
+// Supports multi-instance dev: CRAFT_DEEPLINK_SCHEME env var (workagents1, workagents2, etc.)
+const DEEPLINK_SCHEME = process.env.CRAFT_DEEPLINK_SCHEME || 'workagents'
 
 let windowManager: WindowManager | null = null
 let sessionManager: SessionManager | null = null
@@ -225,10 +267,10 @@ let messagingHandle: MessagingBootstrapHandle | null = null
 let pendingDeepLink: string | null = null
 
 // Set app name early (before app.whenReady) to ensure correct macOS menu bar title
-// Supports multi-instance dev: CRAFT_APP_NAME env var (e.g., "Craft Agents [1]")
-app.setName(process.env.CRAFT_APP_NAME || 'Craft Agents')
+// Supports multi-instance dev: CRAFT_APP_NAME env var (e.g., "Work Agents [1]")
+app.setName(process.env.CRAFT_APP_NAME || 'Work Agents')
 
-// Register as default protocol client for craftagents:// URLs
+// Register as default protocol client for workagents:// URLs
 // This must be done before app.whenReady() on some platforms
 if (process.defaultApp) {
   // Development mode: need to pass the app path
@@ -243,6 +285,8 @@ if (process.defaultApp) {
 // Apply network proxy settings early (Node-level only — Electron sessions require app.whenReady)
 import { applyConfiguredProxySettings } from './network-proxy'
 void applyConfiguredProxySettings()
+
+import { applyEnterpriseNoProxyToProcessEnv, ensureConfigDir } from '@craft-agent/shared/config'
 
 // Accept self-signed / untrusted certificates when connecting to a user-configured remote server.
 // Only bypasses cert validation for the exact CRAFT_SERVER_URL origin — all other connections
@@ -346,6 +390,15 @@ async function createInitialWindows(): Promise<void> {
     mainLog.info('Created default workspace on first run')
   }
 
+  // CVTE: provision the enterprise gateway connection (D7/D8). There is no shared
+  // fallback key — the connection is created without a credential. Users obtain a
+  // personal key via SSO (portal login → relay, which auto-creates one if absent)
+  // or configure a key manually; if both fail, chat fails clearly (no silent
+  // shared-key usage / cross-account billing).
+  if (await ensureEnterpriseDefaultConnection()) {
+    mainLog.info('Provisioned enterprise default LLM connection (cvte-gateway)')
+  }
+
   const validWorkspaceIds = workspaces.map(ws => ws.id)
 
   if (savedState?.windows.length) {
@@ -415,12 +468,36 @@ app.whenReady().then(async () => {
   // Seed preset themes to ~/.workagent/themes/ (copies bundled theme JSONs on first run)
   ensurePresetThemes()
 
+  // CVTE D10: one-shot migration of legacy global skills (~/.workagent/skills →
+  // ~/.agents/skills). Upstream moved the global skills dir (#171) with no
+  // migration; without this, every v0.7.1 user's skills vanish from the UI on
+  // upgrade. No-op on fresh installs and after the first run (marker-gated).
+  try {
+    const skillsMigration = migrateLegacyGlobalSkills()
+    if (skillsMigration.migrated || skillsMigration.skippedSlugs.length > 0) {
+      mainLog.info(
+        `[skills-migration] copied ${skillsMigration.copiedSlugs.length}, ` +
+          `skipped ${skillsMigration.skippedSlugs.length} (already present)`,
+      )
+    }
+  } catch (error) {
+    mainLog.warn(`[skills-migration] failed (non-fatal): ${error instanceof Error ? error.message : error}`)
+  }
+
   // Register thumbnail:// protocol handler (scheme was registered earlier, before app.whenReady)
   registerThumbnailHandler()
 
   // Re-apply proxy settings now that Electron sessions are available
   // (first call before app.whenReady only configured Node-level proxy)
   await applyConfiguredProxySettings()
+
+  // CVTE: intranet domains (gateway/key API/skills registry/update server) must
+  // never route through a proxy — including proxies inherited from the user's
+  // shell environment via loadShellEnv. ensureConfigDir() first: the enterprise
+  // domain list lives in config-defaults.json, which doesn't exist on disk
+  // until the first sync (fresh installs).
+  ensureConfigDir()
+  applyEnterpriseNoProxyToProcessEnv()
 
   // Note: electron-updater handles pending updates internally via autoInstallOnAppQuit
 

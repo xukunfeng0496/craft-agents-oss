@@ -24,6 +24,7 @@ import { isValidThinkingLevel, normalizeThinkingLevel } from '../agent/thinking-
 import { parsePermissionMode, PERMISSION_MODE_ORDER } from '../agent/mode-types.ts';
 import { type ConfigDefaults } from './config-defaults-schema.ts';
 import { isValidThemeFile } from './validators.ts';
+import { enforceCvteGatewayShape } from './cvte-gateway-invariant.ts';
 
 // Re-export CONFIG_DIR for convenience (centralized in paths.ts)
 export { CONFIG_DIR } from './paths.ts';
@@ -67,6 +68,8 @@ export interface StoredConfig {
   colorTheme?: string;  // ID of selected preset theme (e.g., 'dracula', 'nord'). Default: 'default'
   // Auto-update
   dismissedUpdateVersion?: string;  // Version that user dismissed (skip notifications for this version)
+  // CVTE portal identity (persisted from portal SSO; reused as skills.gz marketplace auth headers; non-secret)
+  cvteIdentity?: { account: string; email?: string };
   // Input settings
   autoCapitalisation?: boolean;  // Auto-capitalize first letter when typing (default: true)
   sendMessageKey?: 'enter' | 'cmd-enter';  // Key to send messages (default: 'enter')
@@ -113,7 +116,7 @@ let configDefaultsSynced = false;
 /** Minimal config-defaults used when bundled assets aren't available (CI, standalone server). */
 const FALLBACK_CONFIG_DEFAULTS: ConfigDefaults = {
   version: '1.0',
-  description: 'Default configuration values for Craft Agents',
+  description: 'Default configuration values for Work Agents',
   defaults: {
     notificationsEnabled: true,
     colorTheme: 'default',
@@ -164,7 +167,7 @@ function syncConfigDefaults(): void {
 }
 
 /**
- * Load config defaults from ~/.craft-agent/config-defaults.json
+ * Load config defaults from ~/.workagent/config-defaults.json
  * This file is synced from bundled assets on every launch.
  */
 export function loadConfigDefaults(): ConfigDefaults {
@@ -252,7 +255,7 @@ export function ensureConfigDir(): void {
   // Snapshot an existing config.json (dated, keep last 3) before anything can
   // mutate or — in a failure path — overwrite the workspace registry.
   backupConfigFile();
-  // Initialize bundled docs (creates ~/.craft-agent/docs/ with sources.md, agents.md, permissions.md)
+  // Initialize bundled docs (creates ~/.workagent/docs/ with sources.md, agents.md, permissions.md)
   initializeDocs();
 
   // Initialize config defaults
@@ -1244,7 +1247,7 @@ const APP_THEME_FILE = join(CONFIG_DIR, 'theme.json');
 const APP_THEMES_DIR = join(CONFIG_DIR, 'themes');
 
 /**
- * Get the path to the app-level theme override file (~/.craft-agent/theme.json).
+ * Get the path to the app-level theme override file (~/.workagent/theme.json).
  */
 export function getAppThemePath(): string {
   return APP_THEME_FILE;
@@ -1255,7 +1258,7 @@ let presetsInitialized = false;
 
 /**
  * Get the app-level themes directory.
- * Preset themes are stored at ~/.craft-agent/themes/
+ * Preset themes are stored at ~/.workagent/themes/
  */
 export function getAppThemesDir(): string {
   return APP_THEMES_DIR;
@@ -1554,6 +1557,27 @@ export function setDismissedUpdateVersion(version: string): void {
   const config = loadStoredConfig();
   if (!config) return;
   config.dismissedUpdateVersion = version;
+  saveConfig(config);
+}
+
+/**
+ * Get the persisted CVTE portal identity (account/email), captured during portal
+ * SSO and reused as the skills.gz.cvte.cn marketplace auth headers.
+ */
+export function getCvteIdentity(): { account: string; email?: string } | undefined {
+  return loadStoredConfig()?.cvteIdentity;
+}
+
+/**
+ * Persist the CVTE portal identity. `account` is the only required header value;
+ * `email` is stored only when present. account/email are non-secret.
+ */
+export function setCvteIdentity(identity: { account: string; email?: string }): void {
+  const config = loadStoredConfig();
+  if (!config) return;
+  config.cvteIdentity = identity.email
+    ? { account: identity.account, email: identity.email }
+    : { account: identity.account };
   saveConfig(config);
 }
 
@@ -2083,12 +2107,137 @@ function migrateWorkspaceLegacyOpusToDefaultOpus(config: StoredConfig): void {
  *
  * Also normalizes Pi+Bedrock connections that already have correct providerType.
  */
+/**
+ * CVTE gateway invariant (D8), enforced on every launch — NOT a one-shot.
+ *
+ * Coerces every connection pointing at the enterprise gateway host into one of
+ * its two legal shapes (Anthropic-Messages @ token.cvte.com, or OpenAI-compat @
+ * token.cvte.com/v1). Self-heals connections that got mangled by the edit form
+ * before the handler invariant existed: `pi` downgrades, leaked Pi GPT catalogs,
+ * and bare-host OpenAI URLs (which silently break chat). The actual per-shape
+ * logic lives in {@link enforceCvteGatewayShape} so the launch normalizer and
+ * the SETUP handler share one canonical implementation and can never drift.
+ */
+function normalizeCvteGatewayRoute(config: StoredConfig): boolean {
+  if (!config.llmConnections?.length) return false;
+  let changed = false;
+  for (const connection of config.llmConnections) {
+    if (enforceCvteGatewayShape(connection)) changed = true;
+  }
+  return changed;
+}
+
+/**
+ * CVTE one-shot migration (marker: cvte-gateway-models-1).
+ *
+ * Connections pointing at the enterprise gateway host adopt the enterprise
+ * model catalog (static seed) plus auto-sync mode, so legacy claude-* model
+ * lists carried over from old configs are replaced by gateway models and the
+ * live /v1/models refresh keeps them aligned. Marked in migrationsApplied so
+ * later user customizations are never clobbered on subsequent launches.
+ */
+function migrateCvteGatewayModels(config: StoredConfig): boolean {
+  // v2: re-runs once over v1 to upgrade plain model-id strings to full
+  // ModelDefinition objects (descriptions, supportsImages, context windows).
+  const MARKER = 'cvte-gateway-models-2';
+  if (config.migrationsApplied?.includes(MARKER)) return false;
+  // Best-effort enrichment: if config-defaults.json hasn't been synced yet
+  // (tests, or any pre-ensureConfigDir state), skip rather than throw and abort
+  // the whole legacy-config migration. Mirrors proxy-env.ts's guarded load.
+  let defaults: ReturnType<typeof loadConfigDefaults> | null = null;
+  try {
+    defaults = loadConfigDefaults();
+  } catch {
+    return false;
+  }
+  const ent = defaults.enterprise?.defaultLlmConnection;
+  if (!ent?.baseUrl || !config.llmConnections?.length) return false;
+
+  const hostOf = (url?: string): string | null => {
+    try { return url ? new URL(url).host : null; } catch { return null; }
+  };
+  const entHost = hostOf(ent.baseUrl);
+  if (!entHost) return false;
+
+  let changed = false;
+  for (const connection of config.llmConnections) {
+    if (hostOf(connection.baseUrl) !== entHost) continue;
+    if (ent.models?.length) connection.models = [...ent.models];
+    connection.defaultModel = ent.defaultModel;
+    connection.modelSelectionMode = 'automaticallySyncedFromProvider';
+    changed = true;
+  }
+  if (changed) {
+    config.migrationsApplied = [...(config.migrationsApplied ?? []), MARKER];
+  }
+  return changed;
+}
+
+/**
+ * CVTE D8 one-shot: pull any enterprise-gateway connection back to the default
+ * Anthropic-Messages (Claude Agent SDK) shape.
+ *
+ * enforceCvteGatewayShape only un-flips a gateway connection when its
+ * customEndpoint is NOT 'openai-completions' — so a connection left as
+ * openai-completions by an older build (or a one-off OpenAI selection) stays
+ * pi_compat forever, mislabeled "Work Agents Backend (Anthropic)" but actually
+ * OpenAI. Correct such stale connections once. Marker-guarded so a deliberate
+ * later OpenAI choice is never re-clobbered (the marker is set on first run
+ * regardless of whether anything was fixed).
+ */
+function migrateCvteGatewayToAnthropic(config: StoredConfig): boolean {
+  const MARKER = 'cvte-gateway-anthropic-default-1';
+  if (config.migrationsApplied?.includes(MARKER)) return false;
+  if (!config.llmConnections?.length) return false;
+  let defaults: ReturnType<typeof loadConfigDefaults> | null = null;
+  try {
+    defaults = loadConfigDefaults();
+  } catch {
+    return false; // config-defaults not synced yet — retry next launch (no marker)
+  }
+  const ent = defaults.enterprise?.defaultLlmConnection;
+  if (!ent?.baseUrl) return false;
+  const hostOf = (url?: string): string | null => {
+    try { return url ? new URL(url).host : null; } catch { return null; }
+  };
+  const entHost = hostOf(ent.baseUrl);
+  if (!entHost) return false;
+
+  for (const connection of config.llmConnections) {
+    if (hostOf(connection.baseUrl) !== entHost) continue;
+    if (connection.customEndpoint || connection.piAuthProvider || connection.providerType !== 'anthropic') {
+      delete connection.customEndpoint;
+      delete connection.piAuthProvider;
+      connection.providerType = 'anthropic';
+      connection.authType = 'api_key';
+      connection.baseUrl = ent.baseUrl;
+      if (ent.name) connection.name = ent.name; // repair "(Anthropic)" mislabel
+    }
+  }
+  // Set the marker on first run regardless, so a future deliberate OpenAI choice
+  // is not reset on the next launch. Always save it.
+  config.migrationsApplied = [...(config.migrationsApplied ?? []), MARKER];
+  return true;
+}
+
 function migrateLegacyProviderTypes(config: StoredConfig): boolean {
   if (!config.llmConnections) return false;
 
   let changed = false;
 
   for (const connection of config.llmConnections) {
+    // CVTE: rewrite the legacy test-gateway endpoint to the official one.
+    // Applies to every providerType, including already-migrated connections.
+    // The marker lets ensureEnterpriseDefaultConnection() swap the now-stale
+    // test-environment key for the fallback key exactly once.
+    if (connection.baseUrl?.includes('navimaxx-cc.test.seewo.com')) {
+      connection.baseUrl = 'https://token.cvte.com';
+      if (!config.migrationsApplied?.includes('cvte-gateway-endpoint-rewritten-1')) {
+        config.migrationsApplied = [...(config.migrationsApplied ?? []), 'cvte-gateway-endpoint-rewritten-1'];
+      }
+      changed = true;
+    }
+
     // Cast to string for legacy values removed from LlmProviderType
     const providerStr = connection.providerType as string;
 
@@ -2122,11 +2271,16 @@ function migrateLegacyProviderTypes(config: StoredConfig): boolean {
       continue;
     }
 
-    // --- anthropic_compat → pi_compat + customEndpoint ---
+    // --- anthropic_compat → anthropic (CVTE D8: gateway stays on the Claude Agent SDK) ---
+    // Upstream maps this to pi_compat + anthropic-messages; CVTE keeps the Claude SDK
+    // route since the gateway serves the full Anthropic Messages protocol.
     if (providerStr === 'anthropic_compat') {
-      (connection as { providerType: LlmProviderType }).providerType = 'pi_compat';
-      connection.customEndpoint = { api: 'anthropic-messages' };
-      // authType 'api_key_with_endpoint' stays; baseUrl and models are preserved
+      (connection as { providerType: LlmProviderType }).providerType = 'anthropic';
+      connection.authType = 'api_key';
+      // baseUrl, models, and the slug-keyed stored API key are preserved.
+      // Drop legacy CVTE fields removed from the new LlmConnection shape.
+      delete (connection as unknown as Record<string, unknown>)['capabilities'];
+      delete (connection as unknown as Record<string, unknown>)['codexPath'];
       changed = true;
       continue;
     }
@@ -2347,6 +2501,23 @@ export function migrateLegacyLlmConnectionsConfig(): void {
     // Important for old Bedrock connections: they become Pi+Bedrock first, then can
     // fall back from Opus 4.8 to 4.7 while Pi's catalog lacks 4.8.
     if (migrateLegacyOpusToDefaultOpus(config)) {
+      needsSave = true;
+    }
+    // Phase 1m (CVTE): one-shot — connections pointing at the enterprise gateway
+    // adopt the enterprise model catalog and auto-sync mode, so the live
+    // /v1/models list keeps them aligned afterwards.
+    if (migrateCvteGatewayModels(config)) {
+      needsSave = true;
+    }
+    // Phase 1m2 (CVTE): one-shot — reset stale openai-completions gateway
+    // connections (which enforceCvteGatewayShape never un-flips) back to the
+    // Anthropic-Messages default. Must run before normalizeCvteGatewayRoute.
+    if (migrateCvteGatewayToAnthropic(config)) {
+      needsSave = true;
+    }
+    // Phase 1n (CVTE): every-launch invariant — gateway connections stay on the
+    // Claude Agent SDK route (repairs pi_compat flips, D8).
+    if (normalizeCvteGatewayRoute(config)) {
       needsSave = true;
     }
 
@@ -2751,6 +2922,25 @@ export function updateLlmConnection(slug: string, updates: Partial<Omit<LlmConne
 }
 
 /**
+ * Full-replace an LLM connection by slug, persisting the object exactly as given.
+ *
+ * Unlike {@link updateLlmConnection} (whose allowlist preserves the existing
+ * value for any field passed as `undefined`), this CLEARS fields the new object
+ * omits — required when repairing a connection's *shape*, e.g. dropping
+ * `customEndpoint` / `piAuthProvider` on the CVTE gateway OpenAI→Anthropic
+ * transition. Returns true if replaced, false if the slug was not found.
+ */
+export function replaceLlmConnection(connection: LlmConnection): boolean {
+  const config = loadStoredConfig();
+  if (!config?.llmConnections?.length) return false;
+  const index = config.llmConnections.findIndex(c => c.slug === connection.slug);
+  if (index === -1) return false;
+  config.llmConnections[index] = { ...connection };
+  saveConfig(config);
+  return true;
+}
+
+/**
  * Delete an LLM connection.
  * @param slug - Connection slug to delete
  * @returns true if deleted, false if not found
@@ -2968,7 +3158,7 @@ import { copyFileSync } from 'fs';
 const TOOL_ICONS_DIR_NAME = 'tool-icons';
 
 /**
- * Returns the path to the tool-icons directory: ~/.craft-agent/tool-icons/
+ * Returns the path to the tool-icons directory: ~/.workagent/tool-icons/
  */
 export function getToolIconsDir(): string {
   return join(CONFIG_DIR, TOOL_ICONS_DIR_NAME);

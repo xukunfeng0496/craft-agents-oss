@@ -1,6 +1,16 @@
-appId: com.lukilabs.craft-agent
-productName: Craft Agents
-copyright: Copyright © 2026 Craft Docs Ltd.
+appId: com.workagent.app
+productName: Work Agents
+copyright: Copyright © 2026 CVTE
+
+# Register the workagents:// deep-link scheme at the OS level (macOS Info.plist
+# CFBundleURLTypes + Windows registry). Without this, app.setAsDefaultProtocolClient()
+# is a no-op for a packaged macOS app, so the SSO callback page's deep-link
+# (workagents://settings/ai) can't focus the app and the user is stranded on the
+# browser tab. DEEPLINK_SCHEME defaults to 'workagents' (main/index.ts).
+protocols:
+  - name: Work Agents
+    schemes:
+      - workagents
 
 electronVersion: "39.2.7"
 
@@ -74,9 +84,12 @@ extraMetadata:
   main: dist/main.cjs
 
 # Auto-update: electron-updater fetches from this URL for update manifests (.yml files)
+# CVTE: fallback MUST point at the CVTE fast-update-server, never the upstream
+# craft.do feed — a build with un-baked AUTO_UPDATE_* env vars would otherwise
+# silently offer upstream vanilla releases to CVTE users.
 publish:
   provider: generic
-  url: https://agents.craft.do/electron/latest
+  url: http://rxpc.gz.cvte.cn/fast-update-server/api/v1/work-agents/download/stable
 
 # Disable ASAR to avoid decompression overhead and click delays
 asar: false
@@ -126,21 +139,22 @@ mac:
     - "!**/resources/bin/win32-*/**"
     - "!**/resources/bin/linux-*/**"
   # Use predictable naming for macOS packages (applies to zip; dmg uses its own config below)
-  artifactName: "Craft-Agents-${arch}.${ext}"
+  # Match v0.7.1 convention: Work-Agent-<version>-osx-<arch>.<ext>
+  artifactName: "Work-Agent-${version}-osx-${arch}.${ext}"
   # Code signing & notarization (disabled by default for local builds)
   # To enable: set CSC_LINK, APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD, APPLE_TEAM_ID
   # notarize:
   #   teamId: ${APPLE_TEAM_ID}
 
 dmg:
-  # Use predictable naming: Craft-Agents-arm64.dmg, Craft-Agents-x64.dmg
-  artifactName: "Craft-Agents-${arch}.dmg"
+  # Use predictable naming: Work-Agent-<version>-osx-<arch>.dmg
+  artifactName: "Work-Agent-${version}-osx-${arch}.dmg"
   # Custom background (multi-resolution TIFF with 1x+2x for retina support)
   background: resources/dmg-background.tiff
   # Use app icon as the mounted volume icon in Finder
   icon: resources/icon.icns
   iconSize: 80
-  title: "Craft Agents"
+  title: "Work Agents"
   contents:
     - x: 130
       y: 200
@@ -158,8 +172,8 @@ win:
     - target: nsis
       arch:
         - x64
-  # Use predictable naming: Craft-Agents-x64.exe
-  artifactName: "Craft-Agents-${arch}.${ext}"
+  # Use predictable naming: Work-Agent-<version>-windows-x64.exe
+  artifactName: "Work-Agent-${version}-windows-${arch}.${ext}"
   files:
     # Exclude binaries for other platforms
     - "!**/resources/bin/darwin-*/**"
@@ -183,6 +197,11 @@ win:
       to: vendor/bun/bun.exe
     - from: resources/bin/win32-x64
       to: app/resources/bin/win32-x64
+    # Bundled Windows toolchain (MinGit 2.44.0 + embedded Python 3.12.8), downloaded
+    # by the `tools:download` CI step into resources/tools/{mingit,python}. The agent's
+    # native SDK resolves git/bash/python from here (PATH injection wired in P2).
+    - from: resources/tools
+      to: app/resources/tools
     # WhatsApp worker subprocess (self-contained; Baileys bundled in).
     - from: ../../packages/messaging-whatsapp-worker/dist/worker.cjs
       to: messaging-whatsapp-worker/worker.cjs
@@ -202,7 +221,7 @@ linux:
     - target: AppImage
       arch:
         - x64
-  artifactName: "Craft-Agents-${arch}.${ext}"
+  artifactName: "Work-Agent-${version}-linux-${arch}.${ext}"
   extraResources:
     - from: node_modules/@anthropic-ai/claude-agent-sdk
       to: app/node_modules/@anthropic-ai/claude-agent-sdk

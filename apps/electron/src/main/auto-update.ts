@@ -344,12 +344,14 @@ autoUpdater.autoInstallOnAppQuit = true
 autoUpdater.forceDevUpdateConfig = DEV_AUTO_UPDATE_ENABLED
 
 // Use the logger for electron-updater internal logging.
-// CVTE: info/warn/error go to the always-on autoUpdateLog rather than mainLog —
+// CVTE: info/warn/error go to the dedicated autoUpdateLog rather than mainLog —
 // electron-updater's own chatter (feed resolution, HTTP status, signature
 // verification) is where intranet OTA failures actually surface (proxy 502,
-// Squirrel code-sign fallback), and mainLog is silenced in packaged builds.
-// `debug` stays on mainLog: it fires on every check and autoUpdateLog has no
-// debug level, so promoting it would flood the rotating file.
+// Squirrel code-sign fallback), and the OTA file is the one we ask users to
+// send us. `debug` stays on mainLog: it fires on every check and autoUpdateLog
+// has no debug level, so promoting it would flood the rotating OTA file.
+// (mainLog's production file transport is enabled at `info` — see logger.ts —
+// so this is demoted, not discarded.)
 autoUpdater.logger = {
   info: (msg: unknown) => autoUpdateLog.info('[electron-updater]', msg),
   warn: (msg: unknown) => autoUpdateLog.warn('[electron-updater]', msg),

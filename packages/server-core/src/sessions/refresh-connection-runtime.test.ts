@@ -15,7 +15,7 @@ import type { ModelDefinition } from '../../../shared/src/config/models.ts'
 
 // `resolveBackendContext` (via `resolveSessionConnection`) falls through to
 // `getDefaultLlmConnection()`/`getLlmConnection()`, which read the real
-// ~/.craft-agent/config.json. Left alone, this suite's outcome depends on
+// ~/.workagent/config.json. Left alone, this suite's outcome depends on
 // whatever happens to be on the developer's disk (e.g. it silently passed on
 // a machine with a seeded default connection and failed on one without).
 //

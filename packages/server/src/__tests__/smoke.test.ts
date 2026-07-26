@@ -20,7 +20,7 @@ const STARTUP_TIMEOUT = 15_000
 const TEST_TIMEOUT = 30_000
 
 // Isolate each spawned server in its own config dir. Without this, the
-// subprocess falls back to the developer's real ~/.craft-agent and can
+// subprocess falls back to the developer's real ~/.workagent and can
 // collide with the single-instance lock held by an actual running app.
 const testConfigDir = mkdtempSync(join(tmpdir(), 'craft-agent-smoke-'))
 

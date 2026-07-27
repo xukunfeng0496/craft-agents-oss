@@ -216,7 +216,7 @@ T3 协议加性冲突（`channels.ts`/`routing.ts`/`channel-map.ts`/`dto.ts` + r
 
 | 风险 | 等级 | 对策 |
 |---|---|---|
-| `SessionManager.ts` 上游 1021 行重构，CVTE 需重穿 4 个 hook 点 | 🔴 最高 | 单独 commit、单独验证、放在最后做；失败可单独回退不牵连其他层 |
+| ~~`SessionManager.ts` 上游 1021 行重构，CVTE 需重穿 4 个 hook 点~~ | ✅ 前提已证伪 | **「4 个 hook 点」（`refreshConnectionRuntime` / mid-stream 分支 / `reinitializeAuth` / 模型刷新）是错误前提**——`git diff v0.10.3 cvte/rebase-0.10.3-rc -- SessionManager.ts`（+77/-30）里这四个词一次都没出现，它们是 v0.10.3 基线自带的上游代码，CVTE 一行没改。真实定制面只有 3 项：`sharedEditToken`(9 行·D11 分享)、`resolveViewerUrl`(5 行·气隙守卫)、`latency_update`(2 行·延迟中继)，外加 import 与 2 处注释。已按此清单逐条合并并复核落地（`890bbce0`） |
 | CVTE-only 文件依赖了上游已变更的 API（未验证） | 🟡 | P1 typecheck 闸门是专门的暴露机制；耦合面已知最小的两个包已证伪 |
 | ~~SDK 0.3.197 的 result 消息形状变化，冲掉限额修复~~ | ✅ 已证伪 | **无回归**。`sdk.d.ts` 中 `SDKResultSuccess` / `SDKResultError` 仍同时声明 `subtype` / `is_error` / `api_error_status`；`event-adapter.ts:521` 的判据 `msg.subtype !== 'success' \|\| msg.is_error === true` 原样健在；43 条 event-adapter 单测全绿 |
 | **（新）`terminal_reason` 无人消费，5 类终止可能静默** | 🟡 后续 | SDK 0.3.197 新增 `terminal_reason`，仓库内零消费者。反编译原生 `claude` 二进制可见 `is_error` **只**由最后一条 assistant 消息的 `isApiErrorMessage` 推导，而 `terminal_reason` 独立赋值 —— 因此 `blocking_limit` / `rapid_refill_breaker` / `prompt_too_long` / `image_error` / `model_error` 这 5 类终止若不伴随 api-error assistant 消息，会以 `subtype:'success', is_error:false` 收尾被吞掉。**重基线内刻意不修**（属上游新行为、非 CVTE 回归，且本地无法复现触发条件），列为后续项 |

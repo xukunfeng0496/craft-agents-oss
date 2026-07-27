@@ -191,7 +191,7 @@ T3 协议加性冲突（`channels.ts`/`routing.ts`/`channel-map.ts`/`dto.ts` + r
 1. ✅ `bun run scripts/check-release-config.ts`（防测试门户/明文 key 漏发）— exit 0
 2. ✅ CDP 沙箱 e2e：**5/5 PASS**（`R-COLDSTART` / `R-PROVISION` / `R-RELEASE-NOTES` / `R-NO-FALLBACK` / `R-LIMIT-SILENCE`）
 3. ✅ **mock-429 对 SDK 0.3.197 复验限额契约**（见风险表）— 静态 + 单测 + **运行态**三重复验，无回归
-4. 🔒 推 `fork` → `gh workflow run build.yml` → 签名+公证 — **待用户授权**
+4. ⏳ 推 `fork` → `gh workflow run build.yml` → 签名+公证 — **已授权**（本地自测通过）
 5. 🔒 OTA **beta** 通道 → 真机验证 → 观察 → `stable` — **待用户授权**
 
 **闸门**：验证清单全勾 + 真机 beta 无回归报告。
@@ -212,6 +212,21 @@ T3 协议加性冲突（`channels.ts`/`routing.ts`/`channel-map.ts`/`dto.ts` + r
 - **`afterPack.cjs` 硬编码上游 bundle 名**（`Craft Agents.app`），CVTE 出的是 `Work Agents.app` → 每次拷贝 ENOENT，macOS 26 液态玻璃图标被静默丢弃。`git ls-tree` 比对确认该 blob 在 v0.10.3 / cvte-rc / v0.11.2 三处完全相同（`331187fb…`），属**既有缺陷而非重基线回归**。已改为从 `context.packager.appInfo.productFilename` 推导（commit `d5033075`）。
 - **仓库根的 `electron:dist:mac` / `electron:dist:dev:mac` 打出的 app 一启动就崩**：`@anthropic-ai/claude-agent-sdk` 在 esbuild 里是 `--external`，Bun 又把它提升到根 `node_modules`，extraResources 够不着；只有 `apps/electron` 的 `dist:mac`（走 `scripts/build-dmg.sh`）会把 SDK 落盘到 `apps/electron/node_modules/@anthropic-ai/`。崩溃表现为 Electron 默认 `showErrorBox` 原生 modal 阻塞主线程 → 全部用例 `CDP not ready within 30s`。`test/e2e/README.md` 的构建指令已更正并加警告。
 
+### P6 · 全量变更 review（✅ 已完成，4 commits `0b9548bd`…`4e87fa1f`）
+
+范围 `git diff v0.11.2..HEAD`（28 commits / 403 files / +15947 −3366），8 个独立角度并行找候选 → 去重 → 逐条独立复核（CONFIRMED / PLAUSIBLE / REFUTED）。42 个候选中 **5 CONFIRMED + 2 PLAUSIBLE** 存活，已全部修复并各配单测（5084 → 5098 pass / 0 fail，typecheck 全绿）。
+
+| 缺陷 | 定性 | 修复 |
+|---|---|---|
+| `enterprise-defaults.ts:resolveViewerUrl` 读配置失败时 catch 回落公网 `agents.craft.do` | 🔴 D11 气隙 fail-open。`loadConfigDefaults()` 在文件缺失 / JSON 损坏 / 结构非法三种情况都抛；bundled assets 缺失时还会写入无 `enterprise` 块的 `FALLBACK_CONFIG_DEFAULTS`，读取成功但同样判成"非企业版" | 模块级 `sawEnterprise` 闩：本进程成功读到过 enterprise 块之后，任何读失败或丢失 enterprise 块一律返回 `null` 关闭分享 |
+| `marketplace.ts:INSTALL_SKILL` 未校验 `skillName` / `file.path` 就 `join()` + 写盘 | 🔴 目录穿越。`join()` 不拦 `..` 也不拦绝对路径，注册中心返回 `../../.craft-agent/config.json` 即可覆写工作区外任意文件 | `assertSafeSkillPath`：拒空 / `..` / `isAbsolute`（含 Windows 盘符与 UNC），`resolve` 后再断言仍在目标目录内，写入前抛错 |
+| `cvte-gateway-invariant.ts` 目录校验用"严格子集"判据 | 🔴 每次启动 clobber。网关 `/v1/models` 新增模型后，用户或 provider 刷新拿到的新模型每次启动都被打回种子清单，`modelSelectionMode` 一并拍回 | 改为漂移判据：目录为空或与种子零交集才重建；否则只在 `defaultModel` 掉出目录时修指针。**已知取舍**：种子 id 与外来 id 混杂的"半脏"目录现在判为健康，不再清理 |
+| `storage.ts:migrateLegacyProviderTypes` 无条件把 `anthropic_compat` 改写成 `anthropic` | 🔴 迁移过宽。用户自建的第三方 Anthropic 兼容中继一并被改，丢失 `customEndpoint`、每模型 capability 覆写与 `api_key_with_endpoint` 认证形态 | 按 `baseUrl` host 门控：只有企业网关走 D8 的 Claude SDK 路线，其余 host 完全恢复上游 v0.11.2 行为 |
+| `SessionManager.deleteSession` 的分享撤销 DELETE 漏带 `x-edit-token` | 🔴 服务端配 `SHARE_WRITE_SECRET` 后该请求被 403 拒绝，会话删了分享页仍可访问（另两处写操作本来就带） | 补上 header |
+| `auto-update.ts:cleanupOldUpdateCache` 用 `版本 !== 当前版本` 判定陈旧 | 🟡 会删掉已下载完等 `quitAndInstall` 的**更新版本**。正常路径只是白下一遍；配 `autoInstallOnAppQuit` 则退出时无包可装 | 只删版本号 `<=` 当前版本，且跳过 `update-info.json` 记录的待安装版本 |
+
+**记录但本轮不修**（下一轮重基线的输入）：定制面深度不足（多处特例叠在共享基础设施上，应下沉泛化）、双事实源（`scripts/build/common.ts:getArtifactName` 已成孤儿死代码，真实构建走 `build-dmg.sh` / `build-win.ps1`）、5 处重复的同名 helper、共享错误表被污染、启动期与热路径上的冗余 I/O。
+
 ## 风险与对策（对抗性）
 
 | 风险 | 等级 | 对策 |
@@ -221,8 +236,11 @@ T3 协议加性冲突（`channels.ts`/`routing.ts`/`channel-map.ts`/`dto.ts` + r
 | ~~SDK 0.3.197 的 result 消息形状变化，冲掉限额修复~~ | ✅ 已证伪 | **无回归**。`sdk.d.ts` 中 `SDKResultSuccess` / `SDKResultError` 仍同时声明 `subtype` / `is_error` / `api_error_status`；`event-adapter.ts:521` 的判据 `msg.subtype !== 'success' \|\| msg.is_error === true` 原样健在；43 条 event-adapter 单测全绿 |
 | **（新）`terminal_reason` 无人消费，5 类终止可能静默** | 🟡 后续 | SDK 0.3.197 新增 `terminal_reason`，仓库内零消费者。反编译原生 `claude` 二进制可见 `is_error` **只**由最后一条 assistant 消息的 `isApiErrorMessage` 推导，而 `terminal_reason` 独立赋值 —— 因此 `blocking_limit` / `rapid_refill_breaker` / `prompt_too_long` / `image_error` / `model_error` 这 5 类终止若不伴随 api-error assistant 消息，会以 `subtype:'success', is_error:false` 收尾被吞掉。**重基线内刻意不修**（属上游新行为、非 CVTE 回归，且本地无法复现触发条件），列为后续项 |
 | **（新）非重试类 API 错误丢失服务端 message，显示为 `Unknown Error`** | 🟡 后续 | 运行态观测（`/tmp/p5/repro-B.ts`：HTTP 400 + `{error:{type:'invalid_request_error',message:'已超出本月用量限额…'}}`）：UI 几秒内出错误卡——**不静默**，但文案是 `Unknown Error: An unexpected error occurred.`，服务端给的 message 一个字都没透出来。与限额(429)路径显示 `Rate Limit Exceeded` 形成对照，说明只有被识别的错误类型有专属文案。**是否为 v0.11.2 引入尚未验证**（v0.10.318 上同样有 `Unknown Error` 报障记录，倾向既有问题）。重基线内不修，列为后续项 |
-| Projects/Kanban 仍是 beta，规格可能再变 | 🟢 | 不主动集成 beta 特性到 CVTE 界面，仅承接代码 || 重基线失败需回滚 | 🟢 | rc 分支与线上 `0.10.318` 均不动；OTA 可停留 stable 不推 beta |
-| **11 个 `cvte/main` docs commit 从未推送，仅存本机磁盘** | 🔴 | **非技术风险但后果最重**——含重基线知识库/SSO 契约/D10–D11 决策唯一事实源。需用户授权后尽快推送备份 |
+| Projects/Kanban 仍是 beta，规格可能再变 | 🟢 | 不主动集成 beta 特性到 CVTE 界面，仅承接代码 |
+| 重基线失败需回滚 | 🟢 | rc 分支与线上 `0.10.318` 均不动；OTA 可停留 stable 不推 beta |
+| **（新）OTA 更新源走 http + Windows 包未签名** | 🟡 既有 | review 发现，**非本轮引入**：rxpc 更新源是明文 http，Windows 构建无代码签名 → 内网中间人可替换安装包且无签名兜底。macOS 侧不受影响（CI 做 Developer-ID 签名 + 公证）。属基础设施问题，需单独立项（rxpc 上 HTTPS + Windows 证书采购），不在重基线范围内 |
+| **（新）3 处 OAuth 仍从 preload 调 `shell.openExternal`** | 🟡 既有 | Claude / ChatGPT / source 三条 OAuth 流程（`preload/bootstrap.ts:296/343/379`）带 Windows user-activation 门控的潜在卡死。CVTE 门户 SSO 已走主进程正确实现（`:449` 有 `openedExternally` 守卫）。已记入 CLAUDE.md，待单独修 |
+| **11 个 `cvte/main` docs commit 从未推送，仅存本机磁盘** | 🔴 | **非技术风险但后果最重**——含重基线知识库/SSO 契约/D10–D11 决策唯一事实源。用户已选择"只推 rc 分支"，`cvte/main` 的 docs 仍仅存本机，风险未消除 |
 
 ## 工作量
 

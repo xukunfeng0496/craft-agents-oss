@@ -1,4 +1,4 @@
-import { join, dirname } from 'path'
+import { dirname, resolve, sep, isAbsolute } from 'path'
 import { existsSync, mkdirSync, writeFileSync } from 'fs'
 import { RPC_CHANNELS } from '@craft-agent/shared/protocol'
 import { getWorkspaceByNameOrId, getCvteIdentity } from '@craft-agent/shared/config'
@@ -23,6 +23,28 @@ function buildClient(MarketplaceClient: typeof MarketplaceClientType): Marketpla
   return new MarketplaceClient({ account: identity?.account, email: identity?.email })
 }
 
+/**
+ * Defense-in-depth: the registry server (skills.gz.cvte.cn) is internal/trusted,
+ * but skillName and file.path in its response are still attacker-controllable
+ * data crossing a filesystem write boundary. Reject anything that isn't a plain
+ * relative path segment, and re-verify after resolving that the final path
+ * stays inside skillDir — join() alone does not stop '..' traversal or absolute
+ * paths from escaping the intended directory.
+ */
+function assertSafeSkillPath(skillDir: string, relativePath: string, source: string): string {
+  if (!relativePath || relativePath.includes('..') || isAbsolute(relativePath)) {
+    throw new Error(`Marketplace registry returned an invalid path (${source}): ${relativePath}`)
+  }
+
+  const resolvedDir = resolve(skillDir)
+  const resolvedPath = resolve(skillDir, relativePath)
+  if (resolvedPath !== resolvedDir && !resolvedPath.startsWith(resolvedDir + sep)) {
+    throw new Error(`Marketplace registry returned a path escaping the skill directory (${source}): ${relativePath}`)
+  }
+
+  return resolvedPath
+}
+
 export function registerMarketplaceHandlers(server: RpcServer, deps: HandlerDeps): void {
   // Fetch the marketplace registry from the remote registry server (open browse).
   server.handle(RPC_CHANNELS.marketplace.GET_REGISTRY, async () => {
@@ -40,14 +62,14 @@ export function registerMarketplaceHandlers(server: RpcServer, deps: HandlerDeps
 
     const files = await buildClient(MarketplaceClient).getSkillFiles(skillName)
     const skillsDir = getWorkspaceSkillsPath(workspace.rootPath)
-    const skillDir = join(skillsDir, skillName)
+    const skillDir = assertSafeSkillPath(skillsDir, skillName, 'skillName')
 
     if (!existsSync(skillDir)) {
       mkdirSync(skillDir, { recursive: true })
     }
 
     for (const file of files) {
-      const filePath = join(skillDir, file.path)
+      const filePath = assertSafeSkillPath(skillDir, file.path, 'file.path')
       const dir = dirname(filePath)
       if (!existsSync(dir)) mkdirSync(dir, { recursive: true })
       writeFileSync(filePath, file.content, 'utf-8')

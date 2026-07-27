@@ -100,4 +100,38 @@ describe('enforceCvteGatewayShape', () => {
     expect(enforceCvteGatewayShape(c, ID)).toBe(false);
     expect(ids(c)).toEqual(['CVTE-AUTO', 'deepseek-v4-flash']);
   });
+
+  it('preserves a live-expanded catalog (seed + new gateway model) and its selected default', () => {
+    // /v1/models refresh can legitimately grow the catalog with a newly-added
+    // gateway model — the guard must not treat growth as drift.
+    const c = conn({
+      providerType: 'anthropic', baseUrl: 'https://token.cvte.com',
+      models: [...ID.models, 'kimi-k3'], defaultModel: 'kimi-k3',
+    });
+    expect(enforceCvteGatewayShape(c, ID)).toBe(false);
+    expect(ids(c)).toEqual([...(ID.models as string[]), 'kimi-k3']);
+    expect(c.defaultModel).toBe('kimi-k3');
+  });
+
+  it('fully disjoint catalog (another provider leaked in) → reset to seed', () => {
+    const c = conn({
+      providerType: 'anthropic', baseUrl: 'https://token.cvte.com',
+      models: ['gpt-4o', 'o3'], defaultModel: 'gpt-4o',
+    });
+    expect(enforceCvteGatewayShape(c, ID)).toBe(true);
+    expect(ids(c).sort()).toEqual((ID.models as string[]).slice().sort());
+    expect(c.defaultModel).toBe('CVTE-AUTO');
+    expect(c.modelSelectionMode).toBe('automaticallySyncedFromProvider');
+  });
+
+  it('healthy catalog but stale defaultModel → repairs only the pointer', () => {
+    const c = conn({
+      providerType: 'anthropic', baseUrl: 'https://token.cvte.com',
+      models: [...ID.models], defaultModel: 'retired-model',
+    });
+    expect(enforceCvteGatewayShape(c, ID)).toBe(true);
+    expect(ids(c).sort()).toEqual((ID.models as string[]).slice().sort());
+    expect(c.defaultModel).toBe('CVTE-AUTO');
+    expect(c.modelSelectionMode).toBeUndefined();
+  });
 });

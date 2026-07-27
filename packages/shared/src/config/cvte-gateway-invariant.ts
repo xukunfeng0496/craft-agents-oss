@@ -88,19 +88,32 @@ export function enforceCvteGatewayShape(
     }
   }
 
-  // Catalog guard — conditional, not unconditional: only restore the seed when
-  // the stored models are NOT a subset of the CVTE catalog (i.e. the Pi GPT /
-  // Claude catalog leaked in). A healthy connection whose models already match
-  // (or are a live `/v1/models` refinement of) the catalog is left untouched,
-  // so the Anthropic-shape live refresh is never clobbered.
+  // Catalog guard — repairs drift, never clobbers a legitimate live expansion.
+  // This runs on every launch (not a one-time migration), and the gateway's
+  // `/v1/models` refresh (server-core model-fetchers) legitimately persists
+  // newly-added gateway models into `conn.models` — the Anthropic shape is not
+  // in the compat-provider skip list, so it gets refreshed like any other
+  // provider. A strict "is currentIds a subset of the catalog" check treated
+  // that legitimate growth as corruption and reset the whole catalog back to
+  // seed on every subsequent launch, silently discarding the user's
+  // `defaultModel` selection along with it. The actual failure mode this guard
+  // must catch is *drift*, not *growth*: the Pi GPT / Claude catalog (or any
+  // other provider's models) leaking wholesale into this connection. That only
+  // happens when the stored ids share nothing with the CVTE catalog — a
+  // superset (seed + new gateway models) is healthy and must be left alone.
   const catalogIds = new Set(id.models.map(modelId));
   const currentIds = (conn.models ?? []).map(modelId);
-  const catalogIsClean = currentIds.length > 0 && currentIds.every((m) => catalogIds.has(m));
-  if (!catalogIsClean) {
+  const catalogIsDrifted = currentIds.length === 0 || currentIds.every((m) => !catalogIds.has(m));
+  if (catalogIsDrifted) {
     conn.models = id.models.map((m) => (typeof m === 'string' ? m : { ...m }));
     conn.defaultModel = id.defaultModel;
     conn.modelSelectionMode = 'automaticallySyncedFromProvider';
     changed = true;
+  } else if (!currentIds.includes(conn.defaultModel ?? '')) {
+    // Catalog itself is healthy (subset, superset, or partial overlap), but the
+    // selected default fell out of it (e.g. the gateway retired that model) —
+    // repair only the pointer, don't touch the rest of the catalog.
+    set('defaultModel', id.defaultModel);
   }
 
   return changed;

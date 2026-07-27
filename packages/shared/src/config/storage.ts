@@ -25,6 +25,7 @@ import { parsePermissionMode, PERMISSION_MODE_ORDER } from '../agent/mode-types.
 import { type ConfigDefaults } from './config-defaults-schema.ts';
 import { isValidThemeFile } from './validators.ts';
 import { enforceCvteGatewayShape } from './cvte-gateway-invariant.ts';
+import { isEnterpriseGatewayHost } from './enterprise-defaults.ts';
 
 // Re-export CONFIG_DIR for convenience (centralized in paths.ts)
 export { CONFIG_DIR } from './paths.ts';
@@ -2102,8 +2103,13 @@ function migrateWorkspaceLegacyOpusToDefaultOpus(config: StoredConfig): void {
  *
  * 2. providerType==='vertex' → 'pi' with piAuthProvider='google-vertex'.
  *
- * 3. providerType==='anthropic_compat' → 'pi_compat' with customEndpoint.api='anthropic-messages'.
- *    Preserves baseUrl and models; authType 'api_key_with_endpoint' stays the same.
+ * 3. providerType==='anthropic_compat':
+ *    - baseUrl host is the CVTE enterprise gateway (D8) → 'anthropic' + api_key,
+ *      staying on the Claude Agent SDK route (gateway serves full Anthropic
+ *      Messages protocol; legacy CVTE-only fields dropped).
+ *    - any other host → upstream behavior: 'pi_compat' with
+ *      customEndpoint.api='anthropic-messages'. Preserves baseUrl and models;
+ *      authType 'api_key_with_endpoint' stays the same.
  *
  * Also normalizes Pi+Bedrock connections that already have correct providerType.
  */
@@ -2271,16 +2277,34 @@ function migrateLegacyProviderTypes(config: StoredConfig): boolean {
       continue;
     }
 
-    // --- anthropic_compat → anthropic (CVTE D8: gateway stays on the Claude Agent SDK) ---
-    // Upstream maps this to pi_compat + anthropic-messages; CVTE keeps the Claude SDK
-    // route since the gateway serves the full Anthropic Messages protocol.
+    // --- anthropic_compat: host-gated (CVTE D8) ---
+    // Only connections pointing at the enterprise gateway stay on the Claude
+    // Agent SDK route (gateway serves the full Anthropic Messages protocol).
+    // Any other anthropic_compat connection (e.g. a user's own third-party
+    // Anthropic-compatible relay) falls through to the upstream behavior —
+    // pi_compat + customEndpoint — so it doesn't silently lose customEndpoint,
+    // per-model capability overrides, and its api_key_with_endpoint auth shape.
     if (providerStr === 'anthropic_compat') {
-      (connection as { providerType: LlmProviderType }).providerType = 'anthropic';
-      connection.authType = 'api_key';
-      // baseUrl, models, and the slug-keyed stored API key are preserved.
-      // Drop legacy CVTE fields removed from the new LlmConnection shape.
-      delete (connection as unknown as Record<string, unknown>)['capabilities'];
-      delete (connection as unknown as Record<string, unknown>)['codexPath'];
+      let isGateway = false;
+      try {
+        isGateway = isEnterpriseGatewayHost(connection.baseUrl);
+      } catch {
+        // Fail-soft: treat as non-gateway on any migration-path error.
+        isGateway = false;
+      }
+      if (isGateway) {
+        (connection as { providerType: LlmProviderType }).providerType = 'anthropic';
+        connection.authType = 'api_key';
+        // baseUrl, models, and the slug-keyed stored API key are preserved.
+        // Drop legacy CVTE fields removed from the new LlmConnection shape.
+        delete (connection as unknown as Record<string, unknown>)['capabilities'];
+        delete (connection as unknown as Record<string, unknown>)['codexPath'];
+      } else {
+        // Upstream mapping: preserves baseUrl, models, capabilities; authType
+        // 'api_key_with_endpoint' stays the same.
+        (connection as { providerType: LlmProviderType }).providerType = 'pi_compat';
+        connection.customEndpoint = { api: 'anthropic-messages' };
+      }
       changed = true;
       continue;
     }

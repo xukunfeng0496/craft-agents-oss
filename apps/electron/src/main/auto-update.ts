@@ -207,8 +207,45 @@ function getUpdateCacheDir(): string {
 }
 
 /**
+ * Compare two dotted version strings (e.g. "0.11.2" vs "0.11.10").
+ * Returns negative if a < b, positive if a > b, 0 if equal. Minimal semver
+ * comparator for numeric major.minor.patch — sufficient for the cache
+ * cleanup use case below (no pre-release/build-metadata handling needed
+ * since fast-update-server versions are plain numeric triples).
+ */
+function compareVersions(a: string, b: string): number {
+  const pa = a.split('.').map(Number)
+  const pb = b.split('.').map(Number)
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    const diff = (pa[i] ?? 0) - (pb[i] ?? 0)
+    if (diff !== 0) return diff
+  }
+  return 0
+}
+
+/**
+ * Read the version electron-updater currently has staged for install (from
+ * update-info.json), so cleanup never deletes a downloaded-but-not-yet-installed
+ * update — even if the app has been running for >1 day since the download
+ * completed (see cleanupOldUpdateCache).
+ */
+function getPendingInstallVersion(cacheDir: string): string | undefined {
+  try {
+    const infoPath = path.join(cacheDir, 'update-info.json')
+    if (!fs.existsSync(infoPath)) return undefined
+    const info = readJsonFileSync(infoPath) as Record<string, unknown> | null
+    return typeof info?.version === 'string' ? info.version : undefined
+  } catch {
+    return undefined
+  }
+}
+
+/**
  * Clean up old cached update files to free disk space.
- * Removes installer files from versions older than the current app version.
+ * Removes installer files from versions not newer than the current app version.
+ * Never removes the version electron-updater has staged for install
+ * (update-info.json), even if it predates the running version's mtime window —
+ * that file is a completed download waiting for quitAndInstall, not stale cache.
  * Safe to call on app launch - runs asynchronously without blocking.
  */
 export function cleanupOldUpdateCache(): void {
@@ -221,6 +258,7 @@ export function cleanupOldUpdateCache(): void {
       }
 
       const currentVersion = app.getVersion()
+      const pendingVersion = getPendingInstallVersion(cacheDir)
       const files = fs.readdirSync(cacheDir)
       let cleanedCount = 0
       let cleanedBytes = 0
@@ -231,9 +269,16 @@ export function cleanupOldUpdateCache(): void {
           continue
         }
 
-        // Check if file is from an older version (filename contains version number)
+        // Check if file is from a version that is not newer than the current
+        // app version (filename contains version number). A strict != check
+        // would delete a downloaded-but-not-yet-installed newer version too —
+        // only remove versions we're confident are stale.
         const versionMatch = file.match(/(\d+\.\d+\.\d+)/)
-        if (versionMatch && versionMatch[1] !== currentVersion) {
+        if (
+          versionMatch &&
+          versionMatch[1] !== pendingVersion &&
+          compareVersions(versionMatch[1], currentVersion) <= 0
+        ) {
           const filePath = path.join(cacheDir, file)
           try {
             const stats = fs.statSync(filePath)

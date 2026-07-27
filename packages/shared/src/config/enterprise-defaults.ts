@@ -23,8 +23,17 @@ import type { LlmConnection } from './llm-connections.ts';
 import type { ModelDefinition } from './models.ts';
 import { VIEWER_URL } from '../branding.ts';
 
+// D11 air-gap latch: once this process has successfully loaded a
+// config-defaults.json carrying an `enterprise` block, we know for certain
+// this is an enterprise build. From then on, any later failure to (re)load
+// config-defaults (missing file, corrupt JSON, malformed shape) must NOT be
+// treated as "non-enterprise build" — see resolveViewerUrl() below.
+let sawEnterprise = false;
+
 export function getEnterpriseDefaults(): EnterpriseDefaults | undefined {
-  return loadConfigDefaults().enterprise;
+  const enterprise = loadConfigDefaults().enterprise;
+  if (enterprise) sawEnterprise = true;
+  return enterprise;
 }
 
 /** Canonical identity of the CVTE enterprise gateway, or null on non-enterprise builds. */
@@ -96,15 +105,28 @@ export function isEnterpriseGatewayHost(url: string | undefined): boolean {
  *
  * Best-effort: never throws (config-defaults may be unread very early in
  * startup), though the share paths that call this always run post-startup.
+ *
+ * Fail-closed once enterprise is confirmed (D11): a failure to read
+ * config-defaults.json here (missing file, corrupt JSON, malformed shape), or a
+ * successful read that no longer carries the `enterprise` block (the bundled
+ * assets dir went missing, so `FALLBACK_CONFIG_DEFAULTS` was written instead),
+ * is indistinguishable, by itself, from "non-enterprise build". But
+ * `syncConfigDefaults` copies the bundled file into place during early
+ * startup (storage.ts), well before any share action can run, so an
+ * enterprise machine will always have hit a successful `getEnterpriseDefaults()`
+ * read (recorded via `sawEnterprise`) before we ever get here. If that
+ * happened, a *later* read failure must never be treated as "not enterprise"
+ * — that would fall back to the public VIEWER_URL and leak a whole session
+ * transcript off the air-gapped network. Disable sharing (`null`) instead.
  */
 export function resolveViewerUrl(): string | null {
   let enterprise: EnterpriseDefaults | undefined;
   try {
     enterprise = getEnterpriseDefaults();
   } catch {
-    return VIEWER_URL;
+    return sawEnterprise ? null : VIEWER_URL;
   }
-  if (!enterprise) return VIEWER_URL;
+  if (!enterprise) return sawEnterprise ? null : VIEWER_URL;
   const configured = enterprise.viewerUrl?.trim();
   if (configured) return configured.replace(/\/$/, '');
   // Enterprise build, no intranet viewer configured → sharing disabled.

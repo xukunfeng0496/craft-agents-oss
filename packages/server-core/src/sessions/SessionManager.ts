@@ -5700,7 +5700,11 @@ export class SessionManager implements ISessionManager {
         try {
           const response = await fetch(
             `${viewerUrl}/s/api/${managed.sharedId}`,
-            { method: 'DELETE', signal: AbortSignal.timeout(5000) }
+            {
+              method: 'DELETE',
+              headers: managed.sharedEditToken ? { 'x-edit-token': managed.sharedEditToken } : undefined,
+              signal: AbortSignal.timeout(5000),
+            }
           )
           if (!response.ok) {
             sessionLog.warn(`Failed to revoke share for ${sessionId}: HTTP ${response.status}`)
